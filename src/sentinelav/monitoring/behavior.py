@@ -1,0 +1,150 @@
+"""Explainable heuristics. Scores indicate suspicion, never proof of infection."""
+import hashlib
+import ipaddress
+import os
+import time
+import uuid
+from collections import OrderedDict
+from pathlib import Path
+
+
+def create_canary(folder):
+    path = Path(folder)/f'SentinelAV-canary-{uuid.uuid4().hex[:10]}.txt'
+    content = b'SentinelAV monitoring canary. Leave this harmless file unchanged.\r\n'
+    with path.open('xb') as stream:
+        stream.write(content)
+    return dict(path=str(path.resolve()), sha256=hashlib.sha256(content).hexdigest())
+
+
+class BehaviorEngine:
+    WINDOW = 60
+
+    def __init__(self, emit, canaries=(), networks=(), clock=time.monotonic):
+        self.emit, self.clock = emit, clock
+        self.canaries = list(canaries)
+        self.networks = [ipaddress.ip_network(n.strip(),strict=False) for n in networks if n.strip()]
+        self.entities = OrderedDict()
+        self.last_alert = OrderedDict()
+        self.file_activity = OrderedDict()
+        self.connections = OrderedDict()
+        self.canary_states = {}
+
+    def excluded(self, path, exclusions):
+        path = Path(path).resolve()
+        return any(path == p or p in path.parents for p in exclusions)
+
+    def indicator(self, entity, category, weight, reason, **metadata):
+        now = self.clock()
+        facts = self.entities.setdefault(entity,{})
+        self.entities.move_to_end(entity)
+        facts[category] = (now,weight,reason)
+        facts = {k:v for k,v in facts.items() if now-v[0] <= self.WINDOW}
+        self.entities[entity] = facts
+        while len(self.entities) > 2048:
+            self.entities.popitem(last=False)
+        score = min(100,sum(v[1] for v in facts.values()))
+        level = 'Alert' if score >= 70 and len(facts) >= 2 else 'Warning' if score >= 30 else None
+        if level is None:
+            return
+        key = (entity,level)
+        if now-self.last_alert.get(key,-1000) < 60:
+            return
+        self.last_alert[key] = now
+        if len(self.last_alert)>4096:
+            self.last_alert.popitem(last=False)
+        reasons = [v[2] for v in facts.values()]
+        self.emit(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'),kind='Behavioral risk',
+                       details=f'Score {score}/100: ' + '; '.join(reasons),source='Behavior',
+                       level=level,score=score,indicators=[dict(category=k,weight=v[1],reason=v[2]) for k,v in facts.items()],
+                       entity=entity, classification='Suspicious activity; review required', **metadata))
+
+    def file_event(self, kind, path, roots, exclusions):
+        path = Path(path).resolve()
+        if self.excluded(path,exclusions):
+            return
+        root = next((r for r in roots if path.is_relative_to(r)),None)
+        if root is None:
+            return
+        now = self.clock()
+        key = (str(root),kind,str(path))
+        self.file_activity[key] = now
+        self.file_activity.move_to_end(key)
+        while self.file_activity and (len(self.file_activity)>4096 or now-next(iter(self.file_activity.values()))>10):
+            self.file_activity.popitem(last=False)
+        entity = 'folder:' + str(root)
+        counts = {k:sum(1 for (r,t,p),stamp in self.file_activity.items() if r==str(root) and t==k and now-stamp<=10) for k in ['modified','moved']}
+        if counts['modified'] >= 30:
+            self.indicator(entity,'write_burst',30,f"{counts['modified']} distinct files changed within 10 seconds",path=str(root))
+        if counts['moved'] >= 15:
+            self.indicator(entity,'rename_burst',40,f"{counts['moved']} distinct rename destinations within 10 seconds",path=str(root))
+
+    def check_canaries(self, roots, exclusions):
+        for entry in self.canaries:
+            path = Path(entry['path']).absolute()
+            root = next((r for r in roots if path.is_relative_to(r)),None)
+            if root is None or self.excluded(path,exclusions):
+                continue
+            try:
+                # Only read a bounded amount; a replaced, large canary is suspicious too.
+                if path.is_symlink() or not path.resolve().is_relative_to(root):
+                    state = 'redirected'
+                else:
+                    with path.open('rb') as stream:
+                        current = hashlib.sha256(stream.read(4097)).hexdigest()
+                    state = 'unchanged' if current==entry['sha256'] else 'changed'
+            except FileNotFoundError:
+                state = 'missing'
+            except OSError:
+                state = 'unreadable'
+            if state != 'unchanged' and self.canary_states.get(str(path)) != state:
+                self.indicator('folder:'+str(root),'canary',70,f'Canary {state}: {path.name}',path=str(root))
+            self.canary_states[str(path)] = state
+
+    def process(self, info, parent_name='', context_only=False,ancestors=()):
+        if not info.get('create_time'):
+            return None
+        entity = f"process:{info['pid']}:{info['create_time']}"
+        path = str(info.get('exe') or '')
+        metadata = dict(pid=info['pid'],path=path)
+        parts = set(path.lower().replace('\\','/').split('/'))
+        if parts.intersection({'temp','tmp','downloads'}):
+            self.indicator(entity,'user_location',25,'Executable runs from a temporary or Downloads directory',**metadata)
+        if context_only:
+            return entity
+        name = (info.get('name') or '').lower()
+        shells = {'powershell.exe','pwsh.exe','cmd.exe','wscript.exe','cscript.exe'}
+        if name in shells and parent_name.lower() in {'winword.exe','excel.exe','powerpnt.exe','outlook.exe'}:
+            self.indicator(entity,'office_shell',35,'An Office application launched a command interpreter',**metadata)
+        elif name in shells and any(a.get('name','').lower() in {'winword.exe','excel.exe','powerpnt.exe','outlook.exe'} for a in ancestors):
+            self.indicator(entity,'office_shell',35,'An Office process is in the verified interpreter ancestry',**metadata)
+        commands = [str(v).lower() for v in info.get('cmdline') or []]
+        if name in {'powershell.exe','pwsh.exe'} and any(v in {'-enc','-encodedcommand','-e'} for v in commands):
+            self.indicator(entity,'encoded_command',30,'PowerShell was launched with an encoded command',**metadata)
+        return entity
+
+    def network(self, connections, processes):
+        now = self.clock()
+        for connection in connections:
+            if connection.status != 'ESTABLISHED' or not connection.raddr:
+                continue
+            info = processes.get(connection.pid)
+            if not info or not info.get('create_time'):
+                continue
+            ip = ipaddress.ip_address(connection.raddr.ip)
+            entity = f"process:{info['pid']}:{info['create_time']}"
+            metadata = dict(pid=info['pid'],path=str(info.get('exe') or ''))
+            # Explicit user-provided indicators may include private lab addresses.
+            if any(ip in network for network in self.networks):
+                self.indicator(entity,'network_list',70,f'Connection to a configured IP/CIDR indicator: {ip}',**metadata)
+            if not ip.is_global:
+                continue
+            peers = self.connections.setdefault(entity,{})
+            self.connections.move_to_end(entity)
+            peers[str(ip)] = now
+            if len(peers)>256:
+                peers.pop(next(iter(peers)))
+            self.connections[entity] = {p:stamp for p,stamp in peers.items() if now-stamp<=60}
+            if len(self.connections[entity]) >= 20:
+                self.indicator(entity,'network_fanout',45,'At least 20 public remote IPs observed within 60 seconds',**metadata)
+        while len(self.connections)>2048:
+            self.connections.popitem(last=False)

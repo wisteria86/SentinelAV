@@ -1,0 +1,4 @@
+LIBRARY SentinelAVAmsi
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

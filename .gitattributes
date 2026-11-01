@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+# Preserve exact bytes: managed rule catalogs pin source-file SHA-256 values.
+resources/rules/** -text whitespace=-trailing-space

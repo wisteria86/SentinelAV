@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "version": "2026.11.01.memory.1",
+  "files": [
+    {
+      "file": "SentinelAV_MemoryCandidate_InvisiMole_RC2CL.yar",
+      "sha256": "24a726f6f7ddfcd54df0f9278857c932e721e56cb1db105c83e33ddeb50f30c3",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "invisimole/invisimole.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/invisimole/invisimole.yar",
+      "upstream_sha256": "e96981b4ffe5311deb2078179afbf97fcc36341cbd4c08a02a8163abbcd73873",
+      "license": "BSD-2-Clause",
+      "license_file": "../licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "SentinelAV_MemoryCandidate_InvisiMole_RC2CL"
+      ],
+      "coverage": "Manual memory candidate, not a confirmed malware verdict",
+      "changes": "Renamed and removed file-format gate for bounded memory candidate review only",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    },
+    {
+      "file": "SentinelAV_MemoryCandidate_RedLinePanel.yar",
+      "sha256": "49ccb5287ab2e9243d5ec168cfbffda4b1ef5d081a711efc7a03007ed65bcc36",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "redline/redline.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/redline/redline.yar",
+      "upstream_sha256": "ea2bf3ed4e58c324a002be4d8224f9863dcf9adc9ac39731c9f043faeef5e0fd",
+      "license": "BSD-2-Clause",
+      "license_file": "../licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "SentinelAV_MemoryCandidate_RedLinePanel"
+      ],
+      "coverage": "Manual memory candidate, not a confirmed malware verdict",
+      "changes": "Renamed and removed file-format gate for bounded memory candidate review only",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    }
+  ]
+}

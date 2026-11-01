@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "version": "2026.11.01.1",
+  "files": [
+    {
+      "file": "eset_redline_panel.yar",
+      "sha256": "514e3bfdaa8c77c67baecc2008b71dc749247f1574fe2ce5db1690c793b96e1a",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "redline/redline.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/redline/redline.yar",
+      "upstream_sha256": "ea2bf3ed4e58c324a002be4d8224f9863dcf9adc9ac39731c9f043faeef5e0fd",
+      "license": "BSD-2-Clause",
+      "license_file": "licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "cw_Windows_Redline_panel_tab_headers",
+        "cw_Windows_Redline_panel_prompts",
+        "cw_Windows_Redline_panel_status_message_strings",
+        "cw_Windows_Redline_panel_commands"
+      ],
+      "coverage": "RedLine panel artifacts; not a general stealer-client detector",
+      "changes": "Selected rule blocks only; original rule bodies and license notices retained",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    },
+    {
+      "file": "eset_invisimole.yar",
+      "sha256": "a521eaf52da364da84f6371b0b12c96349d05bed9c64bd36274f09d2b94cfc45",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "invisimole/invisimole.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/invisimole/invisimole.yar",
+      "upstream_sha256": "e96981b4ffe5311deb2078179afbf97fcc36341cbd4c08a02a8163abbcd73873",
+      "license": "BSD-2-Clause",
+      "license_file": "licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "InvisiMole_Blob",
+        "apt_Windows_InvisiMole_CPL_Loader",
+        "apt_Windows_InvisiMole_DNS_Downloader",
+        "apt_Windows_InvisiMole_RC2CL_Backdoor"
+      ],
+      "coverage": "Selected InvisiMole loader/downloader/backdoor patterns",
+      "changes": "Selected rule blocks only; original rule bodies and license notices retained",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    },
+    {
+      "file": "eset_ta410.yar",
+      "sha256": "b26abd784b8c6199d234d346ebf57d3fe2cb65ece828bf56ccb454b66a733fee",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "ta410/ta410.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/ta410/ta410.yar",
+      "upstream_sha256": "8e63a4af9e485921923011bcc2c77bfd1aa89fb2b504811a3ae5e14f2f915f57",
+      "license": "BSD-2-Clause",
+      "license_file": "licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "apt_Windows_TA410_Tendyron_dropper",
+        "apt_Windows_TA410_X4_hash_values"
+      ],
+      "coverage": "Selected TA410 dropper and X4 multi-pattern indicators",
+      "changes": "Selected rule blocks only; original rule bodies and license notices retained",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    },
+    {
+      "file": "eset_iis_isn.yar",
+      "sha256": "6d18b0efc1a91629848e740c739ddfccc8561103eff39004877f503bd4a7e925",
+      "source_repository": "https://github.com/eset/malware-ioc",
+      "source_revision": "59745502656e813f9f79fc8005243edbc04f9397",
+      "source_path": "badiis/badiis.yar",
+      "source_url": "https://github.com/eset/malware-ioc/blob/59745502656e813f9f79fc8005243edbc04f9397/badiis/badiis.yar",
+      "upstream_sha256": "4a9105b13fc5e5dc8eeb514bde511cae9e6a91383b8fcc115e12d234a3dfdca3",
+      "license": "BSD-2-Clause",
+      "license_file": "licenses/ESET-BSD-2-Clause.txt",
+      "selected_rules": [
+        "IIS_Native_Module",
+        "IIS_Group06_ISN"
+      ],
+      "coverage": "ISN malicious IIS module patterns; private IIS helper alone is not a detection",
+      "changes": "Selected rule blocks only; original rule bodies and license notices retained",
+      "reviewed": "2026-11-01",
+      "review_scope": "Source/condition review and compilation only; effectiveness and false-positive evaluation deferred",
+      "demo": false
+    },
+    {
+      "file": "demo.yar",
+      "sha256": "1d6fbe98299860575d977754adb0b0c7ad4dda559ed338e0d4b7783b3a8520b0",
+      "source_repository": "SentinelAV local demonstration",
+      "source_revision": "local",
+      "license": "Project-local demonstration",
+      "selected_rules": [
+        "SentinelAV_Harmless_Demo"
+      ],
+      "coverage": "Harmless marker test only",
+      "changes": "Existing demonstration rule unchanged",
+      "reviewed": "2026-11-01",
+      "review_scope": "Integration fixture; no malware coverage claim",
+      "demo": true
+    }
+  ],
+  "effectiveness_evaluation": "Deferred",
+  "excluded": [
+    "RedLine single distinctive-string rule",
+    "Generic crypto/ETW/compiler-rich-header patterns",
+    "Turla Carbon generic strings and metadata-only rules",
+    "InvisiMole log-header-only rules",
+    "Broad TA410 single-string matches",
+    "IIS rules with generic indicators or permissive condition precedence"
+  ]
+}

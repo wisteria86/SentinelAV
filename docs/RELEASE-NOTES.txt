@@ -1,0 +1,83 @@
+SentinelAV 0.12.0 - native AMSI development milestone
+
+Adds byte-only isolated hash/YARA scanning, an x64 native COM provider,
+service-PID-verified named-pipe client, and guarded LocalService broker.
+Local harness checks detections and malformed streams, unavailable scans,
+server mismatch and transport timeout without Windows registration.
+Service broker defaults off; no provider/service is installed or started.
+DLL remains unsigned and x64-only. Actual LocalService integration, signing,
+registration/removal, real-host/VM validation and broader script coverage remain.
+No system-wide execution enforcement, VM or live-malware testing added.
+See AMSI-PROVIDER.md for exact bounds, test commands and prerequisites.
+
+Previous SentinelAV 0.11.0 - bounded defense layers
+
+Adds Settings > Defense, isolated scan workers with resource/time limits,
+bounded in-memory ZIP inspection, PE metadata, optional Windows AMSI consumer,
+read-only process memory inspection, process ancestry and event-source fallback,
+and default-off, explicitly approved exact-hash quarantine policy.
+Prepared LocalService host and protected deployment script are not installed
+or started. Native SentinelAV AMSI provider and system-wide execution enforcement
+are not implemented. WMI process events were denied on this account; polling
+continues. Resource isolation is not a VM or restricted-token security sandbox.
+See DEFENSE-IMPLEMENTATION.md for all ten layers, limits, and prerequisites.
+Broader efficacy evaluation, VM work and live-sample testing remain deferred.
+
+Previous SentinelAV 0.10.0 - source-reviewed YARA subset
+
+Adds 10 ESET research detection rules, two private helpers, retained BSD license
+notices, pinned source/catalog hashes, match provenance, strict compilation,
+and Settings > YARA Rules. Existing demo remains separately labeled. Managed
+file changes/missing files and compilation warnings fail visibly. Runtime YARA
+errors report omissions while retaining independent hash/EICAR detections.
+Source review and harmless integration checks only; broader effectiveness,
+false-positive, VM, and live-sample testing remain deferred. See YARA-REVIEW.md.
+
+Previous 0.9.0 - versioned definition maintenance:
+
+Adds Settings > Definitions, incremental recent imports, explicit corrections,
+revocation handling, snapshot rollback, stale-import status, Ed25519 signed
+delta verification, and replay/downgrade protection. Current full hash feed is
+included in this local build. Publisher keys and recurring downloads remain
+unconfigured; signed packages fail closed with the default empty trust store.
+Existing readers keep their snapshots. Restart monitoring after updates.
+No broader effectiveness evaluation, VM setup, or live-malware tests added.
+See DEFINITION-UPDATES.md for supported formats and deployment limits.
+
+Previous 0.8.0 - optional independent background engine:
+
+Adds a non-elevated, per-user engine process, same-user local JSON IPC,
+monitoring after GUI exit, automatic reattachment, independent persistence,
+and unknown/degraded protection health. Background mode is opt-in on the
+Real-Time Protection page. Stops at Windows sign-out/reboot. This milestone
+does not install a Windows service or provide tamper resistance. See
+BACKGROUND-ENGINE.md. Explicitly stop monitoring before updating/uninstalling.
+
+Previous 0.7.0 safe lab milestone:
+
+Adds Malware Lab tabs, read-only readiness checks, four allowlisted harmless
+simulations, separate run history, evidence export, cancellation, and automatic
+temporary fixture cleanup. This milestone does not provision a VM or execute
+samples. Local simulations are explicitly labelled as not isolated.
+
+Hardening update: fresh self-test directories, ownership checks for Windows
+startup/tasks, exclusive restore verification, and changed-file scan detection.
+
+Includes scanning, folder/process monitoring, explainable behavioral warnings,
+optional network telemetry, encrypted quarantine, reviewed response actions,
+daily scheduled scanning, startup preferences, and local report exports.
+
+This is a student prototype, not a replacement for Windows Security.
+Only harmless demo signatures/rules are bundled. No general malware feed,
+kernel driver, Windows Security Center registration, service, or cloud updates.
+Behavior warnings are heuristic. Keep existing Windows protection enabled.
+
+Installs for the current user without administrator privileges.
+Startup and scheduled scanning are opt-in under Settings > Scheduling.
+Scheduled tasks require the user to be logged in; no background monitoring
+continues after the app exits. User data and encrypted quarantine remain under
+LOCALAPPDATA/SentinelAV after uninstall so they can be recovered.
+
+Executable and installer are unsigned. SmartScreen reputation and commercial
+antivirus certification have not been established. A clean test VM, broader
+compatibility testing, and code signing remain release-hardening work.
