@@ -30,7 +30,7 @@ Enable the Windows feature from an administrator PowerShell:
 
 This enables only the requested Sandbox feature and its required dependencies,
 and never restarts automatically. Save work and restart Windows if requested.
-Activation details are saved to artifacts/lab/windows-sandbox/feature-status.json
+Activation details are saved to F:/SentinelAV-Work/lab/windows-sandbox/feature-status.json
 and enable-feature.log.
 
 After activation/restart, launch from the project root:
