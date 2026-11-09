@@ -19,6 +19,7 @@ BATCH_SIZE = 24
 BATCH_BYTES = 96 * 1024**2
 BATCH_SECONDS = 3000
 DEV_PERCENT = 30
+SEAL_CONTEXT = b'SentinelAV-zoo-batch-v1:'
 # Platform and type words that lead a folder name but do not identify a family.
 FAMILY_PREFIXES = {'all', 'android', 'backdoor', 'bat', 'coll', 'dos', 'dropper', 'exploit', 'js', 'linux', 'msil', 'osx', 'ransomware', 'rootkit',
                    'spy', 'trojan', 'virus', 'vbs', 'w32', 'w64', 'w97m', 'win32', 'win64', 'winx', 'wm', 'worm', 'x97m', 'xm'}
@@ -137,11 +138,24 @@ def blob_identity(data):
     return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
 
 
+def seal(data, key, blob):
+    """Archives exist on the host only as Git objects or this ciphertext; only the guest can open them."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    nonce = os.urandom(12)
+    return nonce + AESGCM(key).encrypt(nonce, data, SEAL_CONTEXT + blob.encode())
+
+
+def unseal(sealed, key, blob):
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    return AESGCM(key).decrypt(sealed[:12], sealed[12:], SEAL_CONTEXT + blob.encode())
+
+
 def stage(work, parameters, output):
     if parameters['revision'] != REVISION:
         raise ValueError('Unexpected Zoo revision')
     repo = repository(work)
     staged = []
+    key = os.urandom(32)
     for entry in parameters['entries']:
         item = dict(entry)
         staged.append(item)
@@ -157,14 +171,14 @@ def stage(work, parameters, output):
             data = git(repo, 'cat-file', 'blob', blob)
             if len(data) != size or blob_identity(data) != blob:
                 raise ValueError('Archive Git identity mismatch')
-            archive = output / (blob + '.zip')
+            archive = output / (blob + '.sealed')
             if not archive.exists():
                 from io import BytesIO
                 with zipfile.ZipFile(BytesIO(data)) as source:
                     members = [row for row in source.infolist() if not row.is_dir()]
                     if not members or any(not row.flag_bits & 1 for row in members):
                         raise ValueError('Archive contains unencrypted members or is empty')
-                archive.write_bytes(data)
+                archive.write_bytes(seal(data, key, blob))
             password_blob = item.get('password_blob')
             if password_blob:
                 import base64
@@ -176,4 +190,5 @@ def stage(work, parameters, output):
                 item['password_b64'] = base64.b64encode(password.strip()).decode()
         except (OSError, ValueError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
             item['stage_error'] = type(error).__name__
-    return dict(revision=REVISION, entries=staged)
+    import base64
+    return dict(revision=REVISION, entries=staged, transfer_key=base64.b64encode(key).decode())

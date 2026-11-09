@@ -13,6 +13,8 @@ from sentinelav.lab.qualification.contracts import SuiteManifest
 from sentinelav.lab.qualification.store import RunStore
 from sentinelav.lab.qualification.zoo_guest import verdict
 from sentinelav.lab.qualification.zoo_reporting import render, validate_batch
+from cryptography.exceptions import InvalidTag
+import os
 
 
 class ZooStaticTests(unittest.TestCase):
@@ -76,6 +78,19 @@ class ZooStaticTests(unittest.TestCase):
                 self.assertEqual(summary['arms']['full']['samples']['total'], 5)
             finally:
                 store.close()
+
+    def test_sealed_staging_hides_content_and_detects_tampering(self):
+        key, blob = os.urandom(32), 'a'*40
+        data = b'PK\x03\x04 recognizable archive bytes'
+        sealed = zoo_inventory.seal(data, key, blob)
+        self.assertNotIn(b'recognizable', sealed)
+        self.assertFalse(sealed.startswith(b'PK'))
+        self.assertEqual(len(sealed), len(data) + 28)
+        self.assertEqual(zoo_inventory.unseal(sealed, key, blob), data)
+        with self.assertRaises(InvalidTag):
+            zoo_inventory.unseal(sealed, key, 'b'*40)
+        with self.assertRaises(InvalidTag):
+            zoo_inventory.unseal(sealed[:-1] + bytes([sealed[-1] ^ 1]), key, blob)
 
     def test_staging_rejects_plain_archive(self):
         with TemporaryDirectory() as temporary:
