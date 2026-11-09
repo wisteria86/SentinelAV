@@ -24,6 +24,7 @@ def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=No
     elif kind in ('ole','ooxml'):runners.append(lambda:documents.office_indicators(data,omissions))
     elif kind=='pdf':runners.append(lambda:documents.pdf_indicators(data))
     elif kind=='rtf':runners.append(lambda:documents.rtf_indicators(data))
+    elif kind=='lnk':runners.append(lambda:strings.shortcut_indicators(data))
     if kind in SCRIPT_KINDS:runners.append(lambda:scripts.indicators(data,kind,omissions))
     if kind in STRING_SCAN_KINDS:runners.append(lambda:strings.indicators(data,kind))
     for run in runners:

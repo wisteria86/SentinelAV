@@ -4,6 +4,8 @@ watchdog>=6,<7
 psutil>=6,<8
 py7zr>=1,<2
 rarfile>=4.2,<5
+pyzipper>=0.3.6,<1
+oletools>=0.60,<1
 tzdata>=2025.2
 cryptography>=45,<52
 pywin32==312; sys_platform == 'win32'
