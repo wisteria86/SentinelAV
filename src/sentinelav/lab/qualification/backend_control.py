@@ -47,7 +47,7 @@ def powershell(code,timeout=30,cancelled=lambda:False,log=None):
 
 def quote(value):return "'"+str(value).replace("'","''")+"'"
 
-def read_export(data,maximum=65536):
+def read_export(data,maximum=4*1024*1024):
     decoder=zlib.decompressobj();raw=decoder.decompress(data,maximum+1)
     if len(raw)>maximum or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
         raise ValueError('Invalid/oversized guest export')

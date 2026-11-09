@@ -52,10 +52,9 @@ def describe(scan):
     """Bounded metadata only: the sample itself and its strings never leave the guest."""
     assessment = scan.get('assessment') or {}
     return dict(kind=assessment.get('file_kind'), platform=assessment.get('platform'), score=assessment.get('score'),
-                confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:80],
+                confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:48],
                 arms={name: [value['score'], value['verdict']] for name, value in (assessment.get('arms') or {}).items()},
-                codes=[item['code'] for item in (assessment.get('indicators') or [])[:8]],
-                automatic=assessment.get('automatic_response_eligible'))
+                codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]])
 
 
 def scan_member(archive, info, password, root, scanner, state):
@@ -80,7 +79,9 @@ def scan_member(archive, info, password, root, scanner, state):
         if fixture.exists() and hashlib.sha256(fixture.read_bytes()).hexdigest() != identity:
             raise ValueError('Specimen changed during inspection')
         outcome, reason = verdict(scan)
-        row = dict(outcome=outcome, reason=reason, sha256=identity, coverage_complete=scan.get('status') == 'Complete' and not scan.get('errors'), **describe(scan))
+        row = dict(outcome=outcome, sha256=identity, coverage_complete=scan.get('status') == 'Complete' and not scan.get('errors'), **describe(scan))
+        if reason:
+            row['reason'] = reason
     finally:
         fixture.unlink(missing_ok=True)
     if outcome == 'malicious':
@@ -128,7 +129,7 @@ def inspect_members(raw, password, root, scanner, state):
             except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile) as error:
                 row = dict(outcome='inspection_failure', reason=type(error).__name__)
             # Names are metadata only. They are never used as filesystem paths.
-            rows.append(dict(member_index=index, member=info.filename[:160], **row))
+            rows.append(dict(member_index=index, member=info.filename[:48], **row))
         if len(members) > MAX_MEMBERS:
             rows.append(dict(member_index=MAX_MEMBERS, member='', outcome='inspection_failure', reason=f'{len(members)-MAX_MEMBERS} further members not inspected'))
     return rows

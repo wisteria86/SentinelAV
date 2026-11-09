@@ -14,6 +14,9 @@ from .contracts import identifier
 from .store import write_json
 from .backend_control import run,quote,read_export,Blocked
 
+FRAME_WORKERS=16
+
+
 class GuestTransportMixin:
     def setup_telemetry(self):
         code=r'''$ErrorActionPreference='Stop'
@@ -95,7 +98,7 @@ exit $code
         import re
         if not re.fullmatch(r'C:/SentinelAV-Test/(?:Qualification/[a-zA-Z0-9_.-]{1,100}/export\.bin|TelemetrySetup/result\.json)',path):
             raise ValueError('Guest metadata path is not an approved evidence location')
-        maximum=32768 if compressed else 8192
+        maximum=512*1024 if compressed else 8192
         prefix="$ErrorActionPreference='Stop';$p="+quote(path)+";$b=[IO.File]::ReadAllBytes($p);if($b.Length -gt "+str(maximum)+"){exit 81};"
         token='setup' if path.endswith('/TelemetrySetup/result.json') else path.split('/')[-2]
         native=False
@@ -107,19 +110,46 @@ exit $code
             except (RuntimeError,OSError):pass
         if not native:size=self.exec(prefix+'exit (1073741824+$b.Length)')-1073741824
         if not 0<size<=maximum:raise ValueError('Invalid bounded export size')
-        self.progress('Reading bounded guest evidence: '+str(size)+' bytes ('+('native' if native else 'PowerShell')+' transport)')
+        framed=False
+        if compressed and not native and self.owner and self.owner.get('backend')=='sandbox':framed=self.prepare_frames(path,token)
+        self.progress('Reading bounded guest evidence: '+str(size)+' bytes ('+('native' if native else 'batch-frame' if framed else 'PowerShell')+' transport)')
         began=time.monotonic()
         def word(offset):
-            if self.cancelled() or time.monotonic()-began>600:raise InterruptedError('Metadata export cancelled/timed out')
+            if self.cancelled() or time.monotonic()-began>3600:raise InterruptedError('Metadata export cancelled/timed out')
             code=prefix+'$v=0;for($i=0;$i -lt 3;$i++){if(('+str(offset)+'+$i) -lt $b.Length){$v=$v -bor ([int]$b[('+str(offset)+'+$i)] -shl (8*$i))}};exit (1073741824+$v)'
-            v=(self.metadata_frame(token,offset) if native else self.exec(code))-1073741824
+            if framed:
+                try:v=self.batch_frame(token,offset)-1073741824
+                except (RuntimeError,OSError,ValueError):v=self.exec(code)-1073741824
+            else:v=(self.metadata_frame(token,offset) if native else self.exec(code))-1073741824
             if not 0<=v<2**24:raise ValueError('Invalid export frame')
             return v.to_bytes(3,'little')
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=FRAME_WORKERS) as pool:
             data=b''.join(pool.map(word,range(0,size,3)))[:size]
         result=read_export(data) if compressed else json.loads(data)
         if not isinstance(result,dict):raise ValueError('Guest metadata object required')
         return result
+
+    def prepare_frames(self,path,token):
+        """Have the guest write one tiny batch file per frame. Starting cmd.exe is far cheaper than PowerShell.
+
+        The channel stays one-way: the host only reads exit codes, and the host shares stay read-only.
+        """
+        uuid.UUID(hex=token)
+        folder='C:/SentinelAV-Test/Qualification/'+token+'/frames'
+        code=("$ErrorActionPreference='Stop';$b=[IO.File]::ReadAllBytes("+quote(path)+");$d="+quote(folder)+";New-Item $d -ItemType Directory -Force|Out-Null;"
+              "for($o=0;$o -lt $b.Length;$o+=3){$v=0;for($i=0;$i -lt 3;$i++){if(($o+$i) -lt $b.Length){$v=$v -bor ([int]$b[$o+$i] -shl (8*$i))}};"
+              "[IO.File]::WriteAllText(\"$d/$o.cmd\",\"@exit /b $(1073741824+$v)\")};exit 0")
+        try:return self.exec(code,600)==0
+        except (RuntimeError,OSError,InterruptedError):return False
+
+    def batch_frame(self,token,offset):
+        uuid.UUID(hex=token)
+        if type(offset) is not int or offset<0:raise ValueError('Invalid evidence offset')
+        command='cmd.exe /d /c C:\\SentinelAV-Test\\Qualification\\'+token+'\\frames\\'+str(offset)+'.cmd'
+        reply=json.loads(run(['wsb.exe','exec','--id',self.owner['guest_id'],'-r','ExistingLogin','-c',command,'--raw'],30,self.cancelled))
+        value=reply.get('ExitCode')
+        if type(value) is not int:raise ValueError('Batch evidence exit code missing')
+        return value
 
     def metadata_frame(self,token,offset):
         if token!='setup':uuid.UUID(hex=token)

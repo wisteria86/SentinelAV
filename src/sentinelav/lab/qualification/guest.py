@@ -71,7 +71,7 @@ def execute(context):
         int(measurements.get('losses',0))))
     (root/'journal.json').write_text(json.dumps(redact(measurements),allow_nan=False),encoding='utf-8')
     raw=json.dumps(observation,separators=(',',':'),allow_nan=False).encode()
-    if len(raw)>65536:raise ValueError('Guest summary export exceeds 64 KiB; full journal remains guest-local')
+    if len(raw)>4*1024*1024:raise ValueError('Guest summary export exceeds 4 MiB; full journal remains guest-local')
     (root/'export.bin').write_bytes(zlib.compress(raw,9))
     return root
 
