@@ -115,9 +115,10 @@ def inspect_archive(entry, root, scanner, state, key):
 
 
 def inspect_members(raw, password, root, scanner, state):
+    from sentinelav.detection.archive_formats import open_zip
     rows = []
     inert = 0
-    with zipfile.ZipFile(BytesIO(raw)) as archive:
+    with open_zip(raw) as archive:
         members = [item for item in archive.infolist() if not item.is_dir()]
         if not members:
             return [dict(outcome='inspection_failure', reason='Archive has no members')]

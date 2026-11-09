@@ -15,8 +15,9 @@ ANALYZED={'pe','dos_mz','com','elf','macho','dex','apk','jar','class','ole','oox
     'powershell','vbscript','javascript','batch','shell','python','perl','php','ruby','lua',
     'zip','tar','gzip','bzip2','xz','7z','rar'}
 # Non-executable content cannot carry static behavior, so "no analyzer" is not a coverage gap for it.
-INERT={'text','empty','image','media','font','source_code'}
-MEDIA_MAGIC=(b'\x89PNG',b'\xff\xd8\xff',b'GIF8',b'BM',b'RIFF',b'ID3',b'OggS',b'fLaC',b'\x00\x00\x00\x18ftyp',b'\x00\x00\x00\x20ftyp')
+INERT={'text','empty','image','media','font','source_code','metadata'}
+METADATA_MAGIC=(b'\x00\x00\x00\x01Bud1',)
+MEDIA_MAGIC=(b'8BPS',b'icns',b'\x89PNG',b'\xff\xd8\xff',b'GIF8',b'BM',b'RIFF',b'ID3',b'OggS',b'fLaC',b'\x00\x00\x00\x18ftyp',b'\x00\x00\x00\x20ftyp')
 SCRIPT_PATTERNS=(
     ('powershell',rb'(?i)\b(invoke-expression|invoke-webrequest|new-object\s+[\w.]+|\[system\.[\w.]+\]|\$env:\w+|set-executionpolicy|write-host)\b'),
     ('vbscript',rb'(?i)\b(createobject\s*\(|wscript\.|on\s+error\s+resume\s+next|end\s+sub\b|dim\s+\w+)'),
@@ -75,7 +76,6 @@ def classify(data,suffix=''):
         offset=struct.unpack_from('<I',data,0x3c)[0] if len(data)>=64 else 0
         if not _dos_mz(data) and data[offset:offset+2]==b'PE':kind,platform='pe','Win32'
         elif not _dos_mz(data):kind,platform='dos_mz','Win16'
-        elif suffix in ('.exe','.dll','.sys','.scr','.ocx','.cpl') and len(data)>=64 and offset>len(data):kind,platform='pe','Win32'
         else:kind,platform='dos_mz','DOS'
     elif head.startswith(b'\x7fELF'):kind,platform='elf','Linux'
     elif _macho(head):kind,platform='macho','OSX'
@@ -93,6 +93,7 @@ def classify(data,suffix=''):
         for magic,name in ARCHIVE_MAGIC:
             if head.startswith(magic):kind=name;break
         if kind=='data' and head.startswith(MEDIA_MAGIC):kind='media'
+        if kind=='data' and head.startswith(METADATA_MAGIC):kind='metadata'
         if kind=='data' and suffix in ('.exe','.dll','.scr','.sys'):kind='data'
         if kind=='data' and _is_com(data,suffix):kind,platform='com','DOS'
         if kind=='data' and _looks_textual(head):

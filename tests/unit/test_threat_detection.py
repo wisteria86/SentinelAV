@@ -30,8 +30,7 @@ def zipped(*entries):
     return raw.getvalue()
 
 
-def heuristic(group,weight,category=''):
-    return indicator(group+'_trait',group,weight,'Fixture trait',category=category)
+def heuristic(group,weight,category=''):return indicator(group+'_trait',group,weight,'Fixture trait',category=category)
 
 
 class ScoringTests(unittest.TestCase):
@@ -85,6 +84,15 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(classify(zipped(('AndroidManifest.xml','x'),('classes.dex','y')),'.zip')['kind'],'apk')
         self.assertEqual(classify(b'Set s=CreateObject("WScript.Shell")\nDim x\nOn Error Resume Next\n','.bin')['kind'],'vbscript')
 
+    def test_old_dos_programs_are_not_mistaken_for_damaged_windows_programs(self):
+        data=bytearray(b'MZ'+b'\0'*200);struct.pack_into('<I',data,0x3c,0x7fffffff)
+        self.assertEqual(classify(bytes(data),'.exe')['kind'],'dos_mz')
+        data=bytearray(b'MZ'+b'\0'*200);struct.pack_into('<I',data,0x3c,64);data[64:68]=b'PE\0\0'
+        self.assertEqual(classify(bytes(data),'.exe')['kind'],'pe')
+
+    def test_finder_metadata_is_inert_rather_than_an_unsupported_threat(self):
+        self.assertTrue(classify(b'\x00\x00\x00\x01Bud1'+b'\0'*64,'')['inert'])
+
     def test_ordinary_text_stays_inert(self):
         result=classify(b'Meeting notes for Tuesday.\n','.txt')
         self.assertEqual(result['kind'],'text')
@@ -119,6 +127,21 @@ class IndicatorTests(unittest.TestCase):
         self.assertIn('pdf_auto_javascript',codes)
         self.assertIn('pdf_name_obfuscation',codes)
 
+    def test_batch_infection_loops_are_recognized_but_ordinary_loops_are_not(self):
+        codes=[i['code'] for i in scripts.indicators(b'@echo off\r\nfor %%f in (*.bat) do copy %0 %%f\r\n','batch')]
+        self.assertIn('batch_file_infection',codes)
+        self.assertFalse(scripts.indicators(b'@echo off\r\nfor %%f in (*.txt) do echo %%f\r\n','batch'))
+
+    def test_script_rewriting_other_scripts_needs_every_part(self):
+        body=b'Set f=CreateObject("Scripting.FileSystemObject")\r\nSet d=f.GetFolder(".")\r\nSet t=f.OpenTextFile(x)\r\n'
+        self.assertNotIn('script_rewrites_other_scripts',[i['code'] for i in scripts.indicators(body,'vbscript')])
+        self.assertIn('script_rewrites_other_scripts',[i['code'] for i in scripts.indicators(body+b'If e="vbs" Then\r\n','vbscript')])
+
+    def test_shortcuts_are_judged_by_what_they_start(self):
+        lure='C:\\Windows\\System32\\cmd.exe /c start payload.vbs'.encode('utf-16le')
+        self.assertEqual({i['code'] for i in strings.shortcut_indicators(lure)},{'shortcut_starts_interpreter','shortcut_passes_script_arguments'})
+        self.assertFalse(strings.shortcut_indicators('C:\\Program Files\\App\\app.exe'.encode('utf-16le')))
+
     def test_dos_infection_traits_are_described(self):
         program=b'\xe9'+struct.pack('<H',700)+b'\x90'*700+b'*.COM\x00\xb4\x4e\xcd\x21\xb8\x00\x42\xcd\x21\xb4\x40\xcd\x21'
         codes=[i['code'] for i in dos.indicators(program,'com')]
@@ -146,8 +169,7 @@ class ScannerReachTests(unittest.TestCase):
         self.assertEqual(report['assessment']['score'],100)
         self.assertFalse(report['detections'][0]['automatic_response_eligible'])
 
-    def test_compressed_streams_are_reached(self):
-        self.assertTrue(self.scan('a.gz',gzip.compress(TEST_MARKER))['detections'])
+    def test_compressed_streams_are_reached(self):self.assertTrue(self.scan('a.gz',gzip.compress(TEST_MARKER))['detections'])
 
     def test_seven_zip_members_are_reached(self):
         import py7zr
@@ -155,6 +177,24 @@ class ScannerReachTests(unittest.TestCase):
         with py7zr.SevenZipFile(raw,'w') as archive:archive.writestr(TEST_MARKER,'hidden.bin')
         report=self.scan('a.7z',raw.getvalue())
         self.assertTrue(report['detections'],report['errors'])
+
+    def test_aes_encrypted_zip_members_are_reached_with_a_sharing_password(self):
+        import pyzipper
+        raw=io.BytesIO()
+        with pyzipper.AESZipFile(raw,'w',compression=pyzipper.ZIP_LZMA,encryption=pyzipper.WZ_AES) as archive:
+            archive.setpassword(b'infected');archive.writestr('hidden.bin',TEST_MARKER)
+        report=self.scan('aes.zip',raw.getvalue())
+        self.assertTrue(report['detections'],report['errors'])
+
+    def test_unknown_passwords_are_reported_as_coverage_gaps(self):
+        import pyzipper
+        raw=io.BytesIO()
+        with pyzipper.AESZipFile(raw,'w',compression=pyzipper.ZIP_LZMA,encryption=pyzipper.WZ_AES) as archive:
+            archive.setpassword(b'not-a-sharing-password');archive.writestr('hidden.exe',b'content')
+        report=self.scan('locked.zip',raw.getvalue())
+        self.assertFalse(report['detections'])
+        self.assertEqual(report['status'],'Complete with omissions')
+        self.assertIn('encrypted_archive_with_program',[i['code'] for i in report['assessment']['indicators']])
 
     def test_decompression_bomb_is_bounded_and_counted_as_evidence(self):
         report=self.scan('bomb.zip',zipped(('big.bin',b'\0'*(8*1024*1024))))

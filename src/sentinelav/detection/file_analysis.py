@@ -14,7 +14,7 @@ from sentinelav.detection.file_types import classify
 from sentinelav.detection.indicators import collect
 from sentinelav.detection.threat_score import arm_scores,automatic_eligible,indicator,score
 
-GRAY_LOW=20
+GRAY_LOW=15
 GRAY_HIGH=70
 TRUST_CHECK_FROM=25
 MEMBER_MODEL_BYTES=64*1024*1024
@@ -131,7 +131,7 @@ class FileAnalysisMixin:
         if file_type['kind']=='pe' and metadata.get('machine')=='0x8664':platform='Win64'
         current=score(items,platform,partial=partial)
         if (self.options.get('neural_gray') and not self.options.get('neural') and file_type['kind']=='pe'
-                and GRAY_LOW<=current['score']<GRAY_HIGH and 'ml' in current['groups']):
+                and GRAY_LOW<=current['score']<GRAY_HIGH):
             try:
                 found,_=neural_item(data)
                 if found:items.append(found)

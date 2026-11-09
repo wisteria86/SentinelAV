@@ -35,8 +35,15 @@ def _zip_read(archive,info):
     return read
 
 
+def open_zip(data):
+    """Prefer the reader that also understands WinZip AES, which the standard library cannot open."""
+    try:import pyzipper
+    except ImportError:return zipfile.ZipFile(io.BytesIO(data))
+    return pyzipper.AESZipFile(io.BytesIO(data))
+
+
 def zip_members(data):
-    archive=zipfile.ZipFile(io.BytesIO(data))
+    archive=open_zip(data)
     for info in archive.infolist():
         if info.is_dir():continue
         mode=(info.external_attr>>16)&0xffff

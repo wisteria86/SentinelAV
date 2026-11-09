@@ -60,6 +60,21 @@ def extract(data,limit=MAX_SCAN):
     return '\n'.join(parts).casefold()
 
 
+LAUNCHER=re.compile(r'\b(cmd|powershell|pwsh|mshta|wscript|cscript|rundll32|regsvr32|bitsadmin|certutil)(?:\.exe)?\b',re.I)
+LAUNCH_ARGUMENTS=re.compile(r'https?://|-enc|-w(?:indowstyle)?\s+hidden|/c\s+\S|\.(?:vbs|js|hta|ps1|bat|dll)\b',re.I)
+
+
+def shortcut_indicators(data):
+    """A shortcut normally opens a program or document. One that starts an interpreter with arguments is a known lure."""
+    text=extract(data,1024*1024)
+    launcher=LAUNCHER.search(text)
+    if not launcher:return []
+    found=[indicator('shortcut_starts_interpreter','dropper',30,'A shortcut file starts a command interpreter or script host.',category='Dropper',evidence=launcher.group())]
+    arguments=LAUNCH_ARGUMENTS.search(text)
+    if arguments:found.append(indicator('shortcut_passes_script_arguments','download',25,'The shortcut passes a script, URL or hidden-window option to that interpreter.',category='Downloader',evidence=arguments.group()))
+    return found
+
+
 def indicators(data,kind='pe',text=None):
     text=extract(data) if text is None else text
     found=[]
