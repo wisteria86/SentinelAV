@@ -70,7 +70,9 @@ class AdvancedPipeline:
                 omissions.extend(errors)
                 if reasons: facts.append(Evidence('normalized-content','concealed_content',
                     'Decoded content matches existing detection patterns',confirmed=True,details=dict(transform=method,reasons=reasons,yara_matches=matches)))
-        nested,errors,_=inspect_containers(bytes(data),analyze,cancelled) if self.options.get('content',True) else ([],[],{})
+        # Archive formats get the recursive reader when it is enabled; PDF streams stay here.
+        containers=self.options.get('content',True) and (not self.options.get('archives',True) or data.startswith(b'%PDF-'))
+        nested,errors,_=inspect_containers(bytes(data),analyze,cancelled) if containers else ([],[],{})
         omissions.extend(errors)
         for item in nested:
             facts.append(Evidence('container','embedded_content','Embedded content matches detection patterns',confirmed=True,details=item))

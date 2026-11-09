@@ -1,5 +1,5 @@
 # Purpose: Walk scan roots and assemble bounded per-file analysis results.
-# Works with: data.contracts, detection.archive_inspection, detection.decisions, detection.file_formats,
+# Works with: data.contracts, detection.archive_inspection, detection.decisions, detection.file_analysis,
 #   platform.amsi_client
 # Used by: detection.engine
 
@@ -8,14 +8,33 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from sentinelav.detection.archive_inspection import inspect_zip
+from sentinelav.detection.archive_inspection import inspect_archive
+from sentinelav.detection.file_analysis import parse_object,public_fields
+from sentinelav.detection.file_types import classify
+from sentinelav.detection.threat_score import indicator
+
+MAX_ERRORS=2000
+# Standing format limits describe every file of a type. They stay in the decision record but do not make a scan incomplete.
+STANDING_LIMITS=('VBA source inspection does not','PDF partial inspection','HTML scripts inspected as text','RTF partial extraction','External script was not fetched')
+SCRIPT_AMSI=('.ps1','.psm1','.js','.vbs','.hta')
+
+
+class BoundedErrors(list):
+    """Keeps a full-disk scan's report transportable while still counting everything dropped."""
+    dropped=0
+    def append(self,value):
+        if len(self)>=MAX_ERRORS:self.dropped+=1
+        else:super().append(str(value)[:1200])
+    def extend(self,values):
+        for value in values:self.append(value)
 
 
 class ScanFlowMixin:
-    def scan(self, roots, cancelled, progress):
+    def scan(self, roots, cancelled, progress, skip=0):
         result = dict(started=time.strftime('%Y-%m-%d %H:%M:%S'), scanned=0,
-                      skipped=0, errors=[], detections=[], status='Complete', elapsed=0,
-                      structural_review=[],structural_review_total=0,advanced_reviews=[],advanced_review_total=0)
+                      skipped=0, errors=BoundedErrors(), detections=[], suspicious=[], status='Complete', elapsed=0,
+                      structural_review=[],structural_review_total=0,advanced_reviews=[],advanced_review_total=0,
+                      suspicious_total=0,detections_total=0,walked=skip)
         start = time.monotonic()
         self.current_scan_result=result
         seen = set()
@@ -37,18 +56,25 @@ class ScanFlowMixin:
                 for directory, dirs, files in os.walk(root, followlinks=False, onerror=onerror):
                     if cancelled():
                         return
-                    dirs[:] = [d for d in dirs if not (Path(directory)/d).is_symlink()
+                    dirs[:] = sorted(d for d in dirs if not (Path(directory)/d).is_symlink()
                                and not (Path(directory)/d).is_junction()
-                               and not self.excluded(Path(directory)/d)]
-                    for name in files:
+                               and not self.excluded(Path(directory)/d))
+                    for name in sorted(files):
                         yield Path(directory)/name
             else:
                 result['errors'].append(f'Unavailable path: {root}')
 
+        index=0
         for root in roots:
             for path in walk(Path(root)):
                 if cancelled():
                     break
+                index+=1
+                # A restarted worker resumes after the file that stopped the previous one.
+                if index<=skip:continue
+                result['walked']=index
+                started=getattr(self,'file_started',None)
+                if started:started(index,str(path))
                 try:
                     resolved = path.resolve()
                     if resolved in seen or path.is_symlink() or self.excluded(path):
@@ -56,7 +82,8 @@ class ScanFlowMixin:
                     seen.add(resolved)
                     self.current_parent=str(resolved);self.member_seen=set();self.member_bytes=0
                     if path.stat().st_size > self.max_bytes:
-                        result['skipped'] += 1
+                        self.inspect_oversized(path,resolved,result,capture_identity,cancelled)
+                        progress(str(path), result['scanned'], len(result['detections']))
                         continue
                     digest = hashlib.sha256()
                     data = bytearray()
@@ -85,87 +112,26 @@ class ScanFlowMixin:
                     if sha in self.trusted_hashes:
                         result['scanned'] += 1
                         continue
-                    # Preserve an independently verified exact-hash finding
-                    # even if a subsequent native parser fails in the worker.
-                    early_label=self.signatures.get(sha)
-                    if early_label is not None and getattr(self,'early_finding',None):
-                        self.early_finding(dict(path=str(resolved),sha256=sha,reasons=['SHA-256: '+early_label],yara_matches=[]))
-                    names,yara_matches,inspection_errors=self.analyze_bytes(data,sha)
-                    analysis=format_info=None
-                    result['errors'].extend(f'{path}: {error}' for error in inspection_errors)
-                    try:
-                        from sentinelav.detection.file_formats import pe_metadata,static_analysis
-                        format_info=pe_metadata(data)
-                        analysis=static_analysis(data,format_info)
-                        if analysis['imports']['status'] in ('Incomplete','Unavailable'):
-                            result['errors'].append(f"{path}: PE import inspection: {analysis['imports'].get('reason','Unavailable')}")
-                        if analysis['delay_imports']['status']=='Incomplete':
-                            result['errors'].append(f"{path}: PE delay imports: {analysis['delay_imports']['reason']}")
-                        for omission in analysis.get('image_details',{}).get('omissions',[]):result['errors'].append(f'{path}: PE details: '+omission)
-                        if capture_identity:
-                            result['file_format']=format_info
-                            result['static_analysis']=analysis
-                        if analysis['signals']:
-                            result['structural_review_total']+=1
-                            # Bound worker transport for folder scans. These are
-                            # review signals, never signature detections.
-                            if len(result['structural_review'])<100:
-                                result['structural_review'].append(dict(path=str(resolved),sha256=sha,
-                                    **{k:v for k,v in analysis.items() if k not in ('imports','delay_imports')}))
-                    except ValueError as error: result['errors'].append(f'{path}: PE metadata inspection: {error}')
-                    if self.options['amsi'] and path.suffix.lower() in ('.ps1','.psm1','.js','.vbs','.hta'):
-                        try:
-                            from sentinelav.platform.amsi_client import scan_buffer
-                            amsi=scan_buffer(bytes(data),path.name)
-                            if amsi['detected'] or amsi['blocked_by_policy']: names.append('AMSI: installed provider detection/policy block')
-                        except Exception as error: result['errors'].append(f'{path}: AMSI unavailable: {error}')
-                    result['scanned'] += 1
-                    if names:
-                        result['detections'].append(dict(path=str(resolved), sha256=sha, reasons=names,yara_matches=yara_matches))
-                    if self.advanced and analysis is not None:
-                        decision=self.advanced.inspect(data,path,sha,analysis,format_info,self.analyze_member,cancelled,
-                                                       emulation=self.options['emulation'])
-                        if capture_identity: result['advanced_analysis']=decision
-                        derived=[e for e in decision['evidence'] if e.get('confirmed')]
-                        if derived:
-                            reasons=[]
-                            for item in derived:
-                                reasons.extend('Analyzed content ('+item['source']+'): '+reason for reason in item.get('details',{}).get('reasons',[]))
-                            if reasons:
-                                result['detections'].append(dict(path=str(resolved),sha256=sha,reasons=reasons,
-                                    yara_matches=[],analysis_evidence=derived,detection_scope='derived content',
-                                    automatic_response_eligible=decision.get('automatic_response_eligible',False),fusion_policy_id=decision.get('fusion_policy_id')))
-                        if decision['verdict']=='Review':
-                            result['advanced_review_total']+=1
-                            if len(result['advanced_reviews'])<50:
-                                result['advanced_reviews'].append(dict(path=str(resolved),sha256=sha,
-                                    reasons=[e['description'] for e in decision['evidence'][:16]],
-                                    omissions=decision['omissions'][:8],automatic_response_eligible=False))
-                        if decision['omissions']:
-                            result['errors'].append(f'{path}: Advanced analysis omissions: '+ '; '.join(decision['omissions'])[:1200])
-                    if self.options['archives']:
-                        nested,omissions,archive_stats=inspect_zip(bytes(data),self.analyze_member,cancelled)
-                        result['archive_entries_seen']=result.get('archive_entries_seen',0)+archive_stats['entries']
-                        result['archive_bytes_expanded']=result.get('archive_bytes_expanded',0)+archive_stats['expanded']
-                        result['errors'].extend(f'{path}: {error}' for error in omissions)
-                        for finding in nested:
-                            result['detections'].append(dict(path=str(resolved),sha256=sha,
-                                reasons=['Archive member: '+'!/'.join(finding['member_chain'])+' — '+reason for reason in finding['reasons']],
-                                **{key:value for key,value in finding.items() if key!='reasons'}))
-                        if data.startswith((b'Rar!\x1a\x07',b'7z\xbc\xaf\x27\x1c')):
-                            result['errors'].append(f'{path}: Unsupported archive format; members were not inspected')
+                    self.inspect_file(data,path,resolved,sha,result,capture_identity,cancelled)
+                except OSError as error:
+                    # Windows answers EINVAL when another security product blocks a read it considers infected.
+                    blocked=getattr(error,'errno',None)==22 and getattr(error,'winerror',None) in (225,None)
+                    result['errors'].append(f'{path}: Read blocked, likely by another security product such as Microsoft Defender' if blocked else f'{path}: {error}')
                 except Exception as error:
                     result['errors'].append(f'{path}: {error}')
+                self.send_suspicious(result)
                 progress(str(path), result['scanned'], len(result['detections']))
             if cancelled():
                 break
+        result['errors_omitted']=result['errors'].dropped
+        result['errors']=list(result['errors'])
         result['status'] = 'Cancelled' if cancelled() else ('Complete with omissions' if result['errors'] or result['skipped'] else 'Complete')
         result['elapsed'] = round(time.monotonic() - start, 2)
         if capture_identity:
             from sentinelav.detection.decisions import Evidence,decide
             facts=[]
             for finding in result['detections']:
-                if finding.get('detection_scope')=='derived content': continue
+                if finding.get('detection_scope')=='derived content' or finding.get('detection_scope')=='heuristic': continue
                 for reason in finding['reasons']:
                     source='hash' if 'SHA-256: ' in reason else 'yara' if 'YARA: ' in reason else 'amsi' if 'AMSI: ' in reason else 'eicar'
                     facts.append(Evidence(source,'signature_match',reason,confirmed=True))
@@ -177,7 +143,104 @@ class ScanFlowMixin:
         result['signature_policy']=dict(signature_free=self.options['signature_free'],hashes=not self.options['signature_free'],
             yara=not self.options['signature_free'],test_markers=not self.options['signature_free'],
             amsi=self.options['amsi'],reputation=self.options['reputation'])
+        from sentinelav import __version__
         from sentinelav.data.contracts import analysis_result
-        result['analysis_result']=analysis_result(result,self.options,dict(engine='0.16.0',
+        result['analysis_result']=analysis_result(result,self.options,dict(engine=__version__,
             signatures=self.signatures.metadata,yara=self.rule_summary))
         return result
+
+    def inspect_file(self,data,path,resolved,sha,result,capture_identity,cancelled):
+        # Preserve an independently verified exact-hash finding
+        # even if a subsequent native parser fails in the worker.
+        early_label=self.signatures.get(sha)
+        if early_label is not None and getattr(self,'early_finding',None):
+            self.early_finding(dict(path=str(resolved),sha256=sha,reasons=['SHA-256: '+early_label],yara_matches=[]))
+        names,yara_matches,inspection_errors=self.analyze_bytes(data,sha)
+        result['errors'].extend(f'{path}: {error}' for error in inspection_errors)
+        file_type=classify(data,path.suffix)
+        format_info,analysis,malformed=parse_object(data,file_type)
+        if malformed:result['errors'].append(f'{path}: PE metadata inspection: {malformed}')
+        if analysis['imports']['status'] in ('Incomplete','Unavailable'):
+            result['errors'].append(f"{path}: PE import inspection: {analysis['imports'].get('reason','Unavailable')}")
+        if analysis['delay_imports']['status']=='Incomplete':
+            result['errors'].append(f"{path}: PE delay imports: {analysis['delay_imports']['reason']}")
+        for omission in analysis.get('image_details',{}).get('omissions',[]):
+            if 'budget' not in omission.casefold():result['errors'].append(f'{path}: PE details: '+omission)
+        if capture_identity:
+            result['file_format']=format_info
+            result['static_analysis']=analysis
+        if analysis['signals']:
+            result['structural_review_total']+=1
+            # Bound worker transport for folder scans. These raw traits feed the score below.
+            if len(result['structural_review'])<100:
+                result['structural_review'].append(dict(path=str(resolved),sha256=sha,
+                    **{k:v for k,v in analysis.items() if k not in ('imports','delay_imports')}))
+        if self.options['amsi'] and path.suffix.lower() in SCRIPT_AMSI:
+            try:
+                from sentinelav.platform.amsi_client import scan_buffer
+                amsi=scan_buffer(bytes(data),path.name)
+                if amsi['detected'] or amsi['blocked_by_policy']: names.append('AMSI: installed provider detection/policy block')
+            except Exception as error: result['errors'].append(f'{path}: AMSI unavailable: {error}')
+        result['scanned'] += 1
+        rows=[]
+        if names:
+            rows.append(dict(path=str(resolved), sha256=sha, reasons=names,yara_matches=yara_matches))
+        decision=None
+        if self.advanced:
+            decision=self.advanced.inspect(data,path,sha,analysis,format_info,self.analyze_member,cancelled,emulation=self.options['emulation'])
+            if capture_identity: result['advanced_analysis']=decision
+            derived=[e for e in decision['evidence'] if e.get('confirmed')]
+            reasons=[]
+            for item in derived:
+                reasons.extend('Analyzed content ('+item['source']+'): '+reason for reason in item.get('details',{}).get('reasons',[]))
+            if reasons:
+                rows.append(dict(path=str(resolved),sha256=sha,reasons=reasons,yara_matches=[],analysis_evidence=derived,
+                    detection_scope='derived content',fusion_policy_id=decision.get('fusion_policy_id')))
+            if decision['verdict']=='Review':
+                result['advanced_review_total']+=1
+                if len(result['advanced_reviews'])<50:
+                    result['advanced_reviews'].append(dict(path=str(resolved),sha256=sha,
+                        reasons=[e['description'] for e in decision['evidence'][:16]],
+                        omissions=decision['omissions'][:8],automatic_response_eligible=False))
+            coverage=[item for item in decision['omissions'] if not item.startswith(STANDING_LIMITS)]
+            if coverage:
+                result['errors'].append(f'{path}: Advanced analysis omissions: '+ '; '.join(coverage)[:1200])
+        nested,encrypted,bomb=[],[],False
+        if self.options['archives']:
+            nested,omissions,archive_stats=inspect_archive(bytes(data),self.assess_member,cancelled)
+            result['archive_entries_seen']=result.get('archive_entries_seen',0)+archive_stats['entries']
+            result['archive_bytes_expanded']=result.get('archive_bytes_expanded',0)+archive_stats['expanded']
+            result['errors'].extend(f'{path}: {error}' for error in omissions if not any(limit in error for limit in STANDING_LIMITS))
+            encrypted,bomb=archive_stats['encrypted_executables'],archive_stats['bomb']
+        extra=[]
+        if encrypted:extra.append(indicator('encrypted_archive_with_program','evasion',15,'A password-protected archive holds a program or script that could not be inspected.',category='Dropper',evidence=encrypted[0]))
+        if bomb:extra.append(indicator('decompression_bomb','evasion',25,'The archive expands far beyond a normal ratio, a technique used to exhaust scanners.',category='Evasion'))
+        assessed=self.assess_object(data,path.suffix,names,yara_matches,path=str(resolved),decision=decision,metadata=format_info,analysis=analysis,malformed=malformed,extra=extra)
+        result['errors'].extend(f'{path}: {error}' for error in assessed['omissions'] if not error.startswith(STANDING_LIMITS))
+        fields=public_fields(assessed)
+        for row in rows:
+            # A match found only in decoded content keeps the decision's own authority, so quoted text cannot trigger removal.
+            derived_authority=decision.get('automatic_response_eligible',False) if row.get('detection_scope')=='derived content' else None
+            row.update(fields)
+            if derived_authority is not None:row['automatic_response_eligible']=derived_authority
+            self.add_finding(result,'detections',row)
+        top=assessed
+        for finding in nested:
+            member=finding.pop('assessment') or {}
+            label='!/'.join(finding['member_chain'])
+            member_fields=public_fields(member) if member else {}
+            if finding['reasons'] or member.get('verdict')=='Malicious':
+                reasons=finding['reasons'] or member.get('reasons',[])
+                self.add_finding(result,'detections',dict(path=str(resolved),sha256=sha,**{**member_fields,'automatic_response_eligible':False},
+                    **{key:value for key,value in finding.items() if key!='reasons'},reasons=['Archive member: '+label+' — '+reason for reason in reasons]))
+            elif member.get('verdict')=='Suspicious':
+                self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,**{**member_fields,'automatic_response_eligible':False},
+                    **{key:value for key,value in finding.items() if key!='reasons'},reasons=['Archive member: '+label+' — '+reason for reason in member.get('reasons',[])]))
+            if member and member.get('score',0)>top.get('score',0):top=member
+        if not rows:
+            if assessed['verdict']=='Malicious':
+                self.add_finding(result,'detections',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
+            elif assessed['verdict']=='Suspicious':
+                self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
+        if capture_identity:
+            result['assessment']={**public_fields(top),'reasons':top.get('reasons',[]),'analyzed':assessed['analyzed'],'inert':assessed['inert'],'file_kind':assessed['file_kind']}

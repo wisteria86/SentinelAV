@@ -3,7 +3,8 @@
 # Used by: detection.engine, monitoring.monitor_loop, platform.windows_service, tests.unit.test_runtime_guards
 
 """Shared inspection policy validation across all scanner entry points."""
-DEFAULTS=dict(archives=True,amsi=False,advanced=False,emulation=False,content=True,documents=True,model=False,reputation=False,signature_free=False,neural=False)
+# Generalized detection is on by default. neural_gray runs MalConv only on undecided PE files; emulation stays opt-in.
+DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=True,documents=True,model=True,reputation=False,signature_free=False,neural=False,neural_gray=True)
 
 
 def inspection_options(value=None):

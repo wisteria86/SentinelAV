@@ -116,7 +116,8 @@ def compile_rules(folder):
         public=sum(not r.is_private for r in unit)
         item['public_rules']=public
         item['private_helpers']=sum(r.is_private for r in unit)
-        if item.get('demo'): summary['demo_rules']+=public
+        if item.get('scope')=='generic': summary['generic_rules']=summary.get('generic_rules',0)+public
+        elif item.get('demo'): summary['demo_rules']+=public
         elif item['managed']: summary['research_rules']+=public
         else: summary['local_rules']+=public
         counts[namespace]=public
@@ -126,7 +127,10 @@ def compile_rules(folder):
 
 def evidence(match,metadata):
     item=metadata.get(match.namespace,{})
-    return dict(rule=match.rule,namespace=match.namespace,file=item.get('file','Unknown'),
+    weight=match.meta.get('weight',15)
+    group=match.meta.get('group','generic_yara')
+    return dict(rule=match.rule,namespace=match.namespace,file=item.get('file','Unknown'),scope=item.get('scope','family'),group=str(group)[:32],
+                weight=weight if type(weight) is int and 0<weight<=45 else 15,category=str(match.meta.get('category',''))[:40],
                 description=str(match.meta.get('description',''))[:1000],
                 license=item.get('license',str(match.meta.get('license','Unspecified'))),
                 source=item.get('source_url',str(match.meta.get('source','Local rule'))),
