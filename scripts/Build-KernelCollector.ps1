@@ -15,7 +15,7 @@ if (-not $OutputDirectory) { $OutputDirectory = Join-Path $workRoot ('builds/nat
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if(!$destination.StartsWith($workRoot.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Collector build output must stay under managed F: work storage'}
 if (Test-Path -LiteralPath $destination) { throw 'Build output must be a new directory.' }
-$dotnet=Join-Path $projectRoot 'tools/vendor/dotnet-sdk/dotnet.exe'
+$dotnet=Join-Path $workRoot 'tools/dotnet-sdk/dotnet.exe'
 if (-not (Test-Path -LiteralPath $dotnet)) {
     $command=Get-Command dotnet -ErrorAction SilentlyContinue
     if (-not $command) { throw '.NET 8 SDK is required to build the collector.' }
