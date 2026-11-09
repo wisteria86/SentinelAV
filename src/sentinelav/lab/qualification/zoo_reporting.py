@@ -107,7 +107,7 @@ def render(store):
                 dict(outcome='inspection_failure' if result else 'pending',
                      reason=result['reason'] if result else 'Batch pending or interrupted')]
             for row in rows:
-                counts[row['outcome']] += 1
+                counts[row['outcome']] += row.get('inert_members', 1)
                 family = family_of(entry['path'])
                 ledger.append(dict(case_id=case['id'], archive=entry['path'], blob=entry['blob'], family=family, split=split_of(family), **row))
     summary = summarize(ledger, counts, results, cases)

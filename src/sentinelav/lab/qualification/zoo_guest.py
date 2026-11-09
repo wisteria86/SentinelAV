@@ -9,7 +9,7 @@ import re
 import time
 import zipfile
 
-from .zoo_inventory import MAX_ARCHIVE, REVISION, SHA1, blob_identity
+from .zoo_inventory import MAX_ARCHIVE, REVISION, SHA1, blob_identity, unseal
 
 OUTCOMES = ('malicious', 'suspicious', 'miss', 'unsupported', 'not_applicable', 'blocked_by_other_av', 'inspection_failure')
 MAX_MEMBER = 64 * 1024**2
@@ -95,7 +95,7 @@ def scan_member(archive, info, password, root, scanner, state):
     return row
 
 
-def inspect_archive(entry, root, scanner, state):
+def inspect_archive(entry, root, scanner, state, key):
     if entry.get('unsupported'):
         return [dict(outcome='unsupported', reason='Repository entry is outside encrypted ZIP scope')]
     if entry.get('stage_error'):
@@ -104,10 +104,10 @@ def inspect_archive(entry, root, scanner, state):
     if not SHA1.fullmatch(blob):
         raise ValueError('Invalid pinned archive identity')
     from sentinelav.workspace import unlinked
-    path = unlinked(Path('C:/SentinelAV-Input/Zoo') / (blob + '.zip'))
-    if path.stat().st_size != entry['bytes'] or path.stat().st_size > MAX_ARCHIVE:
+    path = unlinked(Path('C:/SentinelAV-Input/Zoo') / (blob + '.sealed'))
+    if path.stat().st_size != entry['bytes'] + 28 or entry['bytes'] > MAX_ARCHIVE:
         raise ValueError('Archive size mismatch')
-    raw = path.read_bytes()
+    raw = unseal(path.read_bytes(), key, blob)
     if blob_identity(raw) != blob:
         raise ValueError('Archive Git identity mismatch')
     password = base64.b64decode(entry['password_b64'], validate=True) if entry.get('password_b64') else b'infected'
@@ -116,22 +116,29 @@ def inspect_archive(entry, root, scanner, state):
 
 def inspect_members(raw, password, root, scanner, state):
     rows = []
+    inert = 0
     with zipfile.ZipFile(BytesIO(raw)) as archive:
         members = [item for item in archive.infolist() if not item.is_dir()]
         if not members:
             return [dict(outcome='inspection_failure', reason='Archive has no members')]
         for index, info in enumerate(members[:MAX_MEMBERS]):
             if time.monotonic() > state['deadline']:
-                rows.append(dict(member_index=index, member=info.filename[:160], outcome='inspection_failure', reason='Batch time budget reached'))
+                rows.append(dict(member_index=len(rows), member=info.filename[:48], outcome='inspection_failure', reason='Batch time budget reached'))
                 continue
             try:
                 row = scan_member(archive, info, password, root, scanner, state)
             except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile) as error:
                 row = dict(outcome='inspection_failure', reason=type(error).__name__)
+            # Images, text and the like carry no behavior, so they are counted rather than listed.
+            if row['outcome'] == 'not_applicable':
+                inert += 1
+                continue
             # Names are metadata only. They are never used as filesystem paths.
-            rows.append(dict(member_index=index, member=info.filename[:48], **row))
+            rows.append(dict(member_index=len(rows), member=info.filename[:48], **row))
+        if inert:
+            rows.append(dict(member_index=len(rows), member='', outcome='not_applicable', inert_members=inert))
         if len(members) > MAX_MEMBERS:
-            rows.append(dict(member_index=MAX_MEMBERS, member='', outcome='inspection_failure', reason=f'{len(members)-MAX_MEMBERS} further members not inspected'))
+            rows.append(dict(member_index=len(rows), member='', outcome='inspection_failure', reason=f'{len(members)-MAX_MEMBERS} further members not inspected'))
     return rows
 
 
@@ -172,14 +179,14 @@ def execute(context, root):
     state = dict(response=0, realtime=0, deadline=time.monotonic()+max(60, case['seconds']-120))
     groups = []
     try:
+        key = base64.b64decode(context['transfer_key'] if quick else batch['transfer_key'], validate=True)
+        if len(key) != 32:
+            raise ValueError('Invalid fixture transfer key')
         if quick:
-            key = base64.b64decode(context['transfer_key'], validate=True)
-            if len(key) != 32:
-                raise ValueError('Invalid fixture transfer key')
             files = json.loads(Path('C:/SentinelAV-Input/manifest.json').read_text(encoding='utf-8-sig'))['files']
         for entry in batch['entries']:
             try:
-                rows = inspect_cached(entry, root, scanner, key, files, state) if quick else inspect_archive(entry, root, scanner, state)
+                rows = inspect_cached(entry, root, scanner, key, files, state) if quick else inspect_archive(entry, root, scanner, state, key)
             except (OSError, ValueError, RuntimeError, NotImplementedError, InvalidTag, zipfile.BadZipFile) as error:
                 rows = [dict(outcome='inspection_failure', reason=type(error).__name__)]
             groups.append(dict(blob=entry['blob'], rows=rows))

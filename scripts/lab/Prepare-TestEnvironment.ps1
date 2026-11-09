@@ -127,7 +127,7 @@ if($ZooInput){
     New-Item -ItemType Directory -Path $zooOutput | Out-Null
     foreach($archive in $archives){
         Assert-UnlinkedPath $archive.FullName
-        if($archive.Name -cnotmatch '^[a-f0-9]{40}\.zip$' -or $archive.Length -gt 67108864){throw 'Invalid pinned Zoo archive'}
+        if($archive.Name -cnotmatch '^[a-f0-9]{40}\.sealed$' -or $archive.Length -gt 67108892){throw 'Invalid sealed Zoo archive'}
         Copy-Item -LiteralPath $archive.FullName -Destination (Join-Path $zooOutput $archive.Name)
     }
 }
