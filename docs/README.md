@@ -2,6 +2,7 @@
 
 | Read this | For |
 | --- | --- |
+| [Evaluation report, 9 November 2026](EVALUATION-2026-11-09.md) | Measured detection and false-positive rates, misses, disclosures and limits |
 | [How SentinelAV detects threats](DETECTION.md) | Scoring, file types, scan modes, real-time protection, removal and limits |
 | [Module interaction map](../map.md) | Runtime flows, process boundaries, UI composition, and actual imports between small modules |
 | [Critical product evaluation](CRITICAL-EVALUATION.md) | One-click profiles, evidence scoring, telemetry, Sandbox/Hyper-V prerequisites and qualification gates |

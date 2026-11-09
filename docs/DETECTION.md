@@ -122,8 +122,10 @@ there are findings, and 2 means the scan could not run.
 
 ## Other limits
 
-- The signed PE model has an expiry date. After it passes, model detection stops and
-  scans report that it is unavailable, until a newer signed model is installed.
+- The signed PE model expires on 2 February 2027. After that, model detection stops and
+  scans warn that it is unavailable, until a newer signed model is installed.
+- Files that describe malware behavior, such as YARA rules and analysis tools, can be flagged, and a few can reach the
+  automatic quarantine score. Exclude folders that hold them.
 - Static analysis cannot see behavior that appears only at runtime. Behavior monitoring
   covers some of that, and reports suspicion rather than proof.
 - See the evaluation report in the [documentation index](README.md) for measured

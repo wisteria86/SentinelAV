@@ -1,3 +1,23 @@
+SentinelAV 0.17.0 — generalized detection, explanations and verified removal
+
+Every scanned file now gets a score, verdict, confidence and plain-language reasons
+from format-specific indicators, generic YARA rules and local models. Unfamiliar
+threats can now become actionable detections.
+
+Added recursive in-memory archive reading (ZIP including AES, TAR, GZIP, BZIP2, XZ,
+7z, and RAR with an unrar tool), Quick and Full scan targets, default real-time
+protection, high-confidence automatic quarantine, a streaming encrypted vault,
+one-step removal, built-in network heuristics and a command-line scan.
+
+Fixed scans ending after five minutes, malformed and oversized files escaping analysis,
+one damaged archive member hiding the rest, and quarantine being refused during
+monitoring. Removed two hashes taken from the evaluation corpus.
+
+Measured on unseen theZoo families: 68.0% of archives flagged by the full product and
+64.0% without hashes or family rules. 0 of 3,201 legitimate files flagged. See
+docs/EVALUATION-2026-11-09.md for method and limits. Files are checked after they are
+written, so this release cannot guarantee blocking before execution.
+
 SentinelAV 0.16.0 — critical product evaluation harness
 
 Added versioned case/evidence contracts, fail-closed statistical gates, durable
