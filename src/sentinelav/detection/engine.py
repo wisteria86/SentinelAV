@@ -21,9 +21,10 @@ class DisabledSignatures:
     def close(self):pass
 
 
+from .file_analysis import FileAnalysisMixin
 from .scan_flow import ScanFlowMixin
 
-class Scanner(ScanFlowMixin):
+class Scanner(ScanFlowMixin,FileAnalysisMixin):
     def __init__(self, signatures, rules_dir, max_mb=100, exclusions=(), trusted_hashes=(),options=None):
         from sentinelav.platform.engine_policy import inspection_options
         self.options=inspection_options(options)
@@ -54,8 +55,10 @@ class Scanner(ScanFlowMixin):
         if self.rules:
             try:
                 for match in self.rules.match(data=bytes(data),timeout=5):
-                    names.append('YARA: '+match.rule)
-                    matches.append(evidence(match,self.rule_metadata))
+                    found=evidence(match,self.rule_metadata)
+                    # Technique rules add score weight; only family rules are decisive.
+                    if found.get('scope')!='generic':names.append('YARA: '+match.rule)
+                    matches.append(found)
             except Exception as error: errors.append('YARA inspection failed: '+str(error))
         return names,matches,errors
 

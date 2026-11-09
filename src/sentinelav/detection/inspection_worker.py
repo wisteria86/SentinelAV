@@ -63,6 +63,8 @@ def worker_main():
                     roots=request.get('roots')
                     if not isinstance(roots,list) or not 1<=len(roots)<=10000 or any(not isinstance(p,str) or len(p)>32768 or not Path(p).is_absolute() for p in roots):
                         raise ValueError('Invalid scan paths')
+                    skip=request.get('skip',0)
+                    if type(skip) is not int or skip<0:raise ValueError('Invalid resume position')
                     last=[0.]
                     sent=[0]
                     def progress(path,scanned,threats):
@@ -72,7 +74,11 @@ def worker_main():
                         if time.monotonic()-last[0]>.1:
                             send('progress',path=path,scanned=scanned,threats=threats)
                             last[0]=time.monotonic()
-                    result=scanner.scan(roots,lambda:False,progress)
+                    # Announcing each file lets the parent skip exactly the one that hangs or crashes this worker.
+                    scanner.file_started=lambda index,path:send('begin',index=index,path=path)
+                    scanner.suspicious_sent=0
+                    scanner.suspicious_finding=lambda finding:send('suspicious',finding=finding)
+                    result=scanner.scan(roots,lambda:False,progress,skip)
                 elif command=='buffer' and scanner is not None:
                     from sentinelav.detection.buffer_scan import inspect_buffer,MAX_BUFFER
                     encoded=request.get('content')

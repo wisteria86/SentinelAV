@@ -42,8 +42,10 @@ class YaraRuleTests(unittest.TestCase):
         self.assertEqual(summary['demo_rules'],1)
         self.assertEqual(summary['warnings'],[])
         self.assertEqual(summary['local_rules'],0)
+        self.assertEqual(summary['generic_rules'],10)
         for item in metadata.values():
-            if not item.get('demo'):
+            # Technique rules are original to this project, so they have no upstream revision or license file to pin.
+            if not item.get('demo') and item.get('scope')!='generic':
                 self.assertIn(item['license'],('BSD-2-Clause','MIT','CC-BY-SA-4.0'))
                 self.assertEqual(len(item['source_revision']),40)
                 self.assertTrue((ROOT/'rules'/item['license_file']).is_file())

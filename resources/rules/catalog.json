@@ -195,6 +195,30 @@
       "reviewed": "2026-11-02",
       "review_scope": "Source and condition review, then bounded clean-file and static guest validation; no broad efficacy claim",
       "demo": false
+    },
+    {
+      "file": "generic_techniques.yar",
+      "sha256": "0e93624f7ad8c5eb04113837ad29286b1e6d9e9bf18361c420bd5ad67e6a8985",
+      "scope": "generic",
+      "license": "Project original",
+      "source_url": "Project original",
+      "source_revision": "In this repository",
+      "selected_rules": [
+        "generic_peb_walk_shellcode",
+        "generic_api_hash_resolver",
+        "generic_reflective_loader",
+        "generic_encoded_program_in_text",
+        "generic_process_hollowing_strings",
+        "generic_stack_built_api_names",
+        "generic_mbr_overwrite",
+        "generic_ransom_note_template",
+        "generic_macro_virus_copy_routine",
+        "generic_elf_scanner_bot"
+      ],
+      "coverage": "Technique descriptions without malware family names; matches add score weight and are not decisive",
+      "changes": "Original rules",
+      "reviewed": "2026-11-09",
+      "review_scope": "Strict compilation; false-positive measurement in the benign corpus evaluation"
     }
   ],
   "effectiveness_evaluation": "Deferred",

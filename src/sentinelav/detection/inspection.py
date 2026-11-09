@@ -26,6 +26,27 @@ from .worker_limits import WindowsJob
 from .inspection_worker import worker_main
 
 
+PER_FILE_SECONDS=180
+MAX_WORKER_RESUMES=64
+
+
+def merge_results(first,second):
+    """Combine scan segments from before and after a worker restart."""
+    merged=dict(second)
+    for key in ('scanned','skipped'):merged[key]=first.get(key,0)+second.get(key,0)
+    seen=set();detections=[]
+    for row in first.get('detections',[])+second.get('detections',[]):
+        key=(row.get('path'),row.get('sha256'),tuple(row.get('member_chain',[])),tuple(row.get('reasons',[])))
+        if key not in seen:seen.add(key);detections.append(row)
+    merged['detections']=detections
+    merged['suspicious']=first.get('suspicious',[])+second.get('suspicious',[])
+    merged['errors']=first.get('errors',[])+second.get('errors',[])
+    merged['elapsed']=round(first.get('elapsed',0)+second.get('elapsed',0),2)
+    merged['started']=first.get('started',second.get('started'))
+    if merged.get('status')=='Complete':merged['status']='Complete with omissions'
+    return merged
+
+
 class IndexInfo:
     def __init__(self,count,metadata): self.count,self.metadata=count,metadata
     def __len__(self): return self.count
@@ -60,7 +81,9 @@ class IsolatedScanner:
                                       cwd=str(RESOURCE_ROOT),env=environment,
                                       creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
         try:
-            self.job=WindowsJob(self.process,memory=1024*1024*1024 if any(self.config.get('options',{}).get(k) for k in ('emulation','model','neural')) else 768*1024*1024)
+            from sentinelav.platform.engine_policy import inspection_options
+            effective=inspection_options(self.config.get('options') or {})
+            self.job=WindowsJob(self.process,memory=1536*1024*1024 if any(effective.get(k) for k in ('emulation','model','neural','neural_gray')) else 768*1024*1024)
             process=self.process
             messages=self.messages
             errors=[]
@@ -108,9 +131,11 @@ class IsolatedScanner:
         partial_keys={}
         partial_bytes=0
         checked=0
+        suspicious=[]
+        position=dict(index=0,path='')
         def incomplete(status,error):
             return dict(started=time.strftime('%Y-%m-%d %H:%M:%S'),scanned=max(checked,len({d.get('path','') for d in partial})),skipped=0,errors=[error] if error else [],
-                detections=partial,status=status,elapsed=round(time.monotonic()-began,2),
+                detections=partial,suspicious=suspicious,status=status,elapsed=round(time.monotonic()-began,2),resume_index=position['index'],stuck_path=position['path'],
                 warnings=['Partial worker result; coverage is incomplete'],yara=getattr(self,'rule_summary',{}))
         while True:
             if cancelled():
@@ -127,6 +152,15 @@ class IsolatedScanner:
                     raise RuntimeError('Inspection worker exited; coverage is incomplete. '+'; '.join(self.transport_errors))
                 continue
             if not isinstance(reply,dict) or reply.get('protocol')!=1: raise ValueError('Invalid inspection response')
+            # The budget limits silence, not total duration, so a long full-disk scan is never cut off while it advances.
+            if reply.get('type') in ('begin','progress','finding','suspicious') and message['command']=='scan':
+                deadline=time.monotonic()+timeout
+            if reply.get('type')=='begin':
+                position.update(index=reply['index'],path=reply['path'])
+                continue
+            if reply.get('type')=='suspicious':
+                if isinstance(reply.get('finding'),dict) and len(suspicious)<2000:suspicious.append(reply['finding'])
+                continue
             if reply.get('type')=='progress':
                 checked=reply['scanned']
                 progress(reply['path'],reply['scanned'],reply['threats'])
@@ -135,7 +169,7 @@ class IsolatedScanner:
                 finding=reply.get('finding')
                 if not isinstance(finding,dict): raise ValueError('Invalid partial finding')
                 partial_bytes+=len(json.dumps(finding).encode())
-                if partial_bytes>MAX_LINE or len(partial)>=1000:
+                if partial_bytes>MAX_LINE or len(partial)>=2000:
                     self.close()
                     return incomplete('Complete with omissions','Partial finding budget exceeded')
                 key=(finding.get('path'),finding.get('sha256'),tuple(finding.get('member_chain',[])))
@@ -154,8 +188,8 @@ class IsolatedScanner:
             return reply['result']
 
     def scan(self,roots,cancelled,progress):
-        timeout=30 if len(roots)==1 and Path(roots[0]).is_file() else 300
-        if self.config.get('options',{}).get('emulation_profile')=='lab':timeout=max(timeout,60)
+        single=len(roots)==1 and Path(roots[0]).is_file()
+        timeout=PER_FILE_SECONDS
         restarted=False
         try:
             if self.keep_alive and not cancelled() and (self.process is None or self.process.poll() is not None):
@@ -163,6 +197,15 @@ class IsolatedScanner:
                 self.start()
                 restarted=True
             result=self.exchange(dict(command='scan',roots=list(map(str,roots))),cancelled,progress,timeout)
+            # A hostile or hung file costs that file, not the rest of the scan.
+            for _ in range(MAX_WORKER_RESUMES):
+                position=result.get('resume_index',0)
+                if single or not position or result.get('status')=='Cancelled' or cancelled():break
+                result['errors'].append(f"Skipped after the inspection worker stopped: {result.get('stuck_path','')}")
+                self.close();self.start()
+                restarted=True
+                following=self.exchange(dict(command='scan',roots=list(map(str,roots)),skip=position),cancelled,progress,timeout)
+                result=merge_results(result,following)
             if restarted: result['worker_restarted']=True
             return result
         finally:
