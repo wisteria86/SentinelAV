@@ -122,7 +122,7 @@ if($ApprovedInventory){
 if($ZooInput){
     Assert-UnlinkedPath $ZooInput
     $archives=@(Get-ChildItem -LiteralPath $ZooInput -File -Force)
-    if($archives.Count -gt 4){throw 'Zoo batch exceeds archive limit'}
+    if($archives.Count -gt 64){throw 'Zoo batch exceeds archive limit'}
     $zooOutput=Join-Path $inputRoot 'Zoo'
     New-Item -ItemType Directory -Path $zooOutput | Out-Null
     foreach($archive in $archives){
