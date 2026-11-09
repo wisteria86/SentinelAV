@@ -44,7 +44,7 @@ def office_indicators(data,omissions=None):
         names=sorted({m.group().decode('latin-1').replace('\0','').casefold() for _,m in zip(range(32),LEGACY_MACRO.finditer(raw))})
         found['legacy_macro_triggers']=indicator('legacy_macro_triggers','macro_trigger',28,'A legacy document holds auto-run or file-command macro names that old macro viruses replace.',category='MacroVirus',evidence=', '.join(names)[:160])
         if {'macrocopy','normal.dot'}&set(names):found['legacy_macro_copy']=indicator('legacy_macro_copy','replication',42,'A legacy document references copying macros or the global Normal template.',category='MacroVirus')
-    lowered=raw.casefold()
+    lowered=raw.lower()
     if lowered.find(b'mz')>=0 and re.search(rb'this program (?:cannot|must) be run',lowered):
         found['embedded_program_in_document']=indicator('embedded_program_in_document','dropper',38,'A Windows program is embedded inside the document.',category='Dropper')
     hits=[item.decode('latin-1').rstrip('\0') for item in EXPLOIT_CLSID[:4] if item in lowered]
@@ -70,7 +70,7 @@ def pdf_indicators(data):
 
 
 def rtf_indicators(data):
-    raw=bytes(data[:32*1024*1024]);lowered=raw.casefold();found=[]
+    raw=bytes(data[:32*1024*1024]);lowered=raw.lower();found=[]
     if b'\\objupdate' in lowered and b'\\object' in lowered:found.append(indicator('rtf_object_auto_update','exploit',24,'The RTF forces an embedded object to load without user action.',category='Exploit'))
     compact=re.sub(rb'\s',b'',lowered)
     if any(token in compact for token in (b'0002ce0200000000c000000000000046',b'equation.3',b'65717561746f6e2e33',b'equation.2',b'65717561746f6e2e32')):

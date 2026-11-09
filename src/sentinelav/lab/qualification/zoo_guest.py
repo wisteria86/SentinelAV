@@ -82,6 +82,9 @@ def scan_member(archive, info, password, root, scanner, state):
         row = dict(outcome=outcome, sha256=identity, coverage_complete=scan.get('status') == 'Complete' and not scan.get('errors'), **describe(scan))
         if reason:
             row['reason'] = reason
+        if outcome == 'inspection_failure' and scan.get('errors'):
+            # The first cause, without the guest path, so a systematic failure is visible in the report.
+            row['detail'] = str(scan['errors'][0]).split(': ', 1)[-1][:90]
     finally:
         fixture.unlink(missing_ok=True)
     if outcome == 'malicious':
