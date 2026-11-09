@@ -62,10 +62,10 @@ class ScanPageMixin:
         self.select_files_button = self.action(controls, 'Select Files…', self.choose_files)
         layout.addLayout(controls)
         self.results = self.table(['File', 'Verdict', 'Score', 'Confidence', 'Threat', 'Why'])
-        self.results.setFixedHeight(132)
+        self.results.setMinimumHeight(190)
+        self.fit_columns(self.results, 0, 5)
         self.results.cellDoubleClicked.connect(self.show_scan_finding)
         layout.addWidget(self.results, 1)
-        layout.addStretch()
         self.selected_scan = 0
 
     def select_scan_tab(self, index):

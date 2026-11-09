@@ -21,6 +21,7 @@ class ResponsePagesMixin:
         self.pending_table.cellDoubleClicked.connect(lambda row,column:self.show_finding(self.pending_detections[row]))
         self.pending_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.pending_table.setMinimumHeight(140)
+        self.fit_columns(self.pending_table, 0, 3)
         pl.addWidget(self.pending_table)
         row = QHBoxLayout()
         self.quarantine_button = self.action(row,'Quarantine Selected',self.quarantine_selected,True)

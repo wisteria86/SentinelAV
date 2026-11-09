@@ -22,7 +22,7 @@ def prepare_self_test_dir(path):
 
 
 def main():
-    parser=argparse.ArgumentParser(description='SentinelAV desktop protection prototype')
+    parser=argparse.ArgumentParser(description='SentinelAV malware detection, protection and removal')
     parser.add_argument('--startup',action='store_true')
     parser.add_argument('--scheduled-scan',action='store_true')
     parser.add_argument('--self-test',action='store_true')

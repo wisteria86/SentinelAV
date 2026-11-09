@@ -120,8 +120,8 @@ class ScanActionsMixin:
         self.progress.setValue(0 if result['status'] == 'Cancelled' else 100)
         self.cancel.setEnabled(False)
         self.count.setText(f"{result['scanned']:,} inspected • {len(result['detections'])} detections • {result['skipped']} oversized • {len(result['errors'])} errors • {result['elapsed']}s")
-        reviews=result.get('advanced_review_total',0)
-        if reviews: self.count.setText(self.count.text()+f' • {reviews} analysis reviews')
+        suspicious=result.get('suspicious_total',len(result.get('suspicious',[])))
+        if suspicious: self.count.setText(self.count.text()+f' • {suspicious} suspicious')
         self.path_label.setText('Nothing was changed. Double-click a row to see why it was flagged; act on findings under Quarantine.')
         self.scan_findings = sorted(result['detections']+result.get('suspicious',[]),key=lambda d:-d.get('score',0))
         rows = [finding_row(d) for d in self.scan_findings]

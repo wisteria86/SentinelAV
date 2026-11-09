@@ -42,6 +42,12 @@ class WindowWidgetsMixin:
         table.setWordWrap(False)
         return table
 
+    def fit_columns(self, table, *wide):
+        """Give spare width to the columns that hold long text, and size short values to their content."""
+        header = table.horizontalHeader()
+        for column in range(table.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch if column in wide else QHeaderView.ResizeMode.ResizeToContents)
+
     def fill(self, table, rows):
         table.setRowCount(len(rows))
         for i, row in enumerate(rows):
