@@ -1,3 +1,7 @@
+# Purpose: Allowlisted harmless lab profiles. No sample ingestion or arbitrary execution.
+# Works with: detection.engine, monitoring.behavior
+# Used by: entrypoint, ui.lab_pages, ui.lab_ui, ui.lab_ui_workers
+
 """Allowlisted harmless lab profiles. No sample ingestion or arbitrary execution."""
 import json
 import os

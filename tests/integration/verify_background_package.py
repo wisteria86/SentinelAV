@@ -1,3 +1,7 @@
+# Purpose: Validate the frozen engine with harmless fixtures and no installation.
+# Works with: data.storage, monitoring.background
+# Used by: unittest discovery
+
 """Validate the frozen engine with harmless fixtures and no installation."""
 import argparse
 import json

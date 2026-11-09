@@ -1,3 +1,7 @@
+# Purpose: Bounded, read-only same-account memory inspection. Never dumps raw bytes.
+# Works with: detection.yara_rules, paths
+# Used by: detection.inspection_worker, tests.unit.test_defense_layers
+
 """Bounded, read-only same-account memory inspection. Never dumps raw bytes."""
 from sentinelav.paths import RESOURCE_ROOT
 import ctypes

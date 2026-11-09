@@ -1,6 +1,10 @@
 # SentinelAV
 
-Windows desktop prototype implementing scanning, monitoring, behavioral analysis, reviewed response, scheduling, reports, and Windows packaging (Phases 1–6). Inspired by the supplied orange/cream desktop reference. Current prototype version: 0.12.0.
+Historical feature notes follow. Use [the current proposal audit](PROPOSAL-AUDIT.md)
+for verified capability and deployment status; older phase limits below describe
+the implementation at the time of those entries.
+
+Windows desktop prototype implementing scanning, monitoring, behavioral analysis, reviewed response, scheduling, reports, and Windows packaging (Phases 1–6). Inspired by the supplied orange/cream desktop reference. Current prototype version: 0.13.0.
 
 ## Optional independent background engine
 
@@ -196,7 +200,7 @@ History/event reads are cached and invalidated on local writes or SQLite data-ve
 The build uses PyInstaller and a portable Inno Setup compiler at `tools/vendor/inno/ISCC.exe`. Obtain the compiler from the [official Inno Setup downloads](https://jrsoftware.org/isdl.php), verify its digital signature, and extract it using its documented [portable installer mode](https://jrsoftware.org/ishelp/topic_technotes.htm). Build tools are local dependencies, not runtime requirements.
 
 - `artifacts/dist/SentinelAV/SentinelAV.exe`: standalone Windows executable; keep the entire sibling `_internal` folder with it.
-- `artifacts/release/SentinelAV-Setup-0.12.0.exe`: per-user installer, defaulting to `%LOCALAPPDATA%/Programs/SentinelAV`. Python is bundled. Optional desktop shortcut; Start menu shortcut and uninstaller included. Startup/scheduling are never enabled by installation.
+- `artifacts/release/SentinelAV-Setup-0.13.0.exe`: per-user installer, defaulting to `%LOCALAPPDATA%/Programs/SentinelAV`. Python is bundled. Optional desktop shortcut; Start menu shortcut and uninstaller included. Startup/scheduling are never enabled by installation.
 - Uninstall preserves `%LOCALAPPDATA%/SentinelAV`, including history, settings, and encrypted quarantine. It removes startup/tasks only when their executable points to that installed copy. Reinstall under the original Windows user to restore quarantined data.
 
 For an isolated packaged smoke check, run `SentinelAV.exe --self-test --data-dir C:\path\to\isolated-test-data`. The directory must be new and unused; existing directories and linked components are refused before any test files or database changes. It writes only harmless test fixtures, a smoke result, and a local HTML report under that directory. It checks packaged Qt navigation, detection, SQLite, Windows DPAPI, and exports. Do not pass your normal data directory to a smoke test.
@@ -209,7 +213,7 @@ See `HARDENING.md` for the scoped review and regression evidence. Startup and sc
 
 ## Phase 7 milestone: setup checks and safe local simulations
 
-**Malware Lab** adds Overview, Test Queue, Live Activity, and Results in the existing UI style. There is currently **no VM configured and no isolated execution backend**. The persistent badge labels all runs as local safe simulations. VM Setup remains disabled; system checks inspect tool/service availability without enabling features, changing settings, or starting existing VMs.
+The original safe-lab milestone adds Overview, Test Queue, Live Activity and Results. The current source also has a separately confirmed Offline Guest Job path and real source-controller prepare/start actions; see [First iteration](FIRST-ITERATION.md). No guest readiness is assumed from a static badge. These newer paths remain unexecuted and unvalidated.
 
 Choose allowlisted profiles under Test Queue, then **Run Selected Safe Tests**:
 
@@ -222,6 +226,6 @@ The runner has no arbitrary command, sample upload, or executable selection feat
 
 Run `.venv/Scripts/python.exe -m unittest tests.unit.test_lab -v` and `.venv/Scripts/python.exe -m tests.ui.verify_lab_ui` to verify the safe profiles, absence of subprocess/network calls in the simulation runner, evidence separation, cleanup, export, sizing, and cancellation. Read-only readiness checks use a bounded Windows PowerShell subprocess independently of simulation execution. Do not place real malware in the simulation workspace; the runner accepts only its built-in profiles.
 
-A dedicated Windows guest image/VM and a separately reviewed isolation/reset backend are prerequisites for milestones 7.2 onward. No live-malware acquisition or execution is included in this release.
+A disposable offline Windows guest and registered isolation/reset controller are prerequisites for runtime jobs. The original safe-profile runner does not acquire or execute malware; the separately confirmed guest-job path is described in the first-iteration contract.
 
 Defense-layer scope and native deployment prerequisites: see [DEFENSE-IMPLEMENTATION.md](DEFENSE-IMPLEMENTATION.md). Service deployment is staged, not active.

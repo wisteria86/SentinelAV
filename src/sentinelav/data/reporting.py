@@ -1,3 +1,7 @@
+# Purpose: Local exports. Escape HTML and neutralize spreadsheet formula prefixes.
+# Works with: platform.runtime
+# Used by: entrypoint, ui.finalization, tests.unit.test_finalization
+
 """Local exports. Escape HTML and neutralize spreadsheet formula prefixes."""
 import csv
 import html
@@ -14,8 +18,14 @@ def snapshot(store):
                 protection_events=events,quarantine=store.quarantine(),
                 summary=dict(scans=len(scans),files=sum(s['scanned'] for s in scans),
                              scan_detections=sum(len(s['detections']) for s in scans),
+                             live_detections=sum(is_detection(e) for e in events),
+                             behavioral_alerts=sum(e.get('level')=='Alert' and not is_detection(e) for e in events),
                              live_alerts=sum(e['level']=='Alert' for e in events),
                              warnings=sum(e['level']=='Warning' for e in events)))
+
+
+def is_detection(event):
+    return event.get('kind') == 'Threat detected' and bool(event.get('sha256'))
 
 
 def render_report(data,kind):
@@ -32,9 +42,11 @@ def render_report(data,kind):
     esc=lambda value:html.escape(str(value),quote=True)
     rows=''.join('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in [s['started'],s.get('kind',''),s['scanned'],len(s['detections']),s['status']])+'</tr>' for s in data['scans'])
     events=''.join('<tr>'+''.join('<td>'+esc(v)+'</td>' for v in [e['time'],e['kind'],e['level'],e['details']])+'</tr>' for e in data['protection_events'])
+    from .report_sections import evidence_sections
     return ('<!doctype html><html lang="en"><meta charset="utf-8"><title>SentinelAV Security Report</title>'
             '<style>body{font:15px Segoe UI,sans-serif;margin:40px;color:#302217;background:#fff8ee}h1{color:#d96b19}table{border-collapse:collapse;width:100%;margin:20px 0}th,td{text-align:left;padding:10px;border:1px solid #dfd0bb;overflow-wrap:anywhere}th{background:#f5e6d1}small{color:#6b6053}</style>'
             '<h1>SentinelAV Security Report</h1><p>Exported '+esc(data['exported'])+' · v'+esc(data['version'])+'</p><p>'+esc(data['summary'])+'</p>'
             '<h2>Scan history</h2><table><tr><th>Date</th><th>Type</th><th>Files</th><th>Detections</th><th>Result</th></tr>'+rows+'</table>'
             '<h2>Protection and response events</h2><table><tr><th>Date</th><th>Event</th><th>Level</th><th>Details</th></tr>'+events+'</table>'
+            +evidence_sections(data)+
             '<small>Prototype findings require review. Results cover inspected sources and do not prove a system is clean. JSON includes full evidence and quarantine metadata.</small></html>')

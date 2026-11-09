@@ -1,3 +1,7 @@
+# Purpose: Invoke the hash-feed downloader using the project Python environment.
+# Works with: the matching src/sentinelav subsystem; related scripts in scripts
+# Used by: the CLI, desktop launcher, or packaging workflow
+
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot

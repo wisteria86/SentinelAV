@@ -1,0 +1,15 @@
+{
+  "upserts": [
+    {
+      "sha256": "b04637c11c63dd5a4a599d7104f0c5880717b5d5b32e0104de5a416963f06118",
+      "labels": ["Locally reviewed ZeusVM research sample (theZoo)"],
+      "file_type": "binary"
+    },
+    {
+      "sha256": "f5833e6db4a8bdbc5d90049008ccc9f75cc93a6a6c126969332566d87aeba700",
+      "labels": ["Locally reviewed Gameover research sample (theZoo)"],
+      "file_type": "binary"
+    }
+  ],
+  "removals": []
+}

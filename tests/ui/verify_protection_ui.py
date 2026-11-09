@@ -1,3 +1,7 @@
+# Purpose: Real watchdog -> Qt worker -> SQLite -> alert/report lifecycle check.
+# Works with: paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """Real watchdog -> Qt worker -> SQLite -> alert/report lifecycle check."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os
@@ -26,7 +30,7 @@ def wait_for(predicate, timeout=10000):
     timer.start(30)
     QTimer.singleShot(timeout,loop.quit)
     loop.exec()
-    assert found[0], 'Timed out waiting for protection UI state'
+    assert found[0], 'Timed out waiting for protection UI state: '+str(getattr(globals().get('window'),'last_protection_state',{}))
 
 
 with tempfile.TemporaryDirectory() as temp:
@@ -37,7 +41,10 @@ with tempfile.TemporaryDirectory() as temp:
     window.show()
     try:
         window.watch_folders.setPlainText(str(watched))
-        window.process_option.setChecked(True)
+        # This lifecycle check owns filesystem fixtures. Unrelated process
+        # launches can legitimately degrade coverage and must not determine
+        # whether the controlled filesystem source recovered.
+        window.process_option.setChecked(False)
         window.begin_protection()
         wait_for(lambda: window.monitor_state == 'Active')
         assert window.dashboard_badge_label.text() == 'ON'
@@ -48,6 +55,22 @@ with tempfile.TemporaryDirectory() as temp:
         wait_for(lambda: any(e['level']=='Alert' for e in window.session_events))
         assert 'DETECTED' in window.alert_banner.text()
         assert marker.exists()
+        # Inject an incomplete-coverage status, then verify a real status
+        # update restores Active without hiding the existing event history.
+        state=dict(folders=1,checked=1,processes=0,denied=0,queued=0,sysmon=False,
+                   inspection_error='Latest file inspection incomplete')
+        window.receive_status(state)
+        assert window.monitor_state=='Degraded'
+        assert window.dashboard_badge_label.text()=='DEGRADED'
+        assert window.dashboard_title.text()=='Monitoring needs attention'
+        assert 'incomplete' in window.protection_stats.text()
+        wait_for(lambda:window.monitor_state=='Active')
+        window.receive_status(dict(state,inspection_error='',telemetry_error='Sysmon: channel unavailable'))
+        assert window.monitor_state=='Degraded'
+        assert 'channel unavailable' in window.protection_stats.text()
+        window.receive_status(dict(state,inspection_error='',dropped=3))
+        assert window.monitor_state=='Degraded'
+        wait_for(lambda:window.monitor_state=='Active')
         window.change_report(1)
         assert window.history_table.rowCount() == 1
         window.change_report(2)

@@ -1,8 +1,11 @@
+# Purpose: Rule provenance and compilation status in the existing Settings layout.
+# Works with: detection.inspection, ui.application
+# Used by: ui.application
+
 """Rule provenance and compilation status in the existing Settings layout."""
 import json
 from PySide6.QtCore import QThread,Signal,QTimer,Qt
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QTabWidget,QHeaderView,QMessageBox
-from sentinelav.detection.yara_rules import compile_rules
 
 
 class RuleCheckWorker(QThread):

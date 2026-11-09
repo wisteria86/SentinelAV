@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "rules": [
+    {"schema":1,"id":"encoded-drop-persistence","steps":["encoded_interpreter","file_create","autorun_write"],"description":"Encoded interpreter creates a file and then writes autorun persistence under the same process identity. Review required."},
+    {"schema":1,"id":"remote-thread-outbound","steps":["remote_thread","external_connection"],"description":"Process creates a remote thread and subsequently initiates a public network connection. Debuggers and management tools can also do this."},
+    {"schema":1,"id":"tamper-outbound","steps":["process_tampering","external_connection"],"description":"Sysmon reports process tampering followed by an outbound public connection. Review contributing records before response."}
+  ]
+}

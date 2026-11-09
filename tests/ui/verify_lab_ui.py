@@ -1,3 +1,7 @@
+# Purpose: Harmless lab navigation, runner lifecycle, export, and evidence isolation.
+# Works with: paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """Harmless lab navigation, runner lifecycle, export, and evidence isolation."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os
@@ -36,10 +40,10 @@ with tempfile.TemporaryDirectory() as temp:
     window=Window(data_dir=root/'state')
     window.show()
     try:
-        assert window.stack.count()==7
+        assert window.stack.count()==8
         window.navigate(6)
         assert window.buttons[6].isChecked()
-        with patch('sentinelav.ui.lab_ui.capabilities',return_value=dict(hyperv_tools=False,vm_service='Not configured',note='No containment claimed.')):
+        with patch('sentinelav.ui.lab_ui_workers.capabilities',return_value=dict(hyperv_tools=False,vm_service='Not configured',note='No containment claimed.')):
             window.check_lab_system()
             wait_for(lambda:window.capability_worker is None)
         for row in range(window.lab_queue.rowCount()):

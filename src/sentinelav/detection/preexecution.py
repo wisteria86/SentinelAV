@@ -1,6 +1,9 @@
+# Purpose: Manual pre-execution verdict; does not intercept system-wide launches.
+# Works with: sibling modules in detection
+# Used by: ui.defense_ui, ui.defense_ui_workers, tests.unit.test_defense_layers
+
 """Manual pre-execution verdict; does not intercept system-wide launches."""
 from pathlib import Path
-import os
 
 
 def verdict(path,report,approved_hashes=()):

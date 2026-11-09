@@ -1,3 +1,7 @@
+# Purpose: Paths and opt-in Windows integrations for source and packaged execution.
+# Works with: data.storage, detection.inspection, paths
+# Used by: data.reporting, entrypoint, lab.qualification.guest_process, lab.qualification.guest_support
+
 """Paths and opt-in Windows integrations for source and packaged execution."""
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 from pathlib import Path
@@ -11,7 +15,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
 
-VERSION = '0.12.0'
+VERSION = '0.16.0'
 ZONE = ZoneInfo('Asia/Karachi')
 TASK_NAME = 'SentinelAV Daily Scan'
 
@@ -169,7 +173,11 @@ def run_scheduled(data_dir):
         store.save_scan(result)
         schedule['next_run']=next_daily(schedule['hour'],schedule['minute']).isoformat()
         store.set('schedule',schedule)
-        store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan completed',details=f"{result['scanned']} files; {len(result['detections'])} detections; {result['status']}",source='Scheduler',level='Info'))
+        level='Alert' if result['detections'] else 'Warning' if result['status']!='Complete' or result.get('warnings') else 'Info'
+        store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan completed',details=f"{result['scanned']} files; {len(result['detections'])} detections; {result['status']}",source='Scheduler',level=level))
         return result
+    except Exception as error:
+        store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan failed',details=str(error),source='Scheduler',level='Warning'))
+        raise
     finally:
         store.db.close()

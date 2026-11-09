@@ -1,3 +1,7 @@
+# Purpose: Verify test lab behavior using controlled fixtures.
+# Works with: data.storage, lab.lab, paths
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import tempfile
 import threading

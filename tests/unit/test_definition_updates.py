@@ -1,3 +1,7 @@
+# Purpose: Verify test definition updates behavior using controlled fixtures.
+# Works with: detection.signature_db, updates.definition_updates, updates.hash_archive
+# Used by: unittest discovery
+
 from datetime import datetime,timezone,timedelta
 import hashlib
 import json

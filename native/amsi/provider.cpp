@@ -1,3 +1,7 @@
+// Purpose: Implement the COM AMSI provider and forward bounded buffers to the local broker.
+// Works with: provider.h; provider.def; platform/amsi_broker.py; scripts/build-amsi.ps1
+// Used by: the matching native executable or library entry point
+
 #include "provider.h"
 #include <algorithm>
 #include <atomic>
@@ -146,10 +150,27 @@ public:
                 if (GetTickCount64() >= deadline) return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
                 ULONG count = 0, requested = (std::min)(65536UL, static_cast<ULONG>(bytes.size()) - offset);
                 status = stream->Read(offset, requested, bytes.data() + offset, &count);
+                if (status == E_NOTIMPL) {
+                    // Windows' AmsiScanBuffer stream exposes an address and
+                    // returns E_NOTIMPL from Read. Copy through the kernel's
+                    // checked self-process read API; never dereference it.
+                    const void* address = nullptr;
+                    status = stream->GetAttribute(AMSI_ATTRIBUTE_CONTENT_ADDRESS, sizeof(address),
+                                                  reinterpret_cast<BYTE*>(&address), &returned);
+                    if (FAILED(status)) return status;
+                    if (returned != sizeof(address) || !address) return E_POINTER;
+                    SIZE_T copied = 0;
+                    if (!ReadProcessMemory(GetCurrentProcess(), address, bytes.data(), bytes.size(), &copied))
+                        return HRESULT_FROM_WIN32(GetLastError());
+                    if (copied != bytes.size()) return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+                    offset = static_cast<ULONG>(bytes.size());
+                    break;
+                }
                 if (FAILED(status)) return status;
                 if (!count || count > requested) return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
                 offset += count;
             }
+            if (GetTickCount64() >= deadline) return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
             // Reject growing streams instead of silently scanning only a prefix.
             ULONGLONG finalSize = 0;
             status = stream->GetAttribute(AMSI_ATTRIBUTE_CONTENT_SIZE, sizeof(finalSize),

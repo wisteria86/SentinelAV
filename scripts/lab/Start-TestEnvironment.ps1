@@ -1,7 +1,12 @@
+# Purpose: Validate the staged Sandbox configuration and optionally launch the guest.
+# Works with: the matching src/sentinelav subsystem; related scripts in scripts/lab
+# Used by: the CLI, desktop launcher, or packaging workflow
+
 param([switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$labRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'artifacts/lab/windows-sandbox'))
+. (Join-Path $PSScriptRoot 'WorkPaths.ps1')
+$labRoot = Get-SentinelLabRoot
 $statePath = Join-Path $labRoot 'latest.json'
 if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) { throw 'Prepare the kit first: .\scripts\lab\Prepare-TestEnvironment.ps1' }
 if ((Get-Item -LiteralPath $statePath).Length -gt 16384) { throw 'Invalid lab state size' }
@@ -42,4 +47,8 @@ $feature = Get-CimInstance Win32_OptionalFeature -Filter "Name='Containers-Dispo
 if ($feature.InstallState -ne 1) { throw 'Windows Sandbox is disabled or pending. Run scripts/lab/Enable-WindowsSandbox.ps1 as Administrator and restart if requested.' }
 $sandbox = Join-Path $env:WINDIR 'System32/WindowsSandbox.exe'
 if (-not (Test-Path -LiteralPath $sandbox)) { throw 'Windows Sandbox launcher is not available yet. Complete feature activation/restart first.' }
-Start-Process -FilePath $sandbox -ArgumentList @(('"' + $state.configuration + '"')) -WindowStyle Normal
+if (Get-Command wsb.exe -ErrorAction SilentlyContinue) {
+    $running=wsb.exe list --raw | ConvertFrom-Json
+    if (@($running.WindowsSandboxEnvironments).Count) { throw 'A Sandbox is already running. Use Reset-TestEnvironment.ps1 for the registered disposable guest instead of launching a second profile.' }
+}
+Start-Process -FilePath $sandbox -ArgumentList @(('"' + $state.configuration + '"')) -WindowStyle Hidden

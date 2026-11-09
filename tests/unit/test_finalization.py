@@ -1,3 +1,7 @@
+# Purpose: Verify test finalization behavior using controlled fixtures.
+# Works with: data.reporting, data.storage, detection.engine, paths, platform.runtime
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import io
 import tempfile
@@ -73,6 +77,41 @@ class FinalizationTests(unittest.TestCase):
             self.assertEqual(first.history()[0]['scanned'],2)
             first.db.close()
             second.db.close()
+
+    def test_export_separates_suspicion_and_contains_coverage_and_recovery(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(Path(temp)/'report.db')
+            try:
+                store.save_event(dict(time='today',kind='Behavioral risk',level='Alert',details='Suspicion only'))
+                store.save_event(dict(time='today',kind='Threat detected',level='Alert',details='Hash match',sha256='a'*64))
+                store.save_scan(dict(started='today',scanned=1,detections=[],status='Complete with omissions',
+                    skipped=2,errors=['<unreadable>'],warnings=['Rules unavailable'],advanced_review_total=1))
+                store.save_quarantine(dict(id='q',original='<fixture>',state='Restored',sha256='a'*64))
+                report=snapshot(store)
+                self.assertEqual(report['summary']['live_detections'],1)
+                self.assertEqual(report['summary']['behavioral_alerts'],1)
+                html=render_report(report,'html')
+                for text in ('Restored','&lt;fixture&gt;','&lt;unreadable&gt;','Rules unavailable','Analysis reviews'):
+                    self.assertIn(text,html)
+                self.assertNotIn('<fixture>',html)
+            finally:
+                store.db.close()
+
+    def test_failed_schedule_records_failure_without_advancing_due_time(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(Path(temp)/'sentinelav.db')
+            try:
+                schedule=dict(enabled=True,kind='Folder',folder=temp,hour=18,minute=0,
+                              next_run=(datetime.now(ZONE)-timedelta(days=1)).isoformat())
+                store.set('schedule',schedule)
+                with patch('sentinelav.detection.inspection.IsolatedScanner',side_effect=RuntimeError('Worker unavailable')):
+                    with self.assertRaisesRegex(RuntimeError,'Worker unavailable'):
+                        run_scheduled(temp)
+                self.assertEqual(store.get('schedule',{}),schedule)
+                self.assertEqual(store.events()[0]['kind'],'Scheduled scan failed')
+                self.assertEqual(store.events()[0]['level'],'Warning')
+            finally:
+                store.db.close()
 
     def test_eicar_detection_without_writing_test_signature_to_disk(self):
         with tempfile.TemporaryDirectory() as temp:

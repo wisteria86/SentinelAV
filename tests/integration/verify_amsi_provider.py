@@ -1,3 +1,7 @@
+# Purpose: Connect the native test harness to an inert, random local broker endpoint.
+# Works with: paths, platform.amsi_broker
+# Used by: unittest discovery
+
 """Connect the native test harness to an inert, random local broker endpoint."""
 import hashlib
 import json

@@ -1,3 +1,7 @@
+# Purpose: Verify test background behavior using controlled fixtures.
+# Works with: data.storage, monitoring.background, paths, ui.background_ui
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import json
 from pathlib import Path
@@ -12,6 +16,30 @@ from sentinelav.data.storage import Store
 
 
 class BackgroundProtocolTests(unittest.TestCase):
+    @unittest.skipUnless(__import__('os').name=='nt','Windows token checks')
+    def test_elevated_engine_still_refuses_to_write_user_configuration(self):
+        from sentinelav.monitoring.background import main
+        with patch('ctypes.windll.shell32.IsUserAnAdmin',return_value=1),patch('pathlib.Path.mkdir') as mkdir:
+            with self.assertRaisesRegex(RuntimeError,'without administrator elevation'):main(Path('unused'))
+            mkdir.assert_not_called()
+
+    @unittest.skipUnless(__import__('os').name=='nt','Windows engine startup')
+    def test_startup_failure_has_nonmodal_diagnostic_and_releases_lock(self):
+        from sentinelav.monitoring.background import main
+        with tempfile.TemporaryDirectory() as d,patch('ctypes.windll.shell32.IsUserAnAdmin',return_value=0),patch('sentinelav.monitoring.background.QCoreApplication'),patch('sentinelav.monitoring.background.QLockFile') as lock,patch('sentinelav.monitoring.background.EngineHost',side_effect=RuntimeError('fixture startup failure')):
+            lock.return_value.tryLock.return_value=True
+            self.assertEqual(main(Path(d)),1)
+            self.assertEqual(json.loads((Path(d)/'engine-startup-error.json').read_text())['reason'],'fixture startup failure')
+            lock.return_value.unlock.assert_called_once()
+
+    def test_native_collector_setting_reaches_background_configuration(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(Path(temp)/'state/test.db')
+            try:
+                store.set('kernel_collector','C:/Program Files/SentinelAVTelemetry/SentinelAV.Telemetry.exe')
+                config=configuration(store,RESOURCE_ROOT)
+                self.assertEqual(config['kernel_collector'],'C:/Program Files/SentinelAVTelemetry/SentinelAV.Telemetry.exe')
+            finally: store.db.close()
     def test_rejects_arbitrary_commands_payloads_and_wrong_types(self):
         for payload in [[], {}, {'version': True, 'command': 'start'},
                         {'version': 1, 'command': ['start']},

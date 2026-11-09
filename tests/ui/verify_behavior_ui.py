@@ -1,3 +1,7 @@
+# Purpose: Safe canary and burst simulation, confined to newly created temporary files.
+# Works with: paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """Safe canary and burst simulation, confined to newly created temporary files."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os
@@ -60,6 +64,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert len(event['indicators'])>=2
         assert 'pid' not in event
         assert 'RISK ALERT' in window.alert_banner.text()
+        assert window.metric_values[2].text() == '0', 'Behavioral suspicion must not count as confirmed malware'
         window.change_report(2)
         assert window.history_table.rowCount()>=3
         window.navigate(2)

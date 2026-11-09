@@ -1,3 +1,8 @@
+# Purpose: Read-only installed-file integrity checks; ACLs remain the trust boundary.
+# Works with: sibling modules in platform
+# Used by: monitoring.kernel_telemetry, platform.remediation_broker, platform.service_changes,
+#   platform.windows_service
+
 """Read-only installed-file integrity checks; ACLs remain the trust boundary."""
 import hashlib
 import json

@@ -56,3 +56,11 @@ chosen, application submitted, or third party contacted during this research.
 No guaranteed, universally accepted, permanently free AMSI release-signing
 route was established. A purchase was also not established as necessary for
 this PC's future controlled testing. Kernel-driver signing is a separate issue.
+
+## Guest validation update — 2 November 2026
+
+The self-signed x64 DLL now passed real Windows AMSI and harmless PowerShell
+blocking in Windows Sandbox under its existing FeatureBits=1. No trust-store
+entry or policy change was needed. This confirms a no-purchase local test path
+for that configuration, not universal provider acceptance or public trust.
+See [the validation record](GUEST-AMSI-VALIDATION.md).

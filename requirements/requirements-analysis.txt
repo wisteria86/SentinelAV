@@ -1,0 +1,19 @@
+# Install pinned source with scripts/Install-AnalysisDependencies.ps1.
+# Avoid pip VCS recursive submodule installation: upstream has specimen fixtures.
+pefile==2024.8.26
+capstone==5.0.9
+lznt1==0.2
+pycryptodome==4.3.0
+pydantic==2.14.2
+rich==15.0.0
+unicorn==2.1.4
+lightgbm==4.7.0
+numpy==2.5.4
+threadpoolctl==3.7.0
+polars==2.1.0
+scikit-learn==1.9.1
+tqdm==4.70.1
+huggingface_hub==2.4.0
+matplotlib==3.11.2
+# Newer signify releases removed the public API used by this extractor revision.
+signify==0.7.1

@@ -3,8 +3,10 @@
 The x64 native provider now implements `IAntimalwareProvider`, COM factory and
 lifetime handling, bounded stream reads, and a read-only buffer broker client.
 Its local harness was compiled with the installed MSVC 14.44 tools and Windows
-SDK 10.0.26100.0. It has **not been registered with Windows or deployed as
-active protection**. The Windows service remains uninstalled on this PC.
+SDK 10.0.26100.0. It has now been registered and tested in the disposable Windows Sandbox guest,
+including the real Windows AMSI API and a harmless PowerShell comparison. See
+[GUEST-AMSI-VALIDATION.md](GUEST-AMSI-VALIDATION.md). Host registration/service
+deployment remain absent. This does not establish production readiness.
 
 ## What runs now
 
@@ -46,7 +48,9 @@ or apply the filesystem response policy. Results have no response-action path.
 - Maximum content: 1 MiB. Oversized streams return an error, not a clean verdict.
 - Stream reads: 64 KiB chunks; short successful reads are supported. Zero-byte
   premature reads, impossible read lengths, malformed size attributes, and size
-  changes are rejected. Content-address attributes are never dereferenced.
+  changes are rejected. For Windows address-only streams, the content address is
+  copied through a bounded ReadProcessMemory call against the current process;
+  invalid addresses return errors instead of being directly dereferenced.
 - Four concurrent provider calls per host process; one broker connection at a
   time. This is a conservative prototype, not a high-throughput production design.
 - Provider transport budget: three seconds including its stream-reading loop.
@@ -87,20 +91,20 @@ An administrator can review changing it to true during controlled deployment.
 The GUI cannot enable it. An enabled broker does not prove that a provider is
 registered, signed, or successfully loaded in any real host.
 
-## Remaining before activation
+## Remaining before broader deployment
 
-1. Deploy and validate the service under its actual LocalService identity in a
-   Windows test VM, including ACLs, shutdown/recovery, and fake-server rejection.
+1. Extend the completed LocalService/Sandbox validation to a full Windows VM
+   and supported host configurations, including active antivirus coexistence.
 2. Validate the existing provider-signing policy and host acceptance without
    weakening either. Purchases are excluded. If an eligible free signing route
    is used, sign the exact DLL and keep private keys outside this repository.
    See [no-purchase findings](AMSI-ZERO-COST-OPTIONS.md).
-3. Implement reviewed registration/removal and protected provider installation,
-   including COM threading/bitness settings and repair/rollback behavior.
-   No registration helper is included in this milestone.
+3. Generalize the guarded guest-only registration/removal tooling after further
+   security review; it currently refuses ordinary host use.
 4. Add and test an x86 build for 32-bit hosts; only x64 is currently built.
-5. Test the signed, registered provider with real AMSI hosts, availability errors,
-   latency, concurrency, service failures, and existing antivirus providers.
+5. Broaden real-host latency, concurrency and failure testing. The harmless
+   x64 PowerShell/API and service-recovery cases passed in the current guest.
+   Defender was stopped there, so active Defender coexistence is unverified.
 6. Develop and evaluate script/buffer-specific detection coverage. Existing
    rules are mostly file-oriented historical research rules. UTF-16 and other
    encodings require suitable rules; there is no automatic deobfuscator,

@@ -4,3 +4,4 @@ watchdog>=6,<7
 psutil>=6,<8
 tzdata>=2025.2
 cryptography>=45,<52
+pywin32==312; sys_platform == 'win32'

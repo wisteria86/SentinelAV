@@ -46,6 +46,33 @@ exceptions remain separate policies. Full reimports retain explicit revocations.
 An explicit correction upsert or a valid signed package can restore a revoked
 hash. Corrections affect hash detection only; YARA may independently detect it.
 
+### Reviewed Zeus additions, 2026-11-02
+
+Two previously missed, guest-verified research specimens were added through the
+existing explicit-corrections path. The active snapshot grew from 1,164,910 to
+1,164,912 hashes. The payload and its source/identity notes are shipped under
+resources/reviewed-hashes/zeus-20261102.changes.json and the adjacent provenance
+JSON. Both archives were pinned to theZoo revision
+48515e492013bc5bb2769249ea539436bb3e733f; decoded bytes and their SHA-256 were
+verified only inside the offline guest. Family labels come from that repository,
+not independent vendor consensus or a signed publisher update.
+
+These entries are explicitly labeled locally reviewed research samples. SQLite
+lookup now uses the neutral prefix "Hash database:" instead of attributing all
+manual corrections to MalwareBazaar. The original JSON overlay provider labels
+remain intact. The base CSV/source metadata still describes the old full import;
+a two-entry manual update is not a new comprehensive MalwareBazaar download.
+
+Old snapshots remain available for the normal rollback operation. A source clone
+without the ignored full database must first import a base feed, then can apply
+the supplied correction JSON using the command above. Packaged lab builds contain
+the current database plus the human-readable correction/provenance files.
+
+The old ZeusVM and Gameover misses remain preserved in their original evaluation
+records. After curation these exact files are regression cases, not untouched
+holdouts. Their new hash matches do not demonstrate coverage of modified variants.
+No malware is executed to apply a definition update.
+
 ## Signed packages
 
 The default trusted-update-keys.json contains no keys. No online update publisher
@@ -86,6 +113,7 @@ manifests. Code signing, protected service-owned storage, publisher key rotation
 an operated release-signing pipeline, remote hosting, scheduled fetching, and
 freshness guarantees from the provider remain separate deployment work.
 
-Checksums establish consistency, not malware-label accuracy. No broad detection
-evaluation or VM/live-malware testing is performed by this milestone. Regression
-checks use tiny, generated hash-only fixtures and ephemeral signing keys.
+Checksums establish consistency, not malware-label accuracy. Update regression
+checks use generated hash-only fixtures and ephemeral signing keys. Separate
+bounded guest static-sample evaluations are documented in STATIC-EVALUATION.md;
+they do not execute samples or establish broad protection effectiveness.

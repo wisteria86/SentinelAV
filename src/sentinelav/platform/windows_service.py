@@ -1,3 +1,7 @@
+# Purpose: SCM-hosted, least-privilege monitoring with protected, admin-owned policy.
+# Works with: data.storage, monitoring.monitoring, paths, platform.amsi_broker, platform.engine_policy
+# Used by: entrypoint, platform.remediation_broker, platform.service_changes, ui.defense_pages
+
 """SCM-hosted, least-privilege monitoring with protected, admin-owned policy.
 
 No service RPC accepts GUI commands or arbitrary paths. GUI status is read-only;
@@ -139,9 +143,25 @@ def run_service():
                 from sentinelav.platform.amsi_broker import AmsiBroker
                 state['broker']=AmsiBroker(resources)
                 state['broker'].start()
-            config=dict(folders=folders,processes=True,sysmon=False,behavior=True,network=False,event_processes=True,
+            for name in ('sysmon','behavior','network','event_processes','watch_app_changes'):
+                if name in policy and type(policy[name]) is not bool: raise ValueError('Invalid source policy: '+name)
+            from sentinelav.platform.engine_policy import inspection_options
+            service_inspection=inspection_options(policy.get('inspection_options'))
+            service_inspection['analysis_store']=str(data/'analysis-data')
+            service_inspection['analysis_trust']=str(resources/'trusted-update-keys.json')
+            config=dict(folders=folders,processes=True,sysmon=policy.get('sysmon',False),behavior=policy.get('behavior',True),
+                network=policy.get('network',False),event_processes=policy.get('event_processes',True),
                 signatures=resources/'signatures.json',rules=resources/'rules',max_mb=100,
-                exclusions=[str(base),str(executable.parent)],trusted_hashes=[],inspection_options=dict(archives=True,amsi=False))
+                exclusions=[str(base),str(executable.parent)],trusted_hashes=[],inspection_options=service_inspection)
+            if policy.get('watch_app_changes',False):
+                import re
+                if not re.fullmatch(r'S-1-5-21-(?:\d+-){3}\d+',policy.get('owner_sid','')):raise ValueError('A deployment owner SID is required for change tracking')
+                config.update(watch_app_changes=True,service_owner=policy['owner_sid'],data_dir=str(data))
+            if policy.get('artifact_updates',{}).get('enabled'):
+                config.update(artifact_updates=policy['artifact_updates'],data_dir=str(data))
+            if policy.get('kernel_collector'):
+                if not isinstance(policy['kernel_collector'],str): raise ValueError('Invalid kernel collector path')
+                config['kernel_collector']=policy['kernel_collector']
             inbox=__import__('queue').Queue(maxsize=1024)
             dropped=[0]
             def event(item):

@@ -1,8 +1,13 @@
+# Purpose: Verify test engine behavior using controlled fixtures.
+# Works with: data.storage, detection.engine, paths
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import hashlib
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from sentinelav.detection.engine import Scanner
 from sentinelav.data.storage import Store
@@ -53,6 +58,16 @@ class EngineTests(unittest.TestCase):
         result = scanner.scan(['nonexistent-sentinelav-test-path'], lambda: False, lambda *args: None)
         self.assertEqual(result['status'], 'Complete with omissions')
         self.assertEqual(len(result['errors']), 1)
+
+    def test_empty_roots_and_junction_roots_cannot_report_complete_inspection(self):
+        scanner = Scanner(RESOURCE_ROOT/'signatures.json', RESOURCE_ROOT/'rules')
+        empty = scanner.scan([], lambda: False, lambda *args: None)
+        self.assertEqual(empty['status'], 'Complete with omissions')
+        with patch.object(Path, 'is_junction', return_value=True), patch('os.walk') as walk:
+            linked = scanner.scan([RESOURCE_ROOT], lambda: False, lambda *args: None)
+        walk.assert_not_called()
+        self.assertEqual(linked['scanned'], 0)
+        self.assertIn('Linked scan root', linked['errors'][0])
 
 
 if __name__ == '__main__':

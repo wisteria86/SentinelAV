@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "2026.11.01.1",
+  "version": "2026.11.02.3",
   "files": [
     {
       "file": "eset_redline_panel.yar",
@@ -88,7 +88,7 @@
     },
     {
       "file": "demo.yar",
-      "sha256": "1d6fbe98299860575d977754adb0b0c7ad4dda559ed338e0d4b7783b3a8520b0",
+      "sha256": "50fdadd74317c878569735f187ce74d34cfa16194ff8915c01c889b52acf1a7b",
       "source_repository": "SentinelAV local demonstration",
       "source_revision": "local",
       "license": "Project-local demonstration",
@@ -96,10 +96,105 @@
         "SentinelAV_Harmless_Demo"
       ],
       "coverage": "Harmless marker test only",
-      "changes": "Existing demonstration rule unchanged",
+      "changes": "Harmless fixture marker supports ASCII and UTF-16LE for real AMSI host integration tests; no malware coverage claim",
       "reviewed": "2026-11-01",
       "review_scope": "Integration fixture; no malware coverage claim",
       "demo": true
+    },
+    {
+      "file": "rl_wannacry.yar",
+      "sha256": "0d04e4b42b9f8c2f50645dc0df0225a80b3b8197432cd554665ee9068ed8b79f",
+      "source_repository": "https://github.com/reversinglabs/reversinglabs-yara-rules",
+      "source_revision": "e0a0be54aa1e11ccfd6854e4f19e9476f328fd84",
+      "source_path": "yara/ransomware/Win32.Ransomware.WannaCry.yara",
+      "source_url": "https://github.com/reversinglabs/reversinglabs-yara-rules/blob/e0a0be54aa1e11ccfd6854e4f19e9476f328fd84/yara/ransomware/Win32.Ransomware.WannaCry.yara",
+      "upstream_sha256": "620a3a157121c9db704dd9716cbfd98d7a7a2e9a7fdaa90433e7507976765ec0",
+      "license": "MIT",
+      "license_file": "licenses/ReversingLabs-MIT.txt",
+      "selected_rules": [
+        "Win32_Ransomware_WannaCry"
+      ],
+      "coverage": "WannaCry entry-point and long function patterns",
+      "changes": "No rule body changes; attribution/license comment prepended",
+      "reviewed": "2026-11-02",
+      "review_scope": "Source/condition and licensing review; bounded static regression/holdout and benign evaluation; no broad efficacy claim",
+      "demo": false
+    },
+    {
+      "file": "rl_emotet.yar",
+      "sha256": "6a27aa126ad1a1b1039cd8563af0d53350e4db908666a795f8812c3a3de9daaa",
+      "source_repository": "https://github.com/reversinglabs/reversinglabs-yara-rules",
+      "source_revision": "e0a0be54aa1e11ccfd6854e4f19e9476f328fd84",
+      "source_path": "yara/trojan/Win32.Trojan.Emotet.yara",
+      "source_url": "https://github.com/reversinglabs/reversinglabs-yara-rules/blob/e0a0be54aa1e11ccfd6854e4f19e9476f328fd84/yara/trojan/Win32.Trojan.Emotet.yara",
+      "upstream_sha256": "990a5f92fcd4ff544c3fe1dc281f52238120216e49138ccf98da849217102347",
+      "license": "MIT",
+      "license_file": "licenses/ReversingLabs-MIT.txt",
+      "selected_rules": [
+        "Win32_Trojan_Emotet"
+      ],
+      "coverage": "Emotet resource decryption plus filename/state-machine/decompression pattern pairs",
+      "changes": "All original OR branches grouped under the MZ gate; original patterns and metadata retained",
+      "reviewed": "2026-11-02",
+      "review_scope": "Source/condition and licensing review; bounded static regression/holdout and benign evaluation; no broad efficacy claim",
+      "demo": false
+    },
+    {
+      "file": "malpedia_vmzeus.yar",
+      "sha256": "e3e2951de57b58e08383163c026a74f68950c97f77096056f1baa2705f01f38e",
+      "source_repository": "https://malpedia.caad.fkie.fraunhofer.de",
+      "source_revision": "53a643781c18e08f4a50949af60172d837a0b6f6",
+      "source_path": "yara/win.vmzeus",
+      "source_url": "https://malpedia.caad.fkie.fraunhofer.de/yara/win.vmzeus",
+      "upstream_sha256": "e82f0fea7c7c30d09e1e1b88441bbd08653bc1ab0ee35ca6a1d2bbb9d7a1705f",
+      "license": "CC-BY-SA-4.0",
+      "license_file": "licenses/CC-BY-SA-4.0.txt",
+      "selected_rules": [
+        "win_vmzeus_auto"
+      ],
+      "coverage": "VMZeus generated static code sequences; unpacked/memory-derived source, limited generalization",
+      "changes": "MZ and PE signature gates added; original seven-of-ten threshold, size cap, patterns, metadata and disclaimer retained",
+      "reviewed": "2026-11-02",
+      "review_scope": "Source/condition and licensing review; bounded static regression/holdout and benign evaluation; no broad efficacy claim",
+      "demo": false
+    },
+    {
+      "file": "malpedia_gameover_p2p.yar",
+      "sha256": "78522a8e0b9296187c8b2a74e91d47a341cb543ad4cc9e8e16cedb4ddddef993",
+      "source_repository": "https://malpedia.caad.fkie.fraunhofer.de",
+      "source_revision": "53a643781c18e08f4a50949af60172d837a0b6f6",
+      "source_path": "yara/win.gameover_p2p",
+      "source_url": "https://malpedia.caad.fkie.fraunhofer.de/yara/win.gameover_p2p",
+      "upstream_sha256": "796323be18c194ead458ca2aa8dbb7aaa6dc8579320ad5fb3f112957c9f47474",
+      "license": "CC-BY-SA-4.0",
+      "license_file": "licenses/CC-BY-SA-4.0.txt",
+      "selected_rules": [
+        "win_gameover_p2p_auto"
+      ],
+      "coverage": "win.gameover_p2p generated code patterns; memory/unpacked-derived, not all variants",
+      "changes": "MZ/PE signature gates added; original patterns, seven-of threshold, size cap, metadata and disclaimer retained",
+      "reviewed": "2026-11-02",
+      "review_scope": "Source and condition review, then bounded clean-file and static guest validation; no broad efficacy claim",
+      "demo": false
+    },
+    {
+      "file": "malpedia_zeus.yar",
+      "sha256": "830fbd333dfada48b1f60e29788f6ed7df00569d7d5dc56170cf6aa7fb9dba5c",
+      "source_repository": "https://malpedia.caad.fkie.fraunhofer.de",
+      "source_revision": "53a643781c18e08f4a50949af60172d837a0b6f6",
+      "source_path": "yara/win.zeus",
+      "source_url": "https://malpedia.caad.fkie.fraunhofer.de/yara/win.zeus",
+      "upstream_sha256": "8b1b9cb0a42969b7540d644196335a2689cc3adfb3b6801df5cca9a661aad6cf",
+      "license": "CC-BY-SA-4.0",
+      "license_file": "licenses/CC-BY-SA-4.0.txt",
+      "selected_rules": [
+        "win_zeus_auto"
+      ],
+      "coverage": "win.zeus generated code patterns; memory/unpacked-derived, not all variants",
+      "changes": "MZ/PE signature gates added; original patterns, seven-of threshold, size cap, metadata and disclaimer retained",
+      "reviewed": "2026-11-02",
+      "review_scope": "Source and condition review, then bounded clean-file and static guest validation; no broad efficacy claim",
+      "demo": false
     }
   ],
   "effectiveness_evaluation": "Deferred",

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "reviewed": "2026-11-02",
+  "method": "Local manual review, not publisher-authenticated",
+  "payload_sha256": "7a3b75cfd5543aa7c43facb972aaa527b7b753f8e354238ce74cf5e6352f9dbc",
+  "source_repository": "https://github.com/ytisf/theZoo",
+  "source_revision": "48515e492013bc5bb2769249ea539436bb3e733f",
+  "entries": [
+    {
+      "family": "ZeusVM",
+      "sha256": "b04637c11c63dd5a4a599d7104f0c5880717b5d5b32e0104de5a416963f06118",
+      "archive_blob_sha1": "7a8a5b076c6edf860c5e17be4b1999a5e147e728",
+      "member": "8a0c95be8a40ae5419f7d97bb3e91b2b",
+      "archive_sha256": "7a981d743a601ca2ae40f78547430bcd404f93520b0ba78e2ca53edf8a0f31f0"
+    },
+    {
+      "family": "Gameover",
+      "sha256": "f5833e6db4a8bdbc5d90049008ccc9f75cc93a6a6c126969332566d87aeba700",
+      "archive_blob_sha1": "60181bdecaccec956c9d2aca6aa956432fe88623",
+      "member": "eqig.ex_",
+      "archive_sha256": "626422ae68865a9a124792ed667b723bdbe6cd182d184c137355c33ab1360f0f"
+    }
+  ],
+  "verification": "Pinned encrypted archive identity verified; decoded member SHA-256 and unchanged post-scan bytes verified only inside offline Sandbox",
+  "classification_limit": "Family labels originate from the research repository; not an independent vendor consensus",
+  "evaluation_limit": "These previously missed samples are now curated regression inputs, not untouched holdouts. Adding their exact hashes does not establish variant detection."
+}

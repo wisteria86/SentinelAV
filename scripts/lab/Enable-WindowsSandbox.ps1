@@ -1,3 +1,7 @@
+# Purpose: Check and enable the Windows Sandbox optional feature with explicit restart handling.
+# Works with: the matching src/sentinelav subsystem; related scripts in scripts/lab
+# Used by: the CLI, desktop launcher, or packaging workflow
+
 # Enable the built-in Windows feature only. Never restart automatically.
 $ErrorActionPreference = 'Stop'
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -5,7 +9,8 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw 'Open PowerShell as Administrator, then run this script. Windows feature activation requires administrator access.'
 }
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$labRoot = Join-Path $projectRoot 'artifacts/lab/windows-sandbox'
+. (Join-Path $PSScriptRoot 'WorkPaths.ps1')
+$labRoot = Get-SentinelLabRoot
 New-Item -ItemType Directory -Path $labRoot -Force | Out-Null
 $statusPath = Join-Path $labRoot 'feature-status.json'
 Start-Transcript -LiteralPath (Join-Path $labRoot 'enable-feature.log') -Append | Out-Null

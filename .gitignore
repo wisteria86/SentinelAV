@@ -3,9 +3,13 @@ __pycache__/
 *.pyc
 *.egg-info/
 /artifacts/
+/logs/
 /data/
 /resources/signature-data/
+/resources/analysis-data/
 /tools/vendor/
+/native/telemetry/obj/
+/native/telemetry/bin/
 /docs/references/
 .env
 .env.*

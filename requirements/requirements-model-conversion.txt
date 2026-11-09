@@ -1,0 +1,3 @@
+# Development-only checkpoint conversion/reference checks. Not needed in the app.
+--index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0+cpu

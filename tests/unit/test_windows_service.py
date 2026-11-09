@@ -1,3 +1,7 @@
+# Purpose: Verify test windows service behavior using controlled fixtures.
+# Works with: monitoring.monitoring, platform.windows_service
+# Used by: unittest discovery
+
 import ctypes
 import json
 import os

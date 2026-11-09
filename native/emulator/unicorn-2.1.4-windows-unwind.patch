@@ -1,0 +1,124 @@
+diff --git a/qemu/accel/tcg/translate-all.c b/qemu/accel/tcg/translate-all.c
+index 71b6b2b..9c83973 100644
+--- a/qemu/accel/tcg/translate-all.c
++++ b/qemu/accel/tcg/translate-all.c
+@@ -1001,6 +1001,12 @@ void free_code_gen_buffer(struct uc_struct *uc)
+ {
+     TCGContext *tcg_ctx = uc->tcg_ctx;
+     if (tcg_ctx->initial_buffer) {
++#if defined(_WIN64) && defined(_MSC_VER)
++        if (tcg_ctx->win_unwind_table) {
++            RtlDeleteFunctionTable((PRUNTIME_FUNCTION)tcg_ctx->win_unwind_table);
++            tcg_ctx->win_unwind_table = NULL;
++        }
++#endif
+         may_remove_handler(uc);
+         VirtualFree(tcg_ctx->initial_buffer, 0, MEM_RELEASE);
+     }
+diff --git a/qemu/include/sysemu/os-win32.h b/qemu/include/sysemu/os-win32.h
+index d77d0fb..1ab8f52 100644
+--- a/qemu/include/sysemu/os-win32.h
++++ b/qemu/include/sysemu/os-win32.h
+@@ -37,10 +37,10 @@
+  * That is what we need for QEMU. Passing the value of register rsp (default)
+  * lets longjmp try a stack unwinding which will crash with generated code. */
+ #if defined(_MSC_VER)   // MSVC
+-// See qemu/include/utils/setjmp-wrapper-win32.asm for details.
+-extern int _setjmp_wrapper(jmp_buf);
++/* Compiler-visible setjmp emits guarded longjmp targets. Generated frames
++ * have native unwind metadata, so retain the runtime's normal frame value. */
+ #undef setjmp
+-#define setjmp(env) _setjmp_wrapper(env)
++#define setjmp(env) _setjmp(env)
+ 
+ #else // MingW
+ 
+diff --git a/qemu/include/tcg/tcg.h b/qemu/include/tcg/tcg.h
+index bbeb4b9..e122e8f 100644
+--- a/qemu/include/tcg/tcg.h
++++ b/qemu/include/tcg/tcg.h
+@@ -649,6 +649,7 @@ struct TCGContext {
+     void *code_gen_prologue;
+     void *code_gen_epilogue;
+     void *code_gen_buffer;
++    void *win_unwind_table; /* SentinelAV: registered Windows JIT unwind table */
+     void *initial_buffer;
+     size_t initial_buffer_size;
+     size_t code_gen_buffer_size;
+diff --git a/qemu/tcg/i386/tcg-target.inc.c b/qemu/tcg/i386/tcg-target.inc.c
+index 15cc1c0..0c7ff00 100644
+--- a/qemu/tcg/i386/tcg-target.inc.c
++++ b/qemu/tcg/i386/tcg-target.inc.c
+@@ -3667,6 +3667,10 @@ static const int tcg_target_callee_save_regs[] = {
+ static void tcg_target_qemu_prologue(TCGContext *s)
+ {
+     int i, stack_addend;
++#if defined(_WIN64) && defined(_MSC_VER)
++    uint8_t push_offsets[ARRAY_SIZE(tcg_target_callee_save_regs)];
++    uint8_t *prologue_begin = s->code_ptr;
++#endif
+ 
+     /* TB prologue */
+ 
+@@ -3678,6 +3682,9 @@ static void tcg_target_qemu_prologue(TCGContext *s)
+     /* Save all callee saved registers.  */
+     for (i = 0; i < ARRAY_SIZE(tcg_target_callee_save_regs); i++) {
+         tcg_out_push(s, tcg_target_callee_save_regs[i]);
++#if defined(_WIN64) && defined(_MSC_VER)
++        push_offsets[i] = (uint8_t)(s->code_ptr - prologue_begin);
++#endif
+     }
+ 
+ #if TCG_TARGET_REG_BITS == 32
+@@ -3691,6 +3698,32 @@ static void tcg_target_qemu_prologue(TCGContext *s)
+ #else
+     tcg_out_mov(s, TCG_TYPE_PTR, TCG_AREG0, tcg_target_call_iarg_regs[0]);
+     tcg_out_addi(s, TCG_REG_ESP, -stack_addend);
++#if defined(_WIN64) && defined(_MSC_VER)
++    {
++        /* Windows can now unwind a generated TB back to cpu_exec's native
++         * setjmp frame. Entries describe the actual emitted pushes/allocation. */
++        uint8_t *base = s->initial_buffer;
++        PRUNTIME_FUNCTION entry = (PRUNTIME_FUNCTION)base;
++        uint8_t *info = base + 32;
++        unsigned count = ARRAY_SIZE(tcg_target_callee_save_regs);
++        unsigned slot = 2;
++        info[0] = 1; /* UNWIND_INFO version 1, no handler */
++        info[1] = (uint8_t)(s->code_ptr - prologue_begin);
++        info[2] = (uint8_t)(count + 2);
++        info[3] = 0;
++        info[4] = info[1]; info[5] = 1; /* UWOP_ALLOC_LARGE */
++        *(uint16_t *)(info + 6) = (uint16_t)(stack_addend / 8);
++        for (i = (int)count - 1; i >= 0; --i, ++slot) {
++            info[4 + slot * 2] = push_offsets[i];
++            info[5 + slot * 2] = (uint8_t)(tcg_target_callee_save_regs[i] << 4);
++        }
++        entry->BeginAddress = (DWORD)(prologue_begin - base);
++        entry->EndAddress = (DWORD)s->initial_buffer_size;
++        entry->UnwindData = 32;
++        if (!RtlAddFunctionTable(entry, 1, (DWORD64)base)) abort();
++        s->win_unwind_table = entry;
++    }
++#endif
+     /* jmp *tb.  */
+     tcg_out_modrm(s, OPC_GRP5, EXT5_JMPN_Ev, tcg_target_call_iarg_regs[1]);
+ #endif
+diff --git a/qemu/tcg/tcg.c b/qemu/tcg/tcg.c
+index bc62051..9d7dde0 100644
+--- a/qemu/tcg/tcg.c
++++ b/qemu/tcg/tcg.c
+@@ -831,6 +831,14 @@ void tcg_prologue_init(TCGContext *s)
+     /* Put the prologue at the beginning of code_gen_buffer.  */
+     buf0 = s->code_gen_buffer;
+     total_size = s->code_gen_buffer_size;
++#if defined(_WIN64) && defined(_MSC_VER)
++    /* Reserve native unwind metadata before any generated instructions. */
++    memset(buf0, 0, 256);
++    buf0 = (char *)buf0 + 256;
++    total_size -= 256;
++    s->code_gen_buffer = buf0;
++    s->code_gen_buffer_size = total_size;
++#endif
+     s->code_ptr = buf0;
+     s->code_buf = buf0;
+     s->data_gen_ptr = NULL;

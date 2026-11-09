@@ -1,3 +1,7 @@
+# Purpose: Stream an official-style MalwareBazaar CSV ZIP into a versioned hash DB.
+# Works with: paths, updates.definition_updates
+# Used by: ui.updates_ui, updates.definition_updates, updates.hash_snapshots, updates.update_envelope
+
 """Stream an official-style MalwareBazaar CSV ZIP into a versioned hash DB.
 
 No archive extraction, malware acquisition, or execution. Activation is an
@@ -10,7 +14,6 @@ from datetime import datetime,timezone
 import hashlib
 import io
 import json
-import os
 from pathlib import Path
 import re
 import sqlite3

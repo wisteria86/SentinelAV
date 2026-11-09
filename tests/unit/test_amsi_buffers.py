@@ -1,3 +1,7 @@
+# Purpose: Verify test amsi buffers behavior using controlled fixtures.
+# Works with: detection.buffer_scan, detection.engine, detection.inspection, paths, platform.amsi_broker
+# Used by: unittest discovery
+
 import base64
 import hashlib
 import json
@@ -14,6 +18,15 @@ from sentinelav.platform.amsi_broker import AmsiBroker, response_status
 
 
 class BufferTests(unittest.TestCase):
+    def test_harmless_demo_marker_supports_utf16_host_buffers(self):
+        scanner=Scanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules')
+        try:
+            result=inspect_buffer(scanner,'SENTINELAV_DEMO_THREAT_7C23A'.encode('utf-16-le'))
+            self.assertTrue(result['detected'])
+            self.assertTrue(any(match['demo'] for match in result['yara_matches']))
+            self.assertFalse(inspect_buffer(scanner,'ordinary harmless text'.encode('utf-16-le'))['detected'])
+        finally: scanner.signatures.close()
+
     def test_isolated_binary_hash_and_yara_without_file_or_amsi_recursion(self):
         content=b'SentinelAV buffer hash fixture\x00\xff'
         with tempfile.TemporaryDirectory() as temp:

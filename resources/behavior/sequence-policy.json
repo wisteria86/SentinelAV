@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "id": "encoded-interpreter-autorun-outbound",
+  "steps": ["encoded_interpreter", "autorun_write", "external_connection"],
+  "description": "Encoded interpreter followed by autorun persistence and an outbound public connection under the same process identity. Review required; not a confirmed malware verdict."
+}

@@ -1,3 +1,8 @@
+# Purpose: Read-only local AMSI buffer broker. Production endpoint is LocalService-only.
+# Works with: detection.buffer_scan, detection.inspection, paths, platform.windows_identity
+# Used by: platform.remediation_broker, platform.windows_service, tests.integration.verify_amsi_provider,
+#   tests.unit.test_amsi_buffers
+
 """Read-only local AMSI buffer broker. Production endpoint is LocalService-only.
 
 One bounded request per connection, no file paths, execution, content logging,

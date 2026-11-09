@@ -1,7 +1,10 @@
+# Purpose: Explainable heuristics. Scores indicate suspicion, never proof of infection.
+# Works with: sibling modules in monitoring
+# Used by: lab.lab, monitoring.monitor_loop, monitoring.monitoring, ui.protection_pages
+
 """Explainable heuristics. Scores indicate suspicion, never proof of infection."""
 import hashlib
 import ipaddress
-import os
 import time
 import uuid
 from collections import OrderedDict
@@ -28,6 +31,24 @@ class BehaviorEngine:
         self.file_activity = OrderedDict()
         self.connections = OrderedDict()
         self.canary_states = {}
+        self.attributed_writes=OrderedDict()
+
+    def attributed_file_event(self,event,roots,exclusions):
+        info=event['process']; path=Path(event['path']).resolve()
+        if not info.get('create_time') or self.excluded(path,exclusions) or not any(path.is_relative_to(root) for root in roots): return
+        if info.get('exe') and self.excluded(info['exe'],exclusions): return
+        entity=f"process:{info['pid']}:{info['create_time']}"
+        now=self.clock()
+        paths=self.attributed_writes.setdefault(entity,OrderedDict())
+        self.attributed_writes.move_to_end(entity)
+        paths[str(path)]=now; paths.move_to_end(str(path))
+        while paths and (len(paths)>1024 or now-next(iter(paths.values()))>10): paths.popitem(last=False)
+        metadata=dict(pid=info['pid'],path=str(info.get('exe') or ''),attribution='Kernel ETW with process creation-time verification')
+        if len(paths)>=30: self.indicator(entity,'attributed_write_burst',35,f'{len(paths)} distinct file writes in 10 seconds',**metadata)
+        for canary in self.canaries:
+            if path==Path(canary['path']).resolve():
+                self.indicator(entity,'attributed_canary_write',70,'Kernel telemetry attributes a canary write to this process',**metadata)
+        while len(self.attributed_writes)>512: self.attributed_writes.popitem(last=False)
 
     def excluded(self, path, exclusions):
         path = Path(path).resolve()

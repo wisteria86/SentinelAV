@@ -1,3 +1,7 @@
+# Purpose: Verify test behavior behavior using controlled fixtures.
+# Works with: monitoring.behavior
+# Used by: unittest discovery
+
 import tempfile
 import unittest
 from pathlib import Path

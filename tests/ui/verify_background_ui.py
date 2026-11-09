@@ -1,3 +1,7 @@
+# Purpose: Harmless real-process test: close GUI, detect fixture, reconnect, stop.
+# Works with: data.storage, monitoring.background, paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """Harmless real-process test: close GUI, detect fixture, reconnect, stop."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os

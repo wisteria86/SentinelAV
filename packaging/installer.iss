@@ -1,4 +1,14 @@
-#define AppVersion "0.12.0"
+; Purpose: Build or package SentinelAV and its declared dependencies.
+; Works with: app.py, src/sentinelav, and the matching build or lab scripts
+; Used by: the CLI, desktop launcher, or packaging workflow
+
+#define AppVersion "0.16.0"
+#ifndef PackageRoot
+#define PackageRoot "F:\SentinelAV-Work\builds\dist\SentinelAV"
+#endif
+#ifndef ReleaseRoot
+#define ReleaseRoot "F:\SentinelAV-Work\builds\release"
+#endif
 [Setup]
 SourceDir=..
 AppId={{D9DEEB9C-64A4-48A2-BD0E-8B19B22908C5}
@@ -10,7 +20,7 @@ DefaultGroupName=SentinelAV
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir=artifacts\release
+OutputDir={#ReleaseRoot}
 OutputBaseFilename=SentinelAV-Setup-{#AppVersion}
 SetupIconFile=resources\assets\sentinelav.ico
 UninstallDisplayIcon={app}\SentinelAV.exe
@@ -24,10 +34,10 @@ InfoBeforeFile=docs\RELEASE-NOTES.txt
 [Tasks]
 Name: desktopicon; Description: "Create a Desktop shortcut"; Flags: unchecked
 [Files]
-Source: "artifacts\dist\SentinelAV\*"; DestDir: "{app}"; Excludes: "\_internal\signature-data\active.json,\_internal\trusted-update-keys.json"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "artifacts\dist\SentinelAV\_internal\trusted-update-keys.json"; DestDir: "{app}\_internal"; Flags: onlyifdoesntexist
-#if FileExists("artifacts\dist\SentinelAV\_internal\signature-data\active.json")
-Source: "artifacts\dist\SentinelAV\_internal\signature-data\active.json"; DestDir: "{app}\_internal\signature-data"; Flags: onlyifdoesntexist
+Source: "{#PackageRoot}\*"; DestDir: "{app}"; Excludes: "\_internal\signature-data\active.json,\_internal\trusted-update-keys.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PackageRoot}\_internal\trusted-update-keys.json"; DestDir: "{app}\_internal"; Flags: onlyifdoesntexist
+#if FileExists(PackageRoot + "\_internal\signature-data\active.json")
+Source: "{#PackageRoot}\_internal\signature-data\active.json"; DestDir: "{app}\_internal\signature-data"; Flags: onlyifdoesntexist
 #endif
 [Icons]
 Name: "{userprograms}\SentinelAV"; Filename: "{app}\SentinelAV.exe"

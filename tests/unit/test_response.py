@@ -1,3 +1,7 @@
+# Purpose: Verify test response behavior using controlled fixtures.
+# Works with: data.storage, detection.engine, paths, response.response
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import hashlib
 import os
@@ -31,6 +35,21 @@ class ResponseTests(unittest.TestCase):
         protected = dpapi(MARKER)
         self.assertNotIn(MARKER,protected)
         self.assertEqual(dpapi(protected,True),MARKER)
+
+    def test_derived_content_detection_survives_fresh_quarantine_verification(self):
+        import base64
+        self.file=self.file.with_suffix('.ps1')
+        self.file.write_bytes(base64.b64encode(MARKER))
+        self.store.set('inspection_options',{'advanced':True,'documents':False})
+        scanner=Scanner(ROOT/'signatures.json',ROOT/'rules',options={'advanced':True,'documents':False})
+        try:
+            report=scanner.scan([self.file],lambda:False,lambda *args:None)
+            detection=next(d for d in report['detections'] if d.get('detection_scope')=='derived content')
+        finally: scanner.signatures.close()
+        record=self.service.quarantine_file(detection)
+        self.assertFalse(self.file.exists())
+        self.service.restore(record['id'],self.file)
+        self.assertEqual(self.file.read_bytes(),base64.b64encode(MARKER))
 
     def test_quarantine_restore_no_overwrite_and_audit(self):
         record = self.service.quarantine_file(self.detection)
