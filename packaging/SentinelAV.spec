@@ -57,7 +57,7 @@ if feed_manifest.exists():
         raise ValueError('Invalid signature database filename')
     signature_datas=[(str(feed_manifest),'signature-data'),(str(feed_manifest.parent/database),'signature-data')]
 a=Analysis([str(root/'app.py')],pathex=[str(root/"src"),str(root)],
-    binaries=analysis_binaries,datas=[(str(resources/'rules'),'rules'),(str(resources/'licenses'),'licenses/analysis'),(str(resources/'behavior'),'behavior'),(str(resources/'reviewed-hashes'),'reviewed-hashes'),(str(resources/'assets'),'assets'),
+    binaries=analysis_binaries,datas=[(str(resources/'rules'),'rules'),(str(resources/'licenses'),'licenses/analysis'),(str(resources/'behavior'),'behavior'),(str(resources/'assets'),'assets'),
                       (str(resources/'trusted-update-keys.json'),'.'),
                       (str(resources/'runtime-protocol.json'),'.'),
                       (str(root/'docs/DEFINITION-UPDATES.md'),'.'),

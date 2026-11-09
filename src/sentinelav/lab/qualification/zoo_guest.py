@@ -1,39 +1,64 @@
 # Purpose: Inspect pinned Zoo ZIP members inside an offline guest without launching them.
-# Works with: lab.qualification.guest, zoo_inventory, detection.inspection.
+# Works with: lab.qualification.guest, zoo_inventory, zoo_response, detection.inspection.
 
 import base64
 import hashlib
 from io import BytesIO
 from pathlib import Path
+import re
+import time
 import zipfile
 
 from .zoo_inventory import MAX_ARCHIVE, REVISION, SHA1, blob_identity
 
-OUTCOMES = ('confirmed_detection', 'warning', 'miss', 'unsupported_format', 'inspection_failure')
+OUTCOMES = ('malicious', 'suspicious', 'miss', 'unsupported', 'not_applicable', 'blocked_by_other_av', 'inspection_failure')
 MAX_MEMBER = 64 * 1024**2
-MAX_MEMBERS = 24
-SCRIPT_SUFFIXES = {'.bat', '.cmd', '.js', '.ps1', '.vbs', '.wsf', '.hta', '.html', '.docm', '.xlsm'}
+MAX_MEMBERS = 256
+SAFE_SUFFIX = re.compile(r'\.[a-z0-9]{1,8}')
+# Generalized detection as it ships. Emulation stays off, so nothing from a sample ever runs, even virtually.
+SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False)
+RESPONSE_CYCLES_PER_BATCH = 2
+REALTIME_CHECKS_PER_BATCH = 1
 
 
 def verdict(scan):
-    policy = scan.get('signature_policy', {})
-    if policy.get('signature_free') is not True or any(
-        policy.get(key) is not False for key in ('hashes', 'yara', 'test_markers', 'amsi', 'reputation')
-    ):
-        return 'inspection_failure', 'Signature-free policy missing or inconsistent'
-    if scan.get('scanned') != 1:
-        return 'inspection_failure', 'Scanner did not inspect exactly one file'
-    decision = scan.get('analysis_result', {}).get('verdict')
-    if scan.get('detections') or decision == 'Detected':
-        return 'confirmed_detection', ''
-    if decision == 'Review' or scan.get('advanced_review_total') or scan.get('structural_review_total'):
-        return 'warning', ''
-    if scan.get('errors') or scan.get('status') != 'Complete':
+    """A file that could not be fully inspected is never reported as a clean miss."""
+    errors = scan.get('errors') or []
+    if scan.get('scanned') != 1 or not scan.get('assessment'):
+        if any('Read blocked' in str(error) for error in errors):
+            return 'blocked_by_other_av', 'Another security product blocked the read'
+        return 'inspection_failure', 'Scanner did not assess exactly one file'
+    assessment = scan['assessment']
+    result = assessment['arms']['full']['verdict']
+    if result == 'Malicious':
+        return 'malicious', ''
+    if result == 'Suspicious':
+        return 'suspicious', ''
+    if assessment.get('inert'):
+        return 'not_applicable', 'Content with no executable behavior'
+    if not assessment.get('analyzed'):
+        return 'unsupported', 'No analyzer for this file type: ' + str(assessment.get('file_kind'))
+    if errors or scan.get('status') != 'Complete':
         return 'inspection_failure', 'Inspection incomplete'
     return 'miss', ''
 
 
-def scan_member(archive, info, password, root, scanner):
+def fixture_suffix(name):
+    suffix = Path(str(name)).suffix.lower()
+    return suffix if SAFE_SUFFIX.fullmatch(suffix) else '.bin'
+
+
+def describe(scan):
+    """Bounded metadata only: the sample itself and its strings never leave the guest."""
+    assessment = scan.get('assessment') or {}
+    return dict(kind=assessment.get('file_kind'), platform=assessment.get('platform'), score=assessment.get('score'),
+                confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:80],
+                arms={name: [value['score'], value['verdict']] for name, value in (assessment.get('arms') or {}).items()},
+                codes=[item['code'] for item in (assessment.get('indicators') or [])[:8]],
+                automatic=assessment.get('automatic_response_eligible'))
+
+
+def scan_member(archive, info, password, root, scanner, state):
     if not info.flag_bits & 1:
         return dict(outcome='inspection_failure', reason='Unencrypted member rejected')
     if info.file_size > MAX_MEMBER:
@@ -43,28 +68,35 @@ def scan_member(archive, info, password, root, scanner):
     if len(raw) != info.file_size or len(raw) > MAX_MEMBER:
         raise ValueError('Archive member size mismatch')
     identity = hashlib.sha256(raw).hexdigest()
-    suffix = Path(info.filename).suffix.lower()
-    if not raw.startswith(b'MZ') and suffix not in SCRIPT_SUFFIXES:
-        return dict(outcome='unsupported_format', reason='Outside Windows PE and supported active-content scope',
-                    sha256=identity)
-    fixture = root / ('member' + (suffix if suffix in SCRIPT_SUFFIXES else '.bin'))
-    with fixture.open('xb') as stream:
-        stream.write(raw)
+    suffix = fixture_suffix(info.filename)
+    fixture = root / ('member' + suffix)
+    try:
+        with fixture.open('xb') as stream:
+            stream.write(raw)
+    except OSError:
+        return dict(outcome='blocked_by_other_av', reason='Another security product blocked the write', sha256=identity)
     try:
         scan = scanner.scan([fixture], lambda: False, lambda *args: None)
-        if hashlib.sha256(fixture.read_bytes()).hexdigest() != identity:
+        if fixture.exists() and hashlib.sha256(fixture.read_bytes()).hexdigest() != identity:
             raise ValueError('Specimen changed during inspection')
         outcome, reason = verdict(scan)
-        return dict(outcome=outcome, reason=reason, sha256=identity,
-                    coverage_complete=scan.get('status') == 'Complete' and not scan.get('errors'),
-                    signature_policy=scan.get('signature_policy', {}))
+        row = dict(outcome=outcome, reason=reason, sha256=identity, coverage_complete=scan.get('status') == 'Complete' and not scan.get('errors'), **describe(scan))
     finally:
         fixture.unlink(missing_ok=True)
+    if outcome == 'malicious':
+        from .zoo_response import realtime_check, response_cycle
+        if state['response'] < RESPONSE_CYCLES_PER_BATCH:
+            state['response'] += 1
+            row['response_cycle'] = response_cycle(raw, suffix, root, SETTINGS)
+        if state['realtime'] < REALTIME_CHECKS_PER_BATCH:
+            state['realtime'] += 1
+            row['realtime'] = realtime_check(raw, suffix, root, SETTINGS)
+    return row
 
 
-def inspect_archive(entry, root, scanner):
+def inspect_archive(entry, root, scanner, state):
     if entry.get('unsupported'):
-        return [dict(outcome='unsupported_format', reason='Repository entry is outside encrypted ZIP scope')]
+        return [dict(outcome='unsupported', reason='Repository entry is outside encrypted ZIP scope')]
     if entry.get('stage_error'):
         return [dict(outcome='inspection_failure', reason='Archive staging failed: ' + entry['stage_error'])]
     blob = entry['blob']
@@ -78,23 +110,31 @@ def inspect_archive(entry, root, scanner):
     if blob_identity(raw) != blob:
         raise ValueError('Archive Git identity mismatch')
     password = base64.b64decode(entry['password_b64'], validate=True) if entry.get('password_b64') else b'infected'
+    return inspect_members(raw, password, root, scanner, state)
+
+
+def inspect_members(raw, password, root, scanner, state):
     rows = []
     with zipfile.ZipFile(BytesIO(raw)) as archive:
         members = [item for item in archive.infolist() if not item.is_dir()]
-        if not 1 <= len(members) <= MAX_MEMBERS:
-            return [dict(outcome='inspection_failure', reason='Archive member count outside batch budget',
-                         uninspected_members=len(members))]
-        for index, info in enumerate(members):
+        if not members:
+            return [dict(outcome='inspection_failure', reason='Archive has no members')]
+        for index, info in enumerate(members[:MAX_MEMBERS]):
+            if time.monotonic() > state['deadline']:
+                rows.append(dict(member_index=index, member=info.filename[:160], outcome='inspection_failure', reason='Batch time budget reached'))
+                continue
             try:
-                row = scan_member(archive, info, password, root, scanner)
+                row = scan_member(archive, info, password, root, scanner, state)
             except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile) as error:
                 row = dict(outcome='inspection_failure', reason=type(error).__name__)
             # Names are metadata only. They are never used as filesystem paths.
             rows.append(dict(member_index=index, member=info.filename[:160], **row))
+        if len(members) > MAX_MEMBERS:
+            rows.append(dict(member_index=MAX_MEMBERS, member='', outcome='inspection_failure', reason=f'{len(members)-MAX_MEMBERS} further members not inspected'))
     return rows
 
 
-def inspect_cached(entry, root, scanner, key, files):
+def inspect_cached(entry, root, scanner, key, files, state):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from sentinelav.lab.static_corpus import AAD, SPECS, validate_archive
     from sentinelav.workspace import unlinked
@@ -111,7 +151,7 @@ def inspect_cached(entry, root, scanner, key, files):
     raw = AESGCM(key).decrypt(sealed[:12], sealed[12:], AAD + spec['id'].encode())
     validate_archive(raw, spec)
     with zipfile.ZipFile(BytesIO(raw)) as archive:
-        row = scan_member(archive, archive.getinfo(spec['member']), b'infected', root, scanner)
+        row = scan_member(archive, archive.getinfo(spec['member']), b'infected', root, scanner, state)
     return [dict(member_index=0, member=spec['member'], **row)]
 
 
@@ -120,17 +160,15 @@ def execute(context, root):
     from cryptography.exceptions import InvalidTag
     from sentinelav.detection.inspection import IsolatedScanner
     from sentinelav.paths import RESOURCE_ROOT
-    from .guest_context import options
     case = context['case']
     quick = case['id'] == 'zoo-quick'
     batch = case['parameters'] if quick else context['zoo_input']
-    if context['backend'] != 'sandbox' or case['mode'] != 'signature_free' or batch['revision'] != REVISION:
-        raise ValueError('Zoo scans require signature-free Windows Sandbox')
-    if not 1 <= len(batch['entries']) <= 4:
+    if context['backend'] != 'sandbox' or batch['revision'] != REVISION:
+        raise ValueError('Zoo scans require Windows Sandbox and the pinned revision')
+    if not 1 <= len(batch['entries']) <= 64:
         raise ValueError('Invalid Zoo batch size')
-    settings = dict(options('signature_free'), emulation=False)
-    scanner = IsolatedScanner(RESOURCE_ROOT/'signatures.json', RESOURCE_ROOT/'rules',
-                              max_mb=64, options=settings, persistent=True)
+    scanner = IsolatedScanner(RESOURCE_ROOT/'signatures.json', RESOURCE_ROOT/'rules', max_mb=64, options=dict(SETTINGS), persistent=True)
+    state = dict(response=0, realtime=0, deadline=time.monotonic()+max(60, case['seconds']-120))
     groups = []
     try:
         if quick:
@@ -140,7 +178,7 @@ def execute(context, root):
             files = json.loads(Path('C:/SentinelAV-Input/manifest.json').read_text(encoding='utf-8-sig'))['files']
         for entry in batch['entries']:
             try:
-                rows = inspect_cached(entry, root, scanner, key, files) if quick else inspect_archive(entry, root, scanner)
+                rows = inspect_cached(entry, root, scanner, key, files, state) if quick else inspect_archive(entry, root, scanner, state)
             except (OSError, ValueError, RuntimeError, NotImplementedError, InvalidTag, zipfile.BadZipFile) as error:
                 rows = [dict(outcome='inspection_failure', reason=type(error).__name__)]
             groups.append(dict(blob=entry['blob'], rows=rows))

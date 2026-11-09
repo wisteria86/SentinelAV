@@ -15,7 +15,7 @@ from sentinelav.lab.qualification.runner import Runner
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--profile',choices=('regression','critical','soak','zoo-static','zoo-quick'),default='critical')
+    parser.add_argument('--profile',choices=('regression','critical','soak','zoo-static','zoo-quick','zoo-dev','zoo-holdout'),default='critical')
     parser.add_argument('--headless',action='store_true')
     parser.add_argument('--preflight-only',action='store_true')
     parser.add_argument('--resume',type=Path)
@@ -48,7 +48,7 @@ def main(argv=None):
     window=QWidget();window.setWindowTitle('SentinelAV — Critical Evaluation');window.resize(740,500)
     window.setStyleSheet('QWidget{background:#fff7e9;color:#302217;font:14px "Segoe UI"} QPushButton{background:#ef842b;border:1px solid #d47725;border-radius:5px;padding:8px} QPushButton:disabled{background:#ecdfce;color:#8f8174;border-color:#d9c9b8} QPlainTextEdit{background:#fffaf2;border:1px solid #d9c9b8}')
     layout=QVBoxLayout(window);layout.addWidget(QLabel('Critical evaluation — evidence and failures, never a synthetic protection score'))
-    profile=QComboBox();profile.addItems(['critical','regression','soak','zoo-static','zoo-quick']);profile.setCurrentText(args.profile);layout.addWidget(profile)
+    profile=QComboBox();profile.addItems(['critical','regression','soak','zoo-static','zoo-quick','zoo-dev','zoo-holdout']);profile.setCurrentText(args.profile);layout.addWidget(profile)
     status=QLabel('Ready to start');status.setWordWrap(True);layout.addWidget(status)
     bar=QProgressBar();bar.setValue(0)
     bar.setStyleSheet('QProgressBar{border:1px solid #d9c9b8;border-radius:5px;text-align:center} QProgressBar::chunk{background:#ef842b;border-radius:4px}')

@@ -16,19 +16,32 @@ from sentinelav.lab.qualification.zoo_reporting import render, validate_batch
 
 
 class ZooStaticTests(unittest.TestCase):
-    def test_quick_profile_uses_one_cached_signature_free_batch(self):
+    def test_quick_profile_uses_one_cached_batch(self):
         from sentinelav.lab.static_corpus import SPECS
         case, = zoo_inventory.quick_cases()
-        self.assertEqual((case['backend'], case['action'], case['mode']), ('sandbox', 'zoo_static', 'signature_free'))
+        self.assertEqual((case['backend'], case['action'], case['mode']), ('sandbox', 'zoo_static', 'normal'))
         self.assertEqual([entry['blob'] for entry in case['parameters']['entries']], [spec['blob'] for spec in SPECS])
         self.assertEqual(case['parameters']['group'], 'base')
 
     def test_checked_in_inventory_covers_pinned_archives_and_split_parts(self):
         batches = zoo_inventory.cases()
         rows = [row for case in batches for row in case['parameters']['entries']]
-        self.assertEqual(len(batches), 91)
         self.assertEqual(len({row['path'] for row in rows}), 361)
         self.assertEqual(sum(not row.get('unsupported') for row in rows), 359)
+        self.assertTrue(all(len(case['parameters']['entries']) <= zoo_inventory.BATCH_SIZE for case in batches))
+
+    def test_split_is_family_disjoint_and_keeps_seen_families_out_of_holdout(self):
+        dev = {zoo_inventory.family_of(row['path']) for case in zoo_inventory.cases('dev') for row in case['parameters']['entries']}
+        holdout = {zoo_inventory.family_of(row['path']) for case in zoo_inventory.cases('holdout') for row in case['parameters']['entries']}
+        self.assertTrue(dev and holdout)
+        self.assertFalse(dev & holdout)
+        self.assertGreater(len(holdout), len(dev) * .8)
+        self.assertFalse(zoo_inventory.seen_families() & holdout)
+        self.assertEqual(zoo_inventory.family_of('malware/Binaries/Win32.Sample.A/x.zip'), 'sample')
+        self.assertEqual(zoo_inventory.family_of('malware/Binaries/Sample_10Sep2013/x.zip'), 'sample')
+        self.assertEqual(zoo_inventory.family_of('malware/Source/Original/Sample_v1/x.zip'), 'sample')
+        self.assertTrue(any('/Source/' in row['path'] for case in zoo_inventory.cases('dev') for row in case['parameters']['entries']))
+        self.assertEqual(len(dev | holdout), len({zoo_inventory.family_of(row['path']) for case in zoo_inventory.cases() for row in case['parameters']['entries']}))
 
     def test_pinned_tree_and_resume(self):
         with TemporaryDirectory() as temporary:
@@ -40,20 +53,22 @@ class ZooStaticTests(unittest.TestCase):
                                 path='malware/Binaries/demo/0.pass'))
             with patch.object(zoo_inventory, 'tree_entries', return_value=records):
                 cases = zoo_inventory.cases()
-            self.assertEqual([len(case['parameters']['entries']) for case in cases], [4, 1])
+            self.assertEqual([len(case['parameters']['entries']) for case in cases], [5])
             self.assertEqual(cases[0]['parameters']['entries'][0]['password_blob'], 'b'*40)
-            self.assertTrue(all(case['mode']=='signature_free' and case['backend']=='sandbox' for case in cases))
+            self.assertTrue(all(case['mode']=='normal' and case['backend']=='sandbox' for case in cases))
             manifest = asdict(SuiteManifest('fixture', 'zoo-static', {'source':'fixture'}, cases, {}))
             store = RunStore(work/'run', manifest)
             try:
-                store.start(cases[0]['id'])
-                store.finish(dict(case_id=cases[0]['id'], status='failed', reason='fixture batch failure'))
-                first = store.start(cases[1]['id'])
+                first = store.start(cases[0]['id'])
                 store.recover()
-                self.assertNotEqual(store.start(cases[1]['id']), first)
+                self.assertNotEqual(store.start(cases[0]['id']), first)
                 summary = render(store)
-                self.assertEqual(summary['outcomes']['inspection_failure'], 4)
-                self.assertEqual(summary['outcomes']['pending'], 1)
+                self.assertEqual(summary['outcomes']['pending'], 5)
+                store.finish(dict(case_id=cases[0]['id'], status='failed', reason='fixture batch failure'))
+                summary = render(store)
+                self.assertEqual(summary['outcomes']['inspection_failure'], 5)
+                self.assertEqual(summary['arms']['full']['samples']['flagged'], 0)
+                self.assertEqual(summary['arms']['full']['samples']['total'], 5)
             finally:
                 store.close()
 
@@ -74,15 +89,20 @@ class ZooStaticTests(unittest.TestCase):
             self.assertEqual(list(output.iterdir()), [])
 
     def test_unattested_or_incomplete_scan_cannot_count_as_miss(self):
-        policy = dict(signature_free=True, hashes=False, yara=False, test_markers=False, amsi=False, reputation=False)
-        scan = dict(signature_policy=policy, scanned=1, status='Complete')
-        self.assertEqual(verdict(scan)[0], 'miss')
-        self.assertEqual(verdict({**scan, 'status':'Complete with omissions'})[0], 'inspection_failure')
-        self.assertEqual(verdict({**scan, 'advanced_review_total':1})[0], 'warning')
-        self.assertEqual(verdict({**scan, 'detections':[{}]})[0], 'confirmed_detection')
-        self.assertEqual(verdict({**scan, 'signature_policy':{'signature_free':True}})[0], 'inspection_failure')
+        def assessed(result, **fields):
+            arms = {name: dict(score=0, verdict=result) for name in ('full', 'generalized', 'heuristic')}
+            return dict(scanned=1, status='Complete', errors=[], assessment=dict(dict(arms=arms, analyzed=True, inert=False, file_kind='pe'), **fields))
+        self.assertEqual(verdict(assessed('Clean'))[0], 'miss')
+        self.assertEqual(verdict({**assessed('Clean'), 'status':'Complete with omissions'})[0], 'inspection_failure')
+        self.assertEqual(verdict(assessed('Suspicious'))[0], 'suspicious')
+        self.assertEqual(verdict(assessed('Malicious'))[0], 'malicious')
+        self.assertEqual(verdict(assessed('Clean', inert=True))[0], 'not_applicable')
+        self.assertEqual(verdict(assessed('Clean', analyzed=False))[0], 'unsupported')
+        self.assertEqual(verdict(dict(scanned=0, errors=['x: Read blocked, likely by another security product']))[0], 'blocked_by_other_av')
+        self.assertEqual(verdict(dict(scanned=0, errors=[]))[0], 'inspection_failure')
         case = {'parameters':dict(revision=zoo_inventory.REVISION, entries=[{'blob':'a'*40}])}
-        row = dict(member_index=0, outcome='miss', sha256='c'*64, signature_policy=policy, coverage_complete=True)
+        arms = {name: [0, 'Clean'] for name in ('full', 'generalized', 'heuristic')}
+        row = dict(member_index=0, outcome='miss', sha256='c'*64, arms=arms, coverage_complete=True)
         receipt = dict(zoo_accounted=True, zoo_revision=zoo_inventory.REVISION, sample_execution=False,
                        zoo_groups=[dict(blob='a'*40, rows=[row])])
         validate_batch(case, receipt)
