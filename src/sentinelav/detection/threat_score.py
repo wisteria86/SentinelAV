@@ -14,7 +14,8 @@ AUTOMATIC_SCORE=85
 TRUST_DAMPING=.35
 DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature'}
 DAMPED_LAYERS={'heuristic','generic_yara','ml'}
-GROUP_CAPS={'packing':35,'structure':30,'ml':65,'context':10,'obfuscation':25,'generic_yara':45,'destruction':70,
+# Installers and DRM pack legitimately, so packing alone stays below Suspicious and only supports other evidence.
+GROUP_CAPS={'packing':28,'structure':30,'ml':65,'context':10,'obfuscation':25,'generic_yara':45,'destruction':70,
     'ransomware':60,'replication':55}
 DEFAULT_CAP=45
 # Evaluation arms re-score the same evidence: A full product, B generalized, C without learned models.

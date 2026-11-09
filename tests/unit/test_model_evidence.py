@@ -24,3 +24,8 @@ class ModelEvidenceTests(unittest.TestCase):
         result=score([indicator('learned_pe_model','ml',55,'Model','ml'),indicator('learned_byte_model','ml',30,'Model','ml')])
         self.assertEqual(result['verdict'],'Suspicious')
         self.assertFalse(automatic_eligible(result))
+
+    def test_packing_alone_stays_clean_but_supports_other_evidence(self):
+        packed=[indicator(code,'packing',20,'Fixture') for code in ('a','b','c','d')]
+        self.assertEqual(score(packed)['verdict'],'Clean')
+        self.assertEqual(score(packed+[indicator('capability','injection',32,'Fixture')])['verdict'],'Suspicious')
