@@ -20,6 +20,8 @@ import time
 
 SUFFIXES={'.exe','.dll','.sys','.scr','.ocx','.pyd','.ps1','.bat','.cmd','.vbs','.js','.py','.pdf','.doc','.docx','.docm','.xls','.xlsx','.xlsm','.rtf','.zip','.jar','.msi','.hta','.lnk'}
 PRIVATE_FOLDERS={'documents','desktop','downloads','pictures','videos','music','onedrive','appdata'}
+PROGRAM_SUFFIXES={'.exe','.dll','.sys','.scr','.ocx','.pyd','.msi'}
+DOCUMENT_SUFFIXES={'.pdf','.doc','.docx','.docm','.xls','.xlsx','.xlsm','.rtf','.zip','.jar','.lnk'}
 MAX_BYTES=64*1024*1024
 SEED=20261109
 
@@ -46,6 +48,11 @@ def half_of(product):
     return 'calibrate' if int(hashlib.sha256(product.encode()).hexdigest()[:8],16)%2==0 else 'report'
 
 
+def type_group(path):
+    suffix=Path(path).suffix.casefold()
+    return 'program' if suffix in PROGRAM_SUFFIXES else 'document' if suffix in DOCUMENT_SUFFIXES else 'script'
+
+
 def select(roots,split,per_product,root_cap=60000):
     """Sample each product evenly, so one huge application cannot dominate the rate."""
     products=defaultdict(list)
@@ -58,7 +65,8 @@ def select(roots,split,per_product,root_cap=60000):
                 if Path(name).suffix.casefold() not in SUFFIXES:continue
                 path=Path(folder)/name;seen+=1
                 product=product_of(root,path)
-                if half_of(product)==split:products[(str(root),product)].append(path)
+                # Sampled per type, so a product's many programs cannot crowd out its documents and scripts.
+                if half_of(product)==split:products[(str(root),product,type_group(path))].append(path)
             if seen>root_cap:break
     generator=random.Random(SEED);chosen=[]
     for key,paths in sorted(products.items()):
@@ -89,7 +97,7 @@ def evaluate(chosen,budget):
     deadline=time.monotonic()+budget
     rows=[];omitted=Counter();times=[]
     try:
-        for (root,product),path in chosen:
+        for (root,product,_),path in chosen:
             if time.monotonic()>deadline:
                 omitted['time budget']+=1;continue
             try:

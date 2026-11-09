@@ -50,8 +50,23 @@ class IndicatorInputTests(unittest.TestCase):
         codes=[item['code'] for item in documents.office_indicators(OLE_HEADER+b'\0'*600+b'AutoOpen macrocopy normal.dot')]
         self.assertIn('legacy_macro_triggers',codes)
         self.assertIn('legacy_macro_copy',codes)
+        # Word records the template name in ordinary documents, which proves nothing.
+        self.assertEqual(documents.office_indicators(OLE_HEADER+b'\0'*600+b'Normal.dotm Microsoft Office Word'),[])
         planted=OLE_HEADER+b'\0'*600+b'MZ'+b'\0'*70+b'This program cannot be run in DOS mode'
         self.assertIn('embedded_program_in_document',[item['code'] for item in documents.office_indicators(planted)])
+
+    def test_compressed_pdf_bytes_cannot_look_like_pdf_keywords(self):
+        noise=b'/JS /AA /OpenAction /Launch /JavaScript /J#61vaScript #41 #20 /EmbeddedFile setup.exe'
+        ordinary=b'%PDF-1.7\n1 0 obj\n<< /Length 90 /Filter /FlateDecode >>\nstream\n'+noise+b'\nendstream\nendobj\n<< /BaseFont /Times#20New#20Roman >>'
+        self.assertEqual(documents.pdf_indicators(ordinary),[])
+
+    def test_real_pdf_actions_are_still_found_including_inside_object_streams(self):
+        import zlib
+        codes=lambda data:{item['code'] for item in documents.pdf_indicators(data)}
+        self.assertLessEqual({'pdf_auto_javascript','pdf_name_obfuscation'},codes(b'%PDF-1.7\n<< /OpenAction 1 0 R /J#61vaScript 2 0 R >>'))
+        hidden=zlib.compress(b'<< /OpenAction 5 0 R >> << /S /JavaScript /JS (app.alert(1)) >>')
+        packed=b'%PDF-1.7\n1 0 obj\n<< /Type /ObjStm /Filter /FlateDecode >>\nstream\n'+hidden+b'\nendstream\nendobj'
+        self.assertIn('pdf_auto_javascript',codes(packed))
 
     def test_rtf_objects_are_judged_on_lowercase_and_spaced_hex(self):
         codes=[item['code'] for item in documents.rtf_indicators(b'{\\rtf1\\object\\objupdate\\objdata 45 71 75 \n Equation.3 4D5A'+b'00'*60+b'}')]

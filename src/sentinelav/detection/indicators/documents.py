@@ -12,7 +12,8 @@ SHELL=re.compile(r'\b(shell\s*\(|wscript\.shell|shell\.application|createobject\
 REPLICATE=re.compile(r'\b(vbproject|vbcomponents|codemodule|\.insertlines|\.addfromstring|\.addfromfile|normaltemplate|activedocument\.vbproject|macrocontainer|organizercopy|macrocopy|application\.macrocopy|vbe\.)',re.I)
 SECURITY=re.compile(r'\b(enablecancelkey|displayalerts\s*=\s*false|screenupdating\s*=\s*false|virusprotection|accessvbom|\\+security\\+(?:level|accessvbom)|options\.(?:virusprotection|saveNormalPrompt))',re.I)
 OBFUSCATION=re.compile(r'(?:chrw?\$?\s*\(\s*\d+\s*\)\s*&?\s*_?\s*){8}|strreverse\s*\(|(?:["\'][^"\']{1,4}["\']\s*&\s*_?\s*){8}',re.I)
-LEGACY_MACRO=re.compile(rb'(?i)(?:autoopen|autoclose|autoexec|autonew|fileopen|filesaveas|toolsmacro)|m\x00a\x00c\x00r\x00o\x00c\x00o\x00p\x00y|macrocopy|normal\.dot')
+# Ordinary documents name their template in metadata, so only an explicit copy command counts as replication.
+LEGACY_MACRO=re.compile(rb'(?i)(?:autoopen|autoclose|autoexec|autonew|fileopen|filesaveas|toolsmacro)|m\x00a\x00c\x00r\x00o\x00c\x00o\x00p\x00y|macrocopy|organizercopy')
 EXPLOIT_CLSID=(b'0002ce02-0000-0000-c000-000000000046',b'00021700-0000-0000-c000-000000000046',b'equation.3',b'equation.2',b'htmlfile',b'scriptlet',b'package\x00')
 
 
@@ -43,7 +44,7 @@ def office_indicators(data,omissions=None):
     if not sources and LEGACY_MACRO.search(raw) and raw.startswith(bytes.fromhex('d0cf11e0a1b11ae1')):
         names=sorted({m.group().decode('latin-1').replace('\0','').casefold() for _,m in zip(range(32),LEGACY_MACRO.finditer(raw))})
         found['legacy_macro_triggers']=indicator('legacy_macro_triggers','macro_trigger',28,'A legacy document holds auto-run or file-command macro names that old macro viruses replace.',category='MacroVirus',evidence=', '.join(names)[:160])
-        if {'macrocopy','normal.dot'}&set(names):found['legacy_macro_copy']=indicator('legacy_macro_copy','replication',42,'A legacy document references copying macros or the global Normal template.',category='MacroVirus')
+        if {'macrocopy','organizercopy'}&set(names):found['legacy_macro_copy']=indicator('legacy_macro_copy','replication',42,'A legacy document contains a command that copies macros between documents.',category='MacroVirus')
     lowered=raw.lower()
     if lowered.find(b'mz')>=0 and re.search(rb'this program (?:cannot|must) be run',lowered):
         found['embedded_program_in_document']=indicator('embedded_program_in_document','dropper',38,'A Windows program is embedded inside the document.',category='Dropper')
@@ -52,10 +53,38 @@ def office_indicators(data,omissions=None):
     return list(found.values())
 
 
+STREAM=re.compile(rb'stream\r?\n.*?(?:endstream|\Z)',re.S)
+OBJECT_STREAM=re.compile(rb'<<((?:(?!>>).){0,2048}?/ObjStm(?:(?!>>).){0,2048}?)>>\s*stream\r?\n(.*?)endstream',re.S)
+ESCAPED_NAME=re.compile(rb'/[^\s/<>\[\]()]*#[0-9a-fA-F]{2}[^\s/<>\[\]()]*')
+RISKY_NAMES={b'/javascript',b'/js',b'/openaction',b'/aa',b'/launch',b'/embeddedfile',b'/richmedia',b'/xfa'}
+
+
+def _unescape(name):
+    return re.sub(rb'#([0-9a-fA-F]{2})',lambda m:bytes([int(m[1],16)]),name)
+
+
+def pdf_structure(raw):
+    """PDF objects outside compressed streams, plus bounded object streams, where modern files keep dictionaries.
+
+    Compressed bytes are excluded because random data can contain sequences like /JS or #41 by chance.
+    """
+    import zlib
+    parts=[STREAM.sub(b' ',raw)];expanded=0
+    for _,match in zip(range(256),OBJECT_STREAM.finditer(raw)):
+        if b'/FlateDecode' not in match[1]:continue
+        try:payload=zlib.decompressobj().decompress(match[2].rstrip(b'\r\n'),4*1024*1024)
+        except zlib.error:continue
+        expanded+=len(payload);parts.append(payload)
+        if expanded>16*1024*1024:break
+    return b'\n'.join(parts)
+
+
 def pdf_indicators(data):
     raw=bytes(data[:32*1024*1024])
+    structure=pdf_structure(raw)
     # Name tokens may hide characters with hex escapes such as /J#61vaScript.
-    text=re.sub(rb'#([0-9a-fA-F]{2})',lambda m:bytes([int(m[1],16)]),raw)
+    disguised=[name for _,name in zip(range(4096),ESCAPED_NAME.findall(structure)) if _unescape(name).lower() in RISKY_NAMES]
+    text=ESCAPED_NAME.sub(lambda m:_unescape(m.group()),structure)
     found=[]
     auto=re.search(rb'/(?:OpenAction|AA)\b',text)
     script=re.search(rb'/(?:JavaScript|JS)\b',text)
@@ -65,7 +94,7 @@ def pdf_indicators(data):
     if re.search(rb'/EmbeddedFile\b',text) and re.search(rb'\.(?:exe|scr|js|vbs|bat|cmd|hta)\b',text,re.I):
         found.append(indicator('pdf_embedded_executable','dropper',32,'The PDF embeds a file with an executable or script name.',category='Dropper'))
     if re.search(rb'/(?:JBIG2Decode|XFA|RichMedia|U3D)\b',text) and script:found.append(indicator('pdf_exploit_surface','obfuscation',14,'JavaScript is combined with PDF features that are frequent exploit targets.',category='Exploit'))
-    if raw!=text and script:found.append(indicator('pdf_name_obfuscation','obfuscation',18,'PDF keywords are disguised using hex escapes.',category='Exploit'))
+    if disguised:found.append(indicator('pdf_name_obfuscation','obfuscation',18,'PDF keywords are disguised using hex escapes.',category='Exploit',evidence=disguised[0].decode('latin-1')))
     return found
 
 

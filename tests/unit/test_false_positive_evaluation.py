@@ -36,6 +36,17 @@ class FalsePositiveEvaluationTests(unittest.TestCase):
                 for key,_ in once:counts[key]=counts.get(key,0)+1
                 self.assertTrue(all(count==3 for count in counts.values()))
 
+    def test_each_product_is_sampled_per_file_type(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for product in ('alpha','beta','gamma','delta'):
+                (root/product).mkdir()
+                for index in range(9):(root/product/f'{index}.dll').write_bytes(b'x')
+                (root/product/'manual.pdf').write_bytes(b'x')
+            chosen=tool.select([root],'calibrate',2)[0]+tool.select([root],'report',2)[0]
+            self.assertEqual(sum(path.suffix=='.pdf' for _,path in chosen),4)
+            self.assertEqual(sum(path.suffix=='.dll' for _,path in chosen),8)
+
     def test_personal_folders_are_refused(self):
         for path in (r'C:\Users\someone\Documents',r'C:\Users\someone\Desktop\tools',r'C:\Users\someone\AppData\Local\Programs'):
             with self.assertRaises(ValueError):tool.refuse_private(path)
