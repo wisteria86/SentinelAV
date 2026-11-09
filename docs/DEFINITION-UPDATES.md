@@ -46,22 +46,12 @@ exceptions remain separate policies. Full reimports retain explicit revocations.
 An explicit correction upsert or a valid signed package can restore a revoked
 hash. Corrections affect hash detection only; YARA may independently detect it.
 
-### Reviewed Zeus additions, 2026-11-02
+### Removed Zeus additions, 2026-11-09
 
-Two previously missed, guest-verified research specimens were added through the
-existing explicit-corrections path. The active snapshot grew from 1,164,910 to
-1,164,912 hashes. The payload and its source/identity notes are shipped under
-resources/reviewed-hashes/zeus-20261102.changes.json and the adjacent provenance
-JSON. Both archives were pinned to theZoo revision
-48515e492013bc5bb2769249ea539436bb3e733f; decoded bytes and their SHA-256 were
-verified only inside the offline guest. Family labels come from that repository,
-not independent vendor consensus or a signed publisher update.
-
-These entries are explicitly labeled locally reviewed research samples. SQLite
-lookup now uses the neutral prefix "Hash database:" instead of attributing all
-manual corrections to MalwareBazaar. The original JSON overlay provider labels
-remain intact. The base CSV/source metadata still describes the old full import;
-a two-entry manual update is not a new comprehensive MalwareBazaar download.
+Two hashes added on 2026-11-02 came directly from theZoo, the corpus used to measure
+detection. They were revoked through the corrections path so evaluation results cannot be
+self-fulfilling, and their payload is no longer shipped. Do not add hashes taken from an
+evaluation corpus to the detection database.
 
 Old snapshots remain available for the normal rollback operation. A source clone
 without the ignored full database must first import a base feed, then can apply

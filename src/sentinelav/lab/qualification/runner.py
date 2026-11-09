@@ -58,10 +58,11 @@ class Runner:
         except (OSError,ValueError) as e:problems.append('F: temporary storage unavailable: '+str(e))
         if not self.resume:
             zoo_inventory=None
-            if self.profile in ('zoo-static','zoo-quick'):
+            if self.profile in ('zoo-static','zoo-quick','zoo-dev','zoo-holdout'):
                 from .zoo_inventory import cases as zoo_cases,quick_cases,repository
-                zoo_inventory=quick_cases() if self.profile=='zoo-quick' else zoo_cases()
-                if self.profile=='zoo-static' and not (self.preflight_only or self.host_only):repository(self.work)
+                splits={'zoo-dev':'dev','zoo-holdout':'holdout'}
+                zoo_inventory=quick_cases() if self.profile=='zoo-quick' else zoo_cases(splits.get(self.profile))
+                if self.profile!='zoo-quick' and not (self.preflight_only or self.host_only):repository(self.work)
             if not problems and not self.preflight_only:
                 try:build(self.project,self.work,digest(dict(source=identity,resources=resource_identity(self.project))),self.cancelled,self.progress,folder)
                 except Exception as e:problems.append('Build not verified: '+type(e).__name__+': '+str(e))

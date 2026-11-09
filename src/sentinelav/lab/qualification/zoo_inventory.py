@@ -15,7 +15,13 @@ from sentinelav.paths import PROJECT_ROOT
 from sentinelav.workspace import unlinked
 from .contracts import CaseDefinition, digest
 
-BATCH_SIZE = 4
+BATCH_SIZE = 24
+BATCH_BYTES = 96 * 1024**2
+BATCH_SECONDS = 3000
+DEV_PERCENT = 30
+# Platform and type words that lead a folder name but do not identify a family.
+FAMILY_PREFIXES = {'all', 'android', 'backdoor', 'bat', 'coll', 'dos', 'dropper', 'exploit', 'js', 'linux', 'msil', 'osx', 'ransomware', 'rootkit',
+                   'spy', 'trojan', 'virus', 'vbs', 'w32', 'w64', 'w97m', 'win32', 'win64', 'winx', 'wm', 'worm', 'x97m', 'xm'}
 MAX_ARCHIVE = 64 * 1024**2
 SHA1 = re.compile(r'[a-f0-9]{40}')
 TREE_SHA256 = 'e370aa35ef82a8217840d210dfcf55405ce69fcfbf3ea80ee52ea7894389778c'
@@ -41,6 +47,29 @@ def repository(work):
     return path
 
 
+def family_of(path):
+    """Group a repository path by family, so one family cannot sit on both sides of the split."""
+    parts = str(path).split('/')
+    # Source archives sit one level deeper, under Original/ or Reworked/.
+    depth = 3 if len(parts) > 4 and parts[:2] == ['malware', 'Source'] else 2
+    name = parts[depth] if len(parts) > depth + 1 and parts[0] == 'malware' else parts[-1]
+    tokens = [token for token in re.split(r'[._\s-]+', name) if token]
+    return next((token.casefold() for token in tokens if token.casefold() not in FAMILY_PREFIXES), name.casefold())
+
+
+def seen_families():
+    """Families examined in earlier work can never be holdout evidence."""
+    from sentinelav.lab.static_corpus import HOLDOUT_SPECS, SPECS, ZEUS_VALIDATION_SPECS
+    return {family_of('malware/Binaries/' + spec['family'] + '/x') for spec in (*SPECS, *HOLDOUT_SPECS, *ZEUS_VALIDATION_SPECS)}
+
+
+def split_of(family):
+    """Deterministic, name-blind split: rules may be tuned on dev only, and holdout is scored once."""
+    if any(len(seen) >= 4 and (family.startswith(seen) or seen.startswith(family)) for seen in seen_families()):
+        return 'dev'
+    return 'dev' if int(hashlib.sha256(family.encode()).hexdigest()[:8], 16) % 100 < DEV_PERCENT else 'holdout'
+
+
 def tree_entries():
     tree = json.loads((PROJECT_ROOT / 'resources/zoo-tree.json').read_bytes())
     if digest(tree) != TREE_SHA256:
@@ -50,7 +79,7 @@ def tree_entries():
     return tree['entries']
 
 
-def cases():
+def cases(split=None):
     entries = []
     passwords = {}
     folders = {}
@@ -78,19 +107,29 @@ def cases():
             password = siblings[0]
         if password:
             item['password_blob'] = password
+    if split:
+        entries = [entry for entry in entries if split_of(family_of(entry['path'])) == split]
+    batches = []
+    current = []
+    for entry in entries:
+        size = entry['bytes'] if type(entry['bytes']) is int else 0
+        if current and (len(current) >= BATCH_SIZE or sum(row['bytes'] for row in current if type(row['bytes']) is int) + size > BATCH_BYTES):
+            batches.append(current)
+            current = []
+        current.append(entry)
+    if current:
+        batches.append(current)
     return [asdict(CaseDefinition(
-        f'zoo-{offset // BATCH_SIZE:04}', 'raw_detection', 'sandbox', 'zoo_static',
-        mode='signature_free', seconds=900,
-        parameters=dict(revision=REVISION, entries=entries[offset:offset+BATCH_SIZE]),
-        expected=dict(zoo_accounted=True),
-    )) for offset in range(0, len(entries), BATCH_SIZE)]
+        f'zoo-{index:04}', 'raw_detection', 'sandbox', 'zoo_static', mode='normal', seconds=BATCH_SECONDS,
+        parameters=dict(revision=REVISION, entries=batch), expected=dict(zoo_accounted=True),
+    )) for index, batch in enumerate(batches)]
 
 
 def quick_cases():
     from sentinelav.lab.static_corpus import SPECS
     entries = [dict(path=spec['family'], blob=spec['blob'], fixture=spec['id']) for spec in SPECS]
     return [asdict(CaseDefinition('zoo-quick', 'raw_detection', 'sandbox', 'zoo_static',
-        mode='signature_free', seconds=900, parameters=dict(revision=REVISION, entries=entries, group='base'),
+        mode='normal', seconds=900, parameters=dict(revision=REVISION, entries=entries, group='base'),
         expected=dict(zoo_accounted=True)))]
 
 
