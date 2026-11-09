@@ -138,7 +138,7 @@ class ScanFlowMixin:
             facts.extend(Evidence('static',s['code'],s['explanation']) for s in result.get('static_analysis',{}).get('signals',[]))
             facts.extend(Evidence(**item) for item in result.get('advanced_analysis',{}).get('evidence',[]))
             result['decision']=decide(facts,result['errors'])
-        result['warnings'] = self.warnings
+        result['warnings'] = list(dict.fromkeys(self.warnings+(self.advanced.omissions if self.advanced else [])))
         result['yara'] = self.rule_summary
         result['signature_policy']=dict(signature_free=self.options['signature_free'],hashes=not self.options['signature_free'],
             yara=not self.options['signature_free'],test_markers=not self.options['signature_free'],
@@ -202,7 +202,8 @@ class ScanFlowMixin:
                     result['advanced_reviews'].append(dict(path=str(resolved),sha256=sha,
                         reasons=[e['description'] for e in decision['evidence'][:16]],
                         omissions=decision['omissions'][:8],automatic_response_eligible=False))
-            coverage=[item for item in decision['omissions'] if not item.startswith(STANDING_LIMITS)]
+            # An unavailable model affects the whole scan, so it is one engine warning rather than an error on every file.
+            coverage=[item for item in decision['omissions'] if not item.startswith(STANDING_LIMITS) and item not in self.advanced.omissions]
             if coverage:
                 result['errors'].append(f'{path}: Advanced analysis omissions: '+ '; '.join(coverage)[:1200])
         nested,encrypted,bomb=[],[],False

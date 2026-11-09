@@ -39,8 +39,10 @@ $trust = Join-Path $installRoot '_internal\trusted-update-keys.json'
 $metadata = Get-Content -LiteralPath (Join-Path $packageRoot '_internal\signature-data\active.json') -Raw | ConvertFrom-Json
 $metadata | Add-Member -NotePropertyName highest_signed_revision -NotePropertyValue 42 -Force
 $metadata | Add-Member -NotePropertyName installer_fixture -NotePropertyValue 'preserve existing definitions' -Force
-$metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pointer -Encoding utf8
-'{"schema":1,"keys":{},"installer_fixture":"preserve existing trust"}' | Set-Content -LiteralPath $trust -Encoding utf8
+# Windows PowerShell's utf8 encoding adds a byte-order mark, which strict JSON readers reject.
+$plainUtf8 = New-Object System.Text.UTF8Encoding($false)
+[IO.File]::WriteAllText($pointer,($metadata | ConvertTo-Json -Depth 8),$plainUtf8)
+[IO.File]::WriteAllText($trust,'{"schema":1,"keys":{},"installer_fixture":"preserve existing trust"}',$plainUtf8)
 $pointerHash = (Get-FileHash -LiteralPath $pointer -Algorithm SHA256).Hash
 $trustHash = (Get-FileHash -LiteralPath $trust -Algorithm SHA256).Hash
 $installed = $false

@@ -26,6 +26,22 @@ class RuntimeGuardTests(unittest.TestCase):
         self.assertTrue(inspection_options({'model':True})['advanced'])
         with self.assertRaises(ValueError): inspection_options({'advanced':'yes'})
 
+    def test_a_missing_model_is_one_warning_and_does_not_mark_every_file_incomplete(self):
+        import tempfile
+        from pathlib import Path
+        from sentinelav.detection.engine import Scanner
+        from sentinelav.paths import RESOURCE_ROOT
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);(root/'signatures.json').write_text('{}')
+            trust=root/'trust.json';trust.write_text('{"schema":1,"keys":{}}')
+            for name in ('a.txt','b.txt'):(root/name).write_text('ordinary notes')
+            scanner=Scanner(root/'signatures.json',RESOURCE_ROOT/'rules',options=dict(analysis_trust=str(trust)))
+            try:report=scanner.scan([root/'a.txt',root/'b.txt'],lambda:False,lambda *a:None)
+            finally:scanner.signatures.close()
+            self.assertEqual(report['status'],'Complete',report['errors'])
+            self.assertEqual(report['errors'],[])
+            self.assertEqual(sum('model unavailable' in item for item in report['warnings']),1)
+
     def test_missing_default_model_is_visible_rather_than_a_silent_pass(self):
         import tempfile
         from pathlib import Path
