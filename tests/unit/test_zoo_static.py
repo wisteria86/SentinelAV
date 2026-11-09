@@ -43,6 +43,11 @@ class ZooStaticTests(unittest.TestCase):
         self.assertTrue(any('/Source/' in row['path'] for case in zoo_inventory.cases('dev') for row in case['parameters']['entries']))
         self.assertEqual(len(dev | holdout), len({zoo_inventory.family_of(row['path']) for case in zoo_inventory.cases() for row in case['parameters']['entries']}))
 
+    def test_every_zoo_profile_is_a_valid_suite(self):
+        for profile, split in (('zoo-static', None), ('zoo-dev', 'dev'), ('zoo-holdout', 'holdout')):
+            manifest = SuiteManifest('fixture', profile, {'source': 'fixture'}, zoo_inventory.cases(split), {})
+            self.assertEqual(manifest.profile, profile)
+
     def test_pinned_tree_and_resume(self):
         with TemporaryDirectory() as temporary:
             work = Path(temporary)
