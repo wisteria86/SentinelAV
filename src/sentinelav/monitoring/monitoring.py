@@ -24,11 +24,16 @@ from .monitor_loop import MonitorLoopMixin
 
 from .event_sources import PendingFiles,Changes,SysmonReader
 
+RETRY_LIMIT=5
+
+
 class Monitor(MonitorLoopMixin):
     def __init__(self, config, emit, status):
         self.config, self.emit, self.status = config, emit, status
         self.stop = threading.Event()
         self.pending = PendingFiles()
+        self.retries = OrderedDict()
+        self.inspected = OrderedDict()
         self.seen_processes = None
         self.alerted = OrderedDict()
         self.checked = 0
@@ -163,7 +168,26 @@ class Monitor(MonitorLoopMixin):
             return
         if not Path(path).is_file() or scanner.excluded(Path(path)):
             return
+        try:
+            state=os.stat(path)
+            fingerprint=(state.st_size,state.st_mtime_ns)
+        except OSError:
+            return
+        # Repeated events for an unchanged file should not repeat the work.
+        if self.inspected.get(path)==fingerprint:
+            return
         result = scanner.scan([path], self.stop.is_set, lambda *args: None)
+        busy=[error for error in result['errors'] if any(text in error for text in ('being used by another process','Permission denied','WinError 32','File changed during inspection'))]
+        if busy and self.retries.get(path,0)<RETRY_LIMIT:
+            attempt=self.retries.get(path,0)+1
+            self.retries[path]=attempt
+            while len(self.retries)>2048:self.retries.popitem(last=False)
+            self.pending.add(path,source,wait=min(30,2**attempt))
+            return
+        self.retries.pop(path,None)
+        if result['status']=='Complete':
+            self.inspected[path]=fingerprint
+            while len(self.inspected)>8192:self.inspected.popitem(last=False)
         if self.config.get('evaluation_attestation'):
             self.event('Inspection policy attestation','Evaluation-only scanner mode evidence',source,
                        path=str(path),signature_policy=result.get('signature_policy',{}),scanned=result.get('scanned',0),status=result.get('status'))
@@ -182,11 +206,17 @@ class Monitor(MonitorLoopMixin):
             if len(self.alerted) > 2048:
                 self.alerted.popitem(last=False)
             self.event('Threat detected', '; '.join(detection['reasons']), source, 'Alert', **detection)
+            if self.behavior: self.behavior.flag_image(detection['path'],detection.get('verdict','Malicious'))
             if self.responder: self.responder.submit(detection)
+        for finding in result.get('suspicious',[]):
+            key = (finding['path'], finding['sha256'])
+            now = time.monotonic()
+            if now - self.alerted.get(key, -1000) < 60:
+                continue
+            self.alerted[key] = now
+            self.event('Suspicious file', '; '.join(finding['reasons']), source, 'Warning', **finding)
+            if self.behavior: self.behavior.flag_image(finding['path'],'Suspicious')
         for error in result['errors']:
             self.event('Inspection failed', error, source, 'Warning')
-        for item in result.get('advanced_reviews',[]):
-            self.event('Experimental analysis review','; '.join(item['reasons']),source,'Warning',
-                       path=item['path'],sha256=item['sha256'],automatic_response_eligible=False)
         if result['skipped']:
             self.event('File skipped', f'Size limit exceeded: {path}', source, 'Warning')

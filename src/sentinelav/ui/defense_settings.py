@@ -35,7 +35,7 @@ class DefenseSettingsMixin:
         roots=[p.strip() for p in self.response_roots.toPlainText().splitlines() if p.strip()]
         if (len(hashes)>256 or len(set(hashes))!=len(hashes) or any(not re.fullmatch(r'[0-9a-f]{64}',h) for h in hashes)
                 or len(roots)>32 or any(not Path(p).is_absolute() or not Path(p).is_dir() or (os.name=='nt' and len(Path(p).drive)!=2) for p in roots)
-                or self.auto_response_option.isChecked() and not (roots and (hashes or self.calibrated_response_option.isChecked()))):
+                or self.auto_response_option.isChecked() and not self.high_confidence_option.isChecked() and not (roots and (hashes or self.calibrated_response_option.isChecked()))):
             QMessageBox.warning(self,'Invalid response policy','Use distinct SHA-256 hashes and existing local folders. Enable either approved hashes or the calibrated-policy option within a bounded folder scope.')
             return
         self.store.set('inspection_options',dict(archives=self.archive_option.isChecked(),amsi=self.amsi_option.isChecked(),
@@ -46,7 +46,7 @@ class DefenseSettingsMixin:
         self.store.set('event_processes',self.event_option.isChecked())
         import uuid
         self.store.set('auto_response',dict(enabled=self.auto_response_option.isChecked(),approved_hashes=hashes,roots=roots,
-            allow_calibrated_unknown=self.calibrated_response_option.isChecked(),reset_id=uuid.uuid4().hex))
+            allow_calibrated_unknown=self.calibrated_response_option.isChecked(),high_confidence=self.high_confidence_option.isChecked(),reset_id=uuid.uuid4().hex))
         policy=self.store.get('auto_response',{});policy['auto_persistence']=self.persistence_response_option.isChecked();self.store.set('auto_response',policy)
         super().save_settings()
         self.refresh_defense_layers()

@@ -16,6 +16,13 @@ class ResponseActionsMixin:
         if detection and self.confirm('Quarantine file?',f"Encrypt and isolate this file, removing its original copy?\n\n{detection['path']}"):
             self.launch_response('quarantine_file',detection)
 
+    def remove_selected(self):
+        if not self.ready_for_response():
+            return
+        detection = self.selected_detection()
+        if detection and self.confirm('Permanently remove file?',f"Delete this file for good? It cannot be restored afterwards.\n\n{detection['path']}\n\nChoose Quarantine instead if you are unsure."):
+            self.launch_response('remove_file',detection)
+
     def restore_selected(self,trust):
         if not self.ready_for_response():
             return
@@ -52,7 +59,7 @@ class ResponseActionsMixin:
         if not self.ready_for_response():
             return
         detection = self.selected_detection()
-        if detection and self.confirm('Trust exact file content?',f"Suppress signature matches for this exact SHA-256 on future scans?\n{detection['sha256']}\nBehavior warnings remain enabled."):
+        if detection and self.confirm('Trust exact file content?',f"Stop flagging this exact content on future scans?\n{detection['sha256']}\nBehavior warnings remain enabled."):
             self.trust_hash(detection['sha256'])
             self.refresh()
 

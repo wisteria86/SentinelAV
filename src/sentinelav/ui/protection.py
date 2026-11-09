@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QLabel, QHBoxLayout, QPlainTextEdit, QCheckBox,
     QFileDialog, QMessageBox, QSystemTrayIcon, QHeaderView, QWidget, QVBoxLayout,
     QTabWidget, QListWidget)
 from sentinelav.monitoring.monitoring import Monitor
+from sentinelav.response.auto_response import policy_for
 from sentinelav.ui.design import icon
 
 
@@ -43,7 +44,7 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
                       canaries=self.store.get('canaries',[]),network_indicators=self.store.get('network_indicators',[]),
                       trusted_hashes=self.store.get('trusted_hashes',[]))
         config.update(inspection_options=self.store.get('inspection_options',{}),event_processes=self.store.get('event_processes',True),
-                      auto_response=self.store.get('auto_response',{}),data_dir=str(self.store.path.parent),artifact_updates=self.store.get('artifact_updates',{}),
+                      auto_response=policy_for(self.store.get('auto_response',None),folders),data_dir=str(self.store.path.parent),artifact_updates=self.store.get('artifact_updates',{}),
                       watch_app_changes=self.store.get('watch_app_changes',False),tracked_settings=self.store.get('tracked_settings',[]))
         if self.store.get('kernel_collector',''): config['kernel_collector']=self.store.get('kernel_collector','')
         for key, value in [('watch_folders', folders),('watch_processes',config['processes']),('watch_sysmon',config['sysmon']),('watch_behavior',config['behavior']),('watch_network',config['network'])]:

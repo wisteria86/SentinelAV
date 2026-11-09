@@ -5,6 +5,7 @@
 """Phase 3 UI and Qt adapter. SQLite is only touched on the GUI thread."""
 import ipaddress
 from pathlib import Path
+from sentinelav.detection.scan_targets import default_watch_folders
 from PySide6.QtWidgets import QLabel, QHBoxLayout, QPlainTextEdit, QCheckBox, QFileDialog, QMessageBox, QHeaderView, QWidget, QVBoxLayout, QTabWidget, QListWidget
 
 
@@ -21,7 +22,7 @@ class ProtectionPagesMixin:
         row.addStretch()
         self.add_watch = self.action(row, 'Add Folder…', self.add_watch_folder)
         layout.addLayout(row)
-        self.watch_folders = QPlainTextEdit('\n'.join(self.store.get('watch_folders', [])))
+        self.watch_folders = QPlainTextEdit('\n'.join(self.store.get('watch_folders', default_watch_folders())))
         self.watch_folders.setFixedHeight(56)
         self.watch_folders.setPlaceholderText(str(Path.home()/'Downloads'))
         layout.addWidget(self.watch_folders)
@@ -61,7 +62,7 @@ class ProtectionPagesMixin:
             self.live_events.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.live_events)
         self.live_events.cellDoubleClicked.connect(self.show_live_event)
-        label = QLabel('Configure canaries and IP indicators in Settings → Advanced. Restart after settings changes.\nWarnings indicate suspicion, not confirmed malware. Review signature detections on the Quarantine page.', objectName='small')
+        label = QLabel('Configure canaries and IP indicators in Settings → Advanced. Restart after settings changes.\nFiles are checked right after they are written, which cannot guarantee blocking before they run. Act on findings on the Quarantine page.', objectName='small')
         label.setWordWrap(True)
         layout.addWidget(label)
         layout.addStretch()

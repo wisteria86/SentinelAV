@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'No file was launched' in window.inspection_note.text()
             window.grab().save(str(SCREENSHOTS_DIR/'preview-defense-inspection.png'))
             select('Response Policy')
-            assert not window.auto_response_option.isChecked()
+            assert window.auto_response_option.isChecked() and window.high_confidence_option.isChecked()
             window.auto_response_option.setChecked(True)
             window.response_hashes.setPlainText(digest)
             window.response_roots.setPlainText(str(watched))

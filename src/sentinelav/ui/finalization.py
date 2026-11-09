@@ -54,7 +54,7 @@ class FinalizationMixin:
         self.schedule_time.setDisplayFormat('HH:mm')
         row.addWidget(self.schedule_time)
         self.schedule_kind=QComboBox()
-        self.schedule_kind.addItems(['Quick','Folder'])
+        self.schedule_kind.addItems(['Quick','Full','Folder'])
         self.schedule_kind.setCurrentText(schedule.get('kind','Quick'))
         row.addWidget(self.schedule_kind)
         row.addStretch()

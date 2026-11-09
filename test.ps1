@@ -23,6 +23,8 @@ try {
     $python = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
     & $python tools/maintenance/check_structure.py
     if ($LASTEXITCODE -ne 0) { throw 'Module size/header checks failed' }
+    & $python tools/maintenance/check_no_zoo_hardcoding.py
+    if ($LASTEXITCODE -ne 0) { throw 'Detection logic references theZoo identifiers' }
     & $python -m unittest discover -s tests/unit -t .
     if ($LASTEXITCODE -ne 0) { throw 'Unit tests failed' }
     if ($UI) {

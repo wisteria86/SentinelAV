@@ -28,7 +28,7 @@ if model_index.exists():
     analysis_datas += [(str(model_index),'analysis-data'),(str(model_index.parent/model_name),'analysis-data')]
 for name in ('malconv2-state.npz','malconv2.json'):
     if (resources/'analysis-data'/name).exists():analysis_datas.append((str(resources/'analysis-data'/name),'analysis-data'))
-for dependency in ('speakeasy','thrember','lightgbm'):
+for dependency in ('speakeasy','thrember','lightgbm','py7zr','rarfile'):
     if importlib.util.find_spec(dependency):
         analysis_imports+=collect_submodules(dependency)
         analysis_datas+=collect_data_files(dependency,include_py_files=dependency in ('speakeasy','thrember'))

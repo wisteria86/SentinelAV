@@ -15,14 +15,15 @@ def table(title, columns, rows):
 
 def evidence_sections(data):
     scans = data['scans']
-    detections = [(scan['started'], finding['path'], '; '.join(finding['reasons']), finding['sha256'])
-                  for scan in scans for finding in scan['detections']]
+    detections = [(scan['started'], finding['path'], finding.get('verdict', 'Malicious'), finding.get('score', ''), finding.get('confidence', ''),
+                   finding.get('threat_name', ''), '; '.join(finding['reasons']), finding['sha256'])
+                  for scan in scans for finding in scan['detections']+scan.get('suspicious', [])]
     omissions = [(scan['started'], scan.get('kind', ''), scan.get('skipped', 0),
                   '; '.join(scan.get('errors', [])), '; '.join(scan.get('warnings', [])),
                   scan.get('advanced_review_total', 0)) for scan in scans]
     quarantine = [(row.get('date', ''), row['original'], row['state'], row['sha256'])
                   for row in data.get('quarantine', [])]
-    return (table('Confirmed scan findings', ['Date', 'File', 'Evidence', 'SHA-256'], detections)
+    return (table('Scan findings', ['Date', 'File', 'Verdict', 'Score', 'Confidence', 'Threat', 'Why it was flagged', 'SHA-256'], detections)
             +table('Coverage and review requirements', ['Date', 'Scan', 'Oversized', 'Errors / omissions',
                     'Engine warnings', 'Analysis reviews'], omissions)
             +table('Quarantine and recovery', ['Date', 'Original file', 'State', 'SHA-256'], quarantine))

@@ -2,7 +2,7 @@
 ; Works with: app.py, src/sentinelav, and the matching build or lab scripts
 ; Used by: the CLI, desktop launcher, or packaging workflow
 
-#define AppVersion "0.16.0"
+#define AppVersion "0.17.0"
 #ifndef PackageRoot
 #define PackageRoot "F:\SentinelAV-Work\builds\dist\SentinelAV"
 #endif

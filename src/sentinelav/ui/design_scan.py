@@ -32,7 +32,7 @@ class ScanPageMixin:
         text.setSpacing(4)
         text.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.scan_status = QLabel('Ready to scan', objectName='value')
-        self.path_label = PathLabel('Check Downloads and temporary files.', objectName='small')
+        self.path_label = PathLabel('Check common malware locations, running programs and startup entries.', objectName='small')
         text.addWidget(self.scan_status)
         text.addWidget(self.path_label)
         head.addLayout(text, 1)
@@ -61,8 +61,9 @@ class ScanPageMixin:
         self.scan_start = self.action(controls, 'Start Quick Scan', self.run_selected_scan, True)
         self.select_files_button = self.action(controls, 'Select Files…', self.choose_files)
         layout.addLayout(controls)
-        self.results = self.table(['File', 'Detection / error'])
+        self.results = self.table(['File', 'Verdict', 'Score', 'Confidence', 'Threat', 'Why'])
         self.results.setFixedHeight(132)
+        self.results.cellDoubleClicked.connect(self.show_scan_finding)
         layout.addWidget(self.results, 1)
         layout.addStretch()
         self.selected_scan = 0
@@ -71,9 +72,9 @@ class ScanPageMixin:
         self.selected_scan = index
         for i, button in enumerate(self.scan_tabs):
             button.setChecked(i == index)
-        self.scan_start.setText(['Start Quick Scan','Choose Drive…','Choose Folder…'][index])
+        self.scan_start.setText(['Start Quick Scan','Start Full Scan','Choose Folder…'][index])
         if self.worker is None:
-            self.path_label.setText(['Check Downloads and temporary files.','Choose a drive or its root folder to scan.','Choose any folder or select individual files.'][index])
+            self.path_label.setText(['Check common malware locations, running programs and startup entries.','Check every file on all fixed drives.','Choose any folder or select individual files.'][index])
 
     def run_selected_scan(self):
         if self.selected_scan == 0:

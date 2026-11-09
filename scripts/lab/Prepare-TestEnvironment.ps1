@@ -97,7 +97,7 @@ if(Test-Path -LiteralPath (Join-Path $supportRoot 'manifest.json')) {
         Copy-Item -LiteralPath $source -Destination $destination
     }
 }
-$installer=Join-Path (Split-Path -Parent (Split-Path -Parent $labRoot)) 'builds/release/SentinelAV-Setup-0.16.0.exe'
+$installer=Join-Path (Split-Path -Parent (Split-Path -Parent $labRoot)) 'builds/release/SentinelAV-Setup-0.17.0.exe'
 if(Test-Path -LiteralPath $installer){Assert-UnlinkedPath $installer;Copy-Item -LiteralPath $installer -Destination (Join-Path $inputRoot 'Installer.exe')}
 $previousInstaller=Join-Path (Split-Path -Parent (Split-Path -Parent $labRoot)) 'builds/release/SentinelAV-Setup-0.15.0.exe'
 if(Test-Path -LiteralPath $previousInstaller){Assert-UnlinkedPath $previousInstaller;Copy-Item -LiteralPath $previousInstaller -Destination (Join-Path $inputRoot 'PreviousInstaller.exe')}

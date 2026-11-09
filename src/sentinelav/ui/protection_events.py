@@ -64,12 +64,12 @@ class ProtectionEventsMixin:
             if entry['level'] in ('Alert','Warning'):
                 for col in range(4):
                     self.live_events.item(row,col).setForeground(QColor('#b64020'))
-        if event['kind']=='Behavioral risk' and event['level']=='Warning':
+        if event['kind'] in ('Behavioral risk','Suspicious file') and event['level']=='Warning':
             self.alert_banner.setText('WARNING: ' + event['details'])
             self.alert_banner.setStyleSheet('color:#98520d;font-weight:600;')
             self.statusBar().showMessage('SentinelAV warning: ' + event['details'],15000)
         if event['level'] == 'Alert':
-            self.alert_banner.setText(('RISK ALERT: ' if 'score' in event else 'DETECTED: ') + event.get('path','') + ' — ' + event['details'])
+            self.alert_banner.setText(('DETECTED: ' if event['kind']=='Threat detected' else 'RISK ALERT: ') + event.get('path','') + ' — ' + event['details'])
             self.alert_banner.setStyleSheet('color:#b8351b;font-weight:600;')
             self.statusBar().showMessage('SentinelAV detection: ' + event['details'], 15000)
             if self.tray:
@@ -103,7 +103,7 @@ class ProtectionEventsMixin:
         if self.report_mode == 2:
             self.fill(self.history_table, [(e['time'],e['kind'],e['details'],e['source'],e['level']) for e in self.store.events()])
         elif self.report_mode == 1:
-            rows = [(s['started'],d['path'],'; '.join(d['reasons']),d['sha256'],'Reported') for s in self.store.history() for d in s['detections']]
+            rows = [(s['started'],d['path'],'; '.join(d['reasons']),d['sha256'],d.get('verdict','Malicious')+' '+str(d.get('score',''))) for s in self.store.history() for d in s['detections']+s.get('suspicious',[])]
             rows += [(e['time'],e.get('path',''),e['details'],e.get('sha256',''),'Reported live') for e in self.store.events(5000) if is_detection(e)]
             self.fill(self.history_table,rows)
 

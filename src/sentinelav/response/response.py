@@ -21,6 +21,16 @@ from sentinelav.detection.inspection import IsolatedScanner as Scanner
 
 
 from .response_files import digest, checked_path, Blob, dpapi, locked_file, delete_locked, is_critical_process
+from .vault import VAULT_LIMIT, encrypt_stream, maximum_blob, plain_digest, read_plain
+
+
+def exclusive_file(path,attempts=8):
+    """Monitoring may still be reading a just-detected file, so wait briefly for a sharing conflict to clear."""
+    for attempt in range(attempts):
+        try:return locked_file(path)
+        except PermissionError:
+            if attempt==attempts-1:raise
+            time.sleep(.5)
 
 
 class ResponseService:
@@ -57,42 +67,51 @@ class ResponseService:
         subprocess.run(['icacls',str(self.vault),'/inheritance:r','/grant:r',f'*{sid}:(OI)(CI)F','*S-1-5-18:(OI)(CI)F'],
                        capture_output=True,text=True,check=True,creationflags=subprocess.CREATE_NO_WINDOW)
 
-    def quarantine_file(self,detection):
+    def quarantine_file(self,detection,require_automatic=False):
         path = checked_path(detection['path'])
         if not path.is_file():
             raise ValueError('Detected file no longer exists')
         scanner = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[]),options=self.store.get('inspection_options',{}))
         result = scanner.scan([path],lambda:False,lambda *args:None)
-        verified = next((d for d in result['detections'] if d['sha256']==detection['sha256']),None)
+        verified = next((d for d in result['detections']+result.get('suspicious',[]) if d['sha256']==detection['sha256']),None)
         if verified is None:
-            raise ValueError('File changed, is excluded, or no longer matches a signature/rule; scan it again')
+            raise ValueError('File changed, is excluded, or is no longer flagged; scan it again')
+        if require_automatic and verified.get('automatic_response_eligible') is not True:
+            raise ValueError('A fresh scan no longer meets the automatic quarantine policy; action requires review')
         if detection.get('fusion_policy_id') and (not verified.get('automatic_response_eligible') or verified.get('fusion_policy_id')!=detection['fusion_policy_id']):
             raise ValueError('Calibrated response policy no longer verifies; action requires renewed review')
         self.secure_vault()
         record = dict(id=uuid.uuid4().hex,original=str(path),sha256=detection['sha256'],
-                      reasons=verified['reasons'],date=time.strftime('%Y-%m-%d %H:%M:%S'),state='Preparing')
+                      reasons=verified['reasons'],date=time.strftime('%Y-%m-%d %H:%M:%S'),state='Preparing',
+                      verdict=verified.get('verdict'),score=verified.get('score'),threat_name=verified.get('threat_name'))
         blob_path = self.vault/(record['id']+'.sav')
         self.audit('Quarantine requested',str(path),path=str(path))
-        with locked_file(path) as stream:
-            if os.fstat(stream.fileno()).st_nlink != 1:
+        with exclusive_file(path) as stream:
+            state=os.fstat(stream.fileno())
+            if state.st_nlink != 1:
                 raise ValueError('Hard-linked files cannot be quarantined safely')
-            data = stream.read(scanner.max_bytes+1)
-            if len(data)>scanner.max_bytes or digest(data)!=record['sha256']:
-                raise ValueError('File changed before quarantine; scan it again')
-            record['size'] = len(data)
-            self.store.save_quarantine(record)
-            encrypted = dpapi(data)
+            if state.st_size>VAULT_LIMIT:
+                raise ValueError('File exceeds the 4 GiB quarantine limit')
             with blob_path.open('xb') as output:
-                output.write(encrypted)
+                sealed,record['size'] = encrypt_stream(stream,output,record['id'].encode())
                 output.flush()
                 os.fsync(output.fileno())
-            if digest(dpapi(blob_path.read_bytes(),decrypt=True)) != record['sha256']:
+            if sealed!=record['sha256']:
+                blob_path.unlink(missing_ok=True)
+                raise ValueError('File changed before quarantine; scan it again')
+            self.store.save_quarantine(record)
+            if plain_digest(blob_path,record['id'].encode()) != record['sha256']:
                 raise ValueError('Encrypted quarantine verification failed; original preserved')
             delete_locked(stream)
         record['state'] = 'Quarantined'
         self.store.save_quarantine(record)
         self.audit('File quarantined',str(path),path=str(path),quarantine_id=record['id'])
         return record
+
+    def remove_file(self,detection):
+        """Permanently remove a detected file: it is isolated and verified first, so a failure cannot lose track of it."""
+        record=self.quarantine_file(detection)
+        return self.delete(record['id'])
 
     def record(self,identity):
         if len(identity)!=32 or any(c not in '0123456789abcdef' for c in identity):
@@ -104,7 +123,7 @@ class ResponseService:
         blob = self.vault/(identity+'.sav')
         if blob.is_symlink() or blob.is_junction():
             raise ValueError('Linked quarantine objects are not permitted')
-        if blob.exists() and blob.stat().st_size > record.get('size',100*1024*1024)+1024*1024:
+        if blob.exists() and blob.stat().st_size > maximum_blob(record.get('size',100*1024*1024)):
             raise ValueError('Quarantine object exceeds its expected size')
         return record,blob
 
@@ -115,18 +134,21 @@ class ResponseService:
             raise FileExistsError('Restore never overwrites an existing file; choose another path')
         if not target.parent.is_dir():
             raise ValueError('Restore folder does not exist')
-        content = dpapi(blob.read_bytes(),decrypt=True)
-        if digest(content)!=record['sha256']:
+        if plain_digest(blob,identity.encode())!=record['sha256']:
             raise ValueError('Quarantine integrity check failed; restore refused')
         record.update(state='Restore pending',restore_path=str(target))
         self.store.save_quarantine(record)
         self.audit('Restore requested',str(target),quarantine_id=identity)
         with locked_file(target,create=True) as stream:
-            stream.write(content)
+            for chunk in read_plain(blob,identity.encode()):
+                stream.write(chunk)
             stream.flush()
             os.fsync(stream.fileno())
             stream.seek(0)
-            if digest(stream.read())!=record['sha256']:
+            written=hashlib.sha256()
+            while chunk:=stream.read(1024*1024):
+                written.update(chunk)
+            if written.hexdigest()!=record['sha256']:
                 raise ValueError('Restore verification failed; encrypted copy retained')
             blob.unlink()
         record['state']='Restored'
@@ -139,14 +161,14 @@ class ResponseService:
         if record['state']=='Preparing':
             if Path(record['original']).exists():
                 raise ValueError('Original still exists; encrypted backup was retained. Restore to another path or delete the encrypted copy.')
-            if digest(dpapi(blob.read_bytes(),True))!=record['sha256']:
+            if plain_digest(blob,identity.encode())!=record['sha256']:
                 raise ValueError('Recovery integrity check failed')
             record['state']='Quarantined'
         elif record['state']=='Restore pending':
             target = checked_path(record['restore_path'])
             if not target.is_file():
                 raise ValueError('Restored destination is absent or incomplete. Encrypted copy retained; choose Restore to another destination.')
-            with locked_file(target) as stream:
+            with exclusive_file(target) as stream:
                 if digest(stream.read())!=record['sha256']:
                     raise ValueError('Restored destination is incomplete; encrypted copy retained')
                 blob.unlink(missing_ok=True)
@@ -174,7 +196,7 @@ class ResponseService:
         path = checked_path(detection['path'])
         result = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[]),options=self.store.get('inspection_options',{})).scan([path],lambda:False,lambda *args:None)
         if not any(d['sha256']==detection['sha256'] for d in result['detections']):
-            raise ValueError('Fresh signature detection is required; behavior alone is insufficient')
+            raise ValueError('A fresh Malicious file verdict is required; behavior alone is insufficient')
         process = psutil.Process(pid)
         if process.create_time()!=created or Path(process.exe()).resolve()!=path:
             raise ValueError('Process identity changed; termination refused')

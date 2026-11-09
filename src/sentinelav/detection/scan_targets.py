@@ -12,7 +12,8 @@ import string
 import psutil
 
 DRIVE_FIXED=3
-QUICK_LIMIT=5000
+# The worker's request limit is 128 KiB, so keep the extra program list well inside it.
+QUICK_LIMIT=300
 EXECUTABLE_REFERENCE=re.compile(r'(?:"([a-zA-Z]:\\[^"]+\.(?:exe|dll|scr|com|bat|cmd|ps1|vbs|js))"|([a-zA-Z]:\\[^\s"]+\.(?:exe|dll|scr|com|bat|cmd|ps1|vbs|js)))',re.I)
 
 
@@ -36,6 +37,14 @@ def quick_folders():
         except OSError:continue
         if key not in seen and path.is_dir():seen[key]=True;result.append(path)
     return result
+
+
+def default_watch_folders():
+    """Where downloads and droppers land; a person can edit this list on the protection page."""
+    home=Path.home();env=os.environ.get
+    candidates=[home/'Downloads',home/'Desktop',home/'Documents',Path(env('TEMP',str(home/'AppData/Local/Temp'))),
+        Path(env('APPDATA',str(home/'AppData/Roaming')))/'Microsoft/Windows/Start Menu/Programs/Startup']
+    return [str(path) for path in candidates if path.is_dir()]
 
 
 def running_images():
