@@ -62,7 +62,7 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
             self.buttons.append(button)
             nav.addWidget(button)
         nav.addStretch()
-        footer = QLabel('On-demand prototype', objectName='small')
+        footer = QLabel('Version '+__version__, objectName='small')
         footer.setContentsMargins(12,0,0,0)
         nav.addWidget(footer)
         row.addWidget(side)
@@ -104,6 +104,7 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
             event.accept()
 
 
+from sentinelav import __version__
 from sentinelav.ui.design import DesignMixin, STYLE, icon, art
 from sentinelav.ui.protection import ProtectionMixin
 from sentinelav.ui.response_ui import ResponseMixin
