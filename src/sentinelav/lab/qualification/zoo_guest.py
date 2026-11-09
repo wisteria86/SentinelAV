@@ -129,10 +129,11 @@ def inspect_members(raw, password, root, scanner, state):
             if time.monotonic() > state['deadline']:
                 rows.append(dict(member_index=len(rows), member=info.filename[:48], outcome='inspection_failure', reason='Batch time budget reached'))
                 continue
+            # One unreadable member costs that member, not the batch. It stays in the denominator as not detected.
             try:
                 row = scan_member(archive, info, password, root, scanner, state)
-            except (OSError, ValueError, RuntimeError, NotImplementedError, zipfile.BadZipFile) as error:
-                row = dict(outcome='inspection_failure', reason=type(error).__name__)
+            except Exception as error:
+                row = dict(outcome='inspection_failure', reason=type(error).__name__, detail=str(error)[:90])
             # Images, text and the like carry no behavior, so they are counted rather than listed.
             if row['outcome'] == 'not_applicable':
                 inert += 1
@@ -191,8 +192,8 @@ def execute(context, root):
         for entry in batch['entries']:
             try:
                 rows = inspect_cached(entry, root, scanner, key, files, state) if quick else inspect_archive(entry, root, scanner, state, key)
-            except (OSError, ValueError, RuntimeError, NotImplementedError, InvalidTag, zipfile.BadZipFile) as error:
-                rows = [dict(outcome='inspection_failure', reason=type(error).__name__)]
+            except Exception as error:
+                rows = [dict(outcome='inspection_failure', reason=type(error).__name__, detail=str(error)[:90])]
             groups.append(dict(blob=entry['blob'], rows=rows))
     finally:
         scanner.close()
