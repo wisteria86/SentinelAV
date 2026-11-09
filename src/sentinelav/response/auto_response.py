@@ -1,9 +1,9 @@
-# Purpose: Opt-in exact-hash quarantine policy. Never auto-terminates processes.
+# Purpose: High-confidence and approved-hash quarantine policy. Never auto-terminates processes.
 # Works with: data.change_journal, data.contracts, data.storage, detection.fusion, detection.inspection
 # Used by: lab.qualification.guest_inventory, monitoring.monitor_loop, tests.unit.test_defense_layers,
 #   tests.unit.test_runtime_guards
 
-"""Opt-in exact-hash quarantine policy. Never auto-terminates processes."""
+"""High-confidence and approved-hash quarantine policy. Never auto-terminates processes."""
 from collections import deque
 import os
 from pathlib import Path
@@ -15,6 +15,16 @@ from sentinelav.data.storage import Store
 from sentinelav.response.response import ResponseService
 
 
+DEFAULT_POLICY=dict(enabled=True,high_confidence=True,approved_hashes=[],roots=[])
+
+
+def policy_for(saved,folders=()):
+    """No saved choice means the default policy; a saved one is respected. High-confidence action defaults to the watched folders."""
+    policy=dict(saved) if saved else dict(DEFAULT_POLICY)
+    if policy.get('high_confidence') and not policy.get('roots'):policy['roots']=[str(folder) for folder in folders][:32]
+    return policy
+
+
 def eligibility(event,policy):
     if not isinstance(policy,dict) or policy.get('enabled') is not True: return False,'Policy disabled'
     if event.get('automatic_response_eligible') is False: return False,'This finding requires manual response'
@@ -22,6 +32,8 @@ def eligibility(event,policy):
     approvals=policy.get('approved_hashes',[])
     calibrated=(policy.get('allow_calibrated_unknown') is True and event.get('automatic_response_eligible') is True
         and isinstance(event.get('fusion_policy_id'),str) and bool(re.fullmatch('[0-9a-f]{64}',event['fusion_policy_id'])))
+    high=(policy.get('high_confidence') is True and event.get('automatic_response_eligible') is True and event.get('verdict')=='Malicious')
+    calibrated=calibrated or high
     if not calibrated and (not isinstance(approvals,list) or len(approvals)>256 or digest not in approvals): return False,'Exact hash is not approved for automatic response'
     if not re.fullmatch(r'[0-9a-f]{64}',digest): return False,'Invalid detection hash'
     if event.get('member_chain'): return False,'Archive-member findings require manual review'
@@ -37,7 +49,7 @@ def eligibility(event,policy):
         return False,'Linked response roots require manual review'
     if os.name=='nt' and (len(path.drive)!=2 or path.drive[1]!=':'): return False,'Automatic response supports local drives only'
     if not any(Path(root).is_absolute() and path.is_relative_to(Path(root).resolve()) for root in roots): return False,'Outside automatic-response scope'
-    return True,'Approved exact hash within configured scope'
+    return True,'High-confidence detection within configured scope' if high else 'Approved exact hash within configured scope'
 
 
 class AutoResponder:
@@ -70,7 +82,7 @@ class AutoResponder:
             responder=ResponseService(store,self.root)
             self.ready=True
             while not self.stopping.is_set():
-                latest=store.get('auto_response',{})
+                latest=policy_for(store.get('auto_response',None),self.policy.get('roots',[])) if self.policy.get('high_confidence') else store.get('auto_response',{})
                 if isinstance(latest,dict) and latest.get('reset_id')!=self.reset_id:
                     self.reset_id=latest.get('reset_id');self.failures=0;self.circuit_open=False
                 self.enabled=isinstance(latest,dict) and latest.get('enabled') is True and not self.circuit_open
@@ -86,9 +98,13 @@ class AutoResponder:
                     continue
                 self.attempts.append(now); self.seen[key]=now
                 if len(self.seen)>1024: self.seen.pop(next(iter(self.seen)))
+                # A file someone deliberately restored stays with them; it must not bounce straight back into quarantine.
+                if any(item['sha256']==detection['sha256'] and item['state']=='Restored' for item in store.quarantine()):
+                    self.report('Automatic response skipped','This file was restored by a person; review it manually: '+detection['path'],'Warning')
+                    continue
                 try:
                     self.persistence(detection,latest,store,responder)
-                    record=responder.quarantine_file(detection)
+                    record=responder.quarantine_file(detection,require_automatic=detection.get('verdict')=='Malicious' and latest.get('high_confidence') is True and detection['sha256'] not in latest.get('approved_hashes',[]))
                     self.failures=0
                     self.report('Automatic quarantine completed',str(record['original']))
                 except Exception as error:

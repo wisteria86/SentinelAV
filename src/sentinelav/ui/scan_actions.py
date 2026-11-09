@@ -3,7 +3,7 @@
 # Used by: ui.application
 
 from sentinelav.paths import RESOURCE_ROOT
-import os
+import json
 import time
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -12,10 +12,26 @@ ROOT = RESOURCE_ROOT
 from .application_workers import ScanWorker
 
 
+def finding_row(finding):
+    return (finding['path'],finding.get('verdict','Malicious'),finding.get('score',''),finding.get('confidence',''),
+        finding.get('threat_name',''),'; '.join(finding.get('reasons',[])))
+
+
+def finding_summary(finding):
+    lines=[finding['path'],'',f"{finding.get('verdict','Malicious')} · score {finding.get('score','?')}/100 · {finding.get('confidence','?')} confidence · {finding.get('threat_name','')}",'']
+    if finding.get('member_chain'):lines+=['Found inside the archive at: '+'!/'.join(finding['member_chain']),'']
+    indicators=finding.get('indicators') or []
+    lines+=[f"• {item['explanation']}"+(f"  ({item['evidence']})" if item.get('evidence') else '') for item in indicators[:14]] or ['• '+reason for reason in finding.get('reasons',[])]
+    if finding.get('trusted_signature'):lines+=['','This file has a valid trusted signature, which lowered its score.']
+    if finding.get('verdict')!='Malicious' or finding.get('detection_scope')=='heuristic':
+        lines+=['','This is an assessment of the file\'s traits, not proof of malware. You can trust the file if you know it is legitimate.']
+    return '\n'.join(lines)
+
+
 class ScanActionsMixin:
     def quick_scan(self):
-        roots = [p for p in [Path.home()/'Downloads', Path(os.getenv('TEMP', str(Path.home()/'AppData/Local/Temp'))) ] if p.is_dir()]
-        self.start_scan(roots, 'Quick Scan')
+        from sentinelav.detection.scan_targets import quick_targets
+        self.start_scan(quick_targets(), 'Quick Scan')
 
     def choose_folder(self):
         path = QFileDialog.getExistingDirectory(self, 'Choose folder')
@@ -23,9 +39,11 @@ class ScanActionsMixin:
             self.start_scan([path], 'Custom Folder')
 
     def full_scan(self):
-        path = QFileDialog.getExistingDirectory(self, 'Choose drive or root folder')
-        if path:
-            self.start_scan([path], 'Full Scan')
+        from sentinelav.detection.scan_targets import fixed_drives
+        drives = fixed_drives()
+        names = ', '.join(str(drive) for drive in drives)
+        if QMessageBox.question(self, 'Start Full Scan?', f'Scan every file on all fixed drives ({names})? This can take a long time. You can cancel at any point.') == QMessageBox.StandardButton.Yes:
+            self.start_scan(drives, 'Full Scan')
 
     def choose_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self, 'Choose files')
@@ -104,16 +122,21 @@ class ScanActionsMixin:
         self.count.setText(f"{result['scanned']:,} inspected • {len(result['detections'])} detections • {result['skipped']} oversized • {len(result['errors'])} errors • {result['elapsed']}s")
         reviews=result.get('advanced_review_total',0)
         if reviews: self.count.setText(self.count.text()+f' • {reviews} analysis reviews')
-        self.path_label.setText('Files remain unchanged. Review detections and scan coverage below.')
-        rows = [(d['path'], '; '.join(d['reasons'])) for d in result['detections']]
-        rows += [('Unreadable / omitted', e) for e in result['errors']]
-        rows += [('Engine warning', w) for w in result['warnings']]
-        for item in result.get('structural_review',[]):
-            rows.append(('Structural review (not confirmed malware)',item['path']+' — '+
-                '; '.join(signal['explanation'] for signal in item['signals'])))
-        for item in result.get('advanced_reviews',[]):
-            rows.append(('Experimental analysis — review',item['path']+' — '+'; '.join(item['reasons'])))
-        if result.get('structural_review_total',0)>len(result.get('structural_review',[])):
-            rows.append(('Structural review', 'Showing the first 100 files; total: '+str(result['structural_review_total'])))
+        self.path_label.setText('Nothing was changed. Double-click a row to see why it was flagged; act on findings under Quarantine.')
+        self.scan_findings = sorted(result['detections']+result.get('suspicious',[]),key=lambda d:-d.get('score',0))
+        rows = [finding_row(d) for d in self.scan_findings]
+        rows += [(e.split(': ',1)[0],'Not fully inspected','','','',e.split(': ',1)[-1]) for e in result['errors'][:500]]
+        rows += [('Engine','Warning','','','',w) for w in result['warnings']]
         self.fill(self.results, rows)
         self.refresh()
+
+    def show_scan_finding(self, row, column):
+        if row < len(getattr(self,'scan_findings',[])):
+            self.show_finding(self.scan_findings[row])
+
+    def show_finding(self, finding):
+        box = QMessageBox(self)
+        box.setWindowTitle('Why was this flagged?')
+        box.setText(finding_summary(finding))
+        box.setDetailedText(json.dumps({key:finding.get(key) for key in ('path','sha256','member_chain','groups','indicators','arms','file_kind','yara_matches') if key in finding},indent=2))
+        box.exec()

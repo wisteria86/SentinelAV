@@ -116,7 +116,7 @@ from sentinelav.ui.app_changes_ui import AppChangesMixin
 
 
 class Window(AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,FinalizationMixin, ResponseMixin, ProtectionMixin, DesignMixin, BaseWindow):
-    def __init__(self, data_dir=None):
+    def __init__(self, data_dir=None, protect_by_default=False):
         self.protection_worker = None
         self.monitor_state = 'Off'
         self.session_events = []
@@ -142,7 +142,7 @@ class Window(AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,Finali
         QTimer.singleShot(0,self.validate_yara_rules)
         if self.store.get('background_engine',False):
             QTimer.singleShot(0,self.reconnect_background)
-        if self.store.get('resume_protection',False):
+        if self.store.get('resume_protection',protect_by_default):
             QTimer.singleShot(1500,self.begin_protection)
         from PySide6.QtWidgets import QSystemTrayIcon
         if QSystemTrayIcon.isSystemTrayAvailable():

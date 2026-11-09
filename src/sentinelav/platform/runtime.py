@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
 
-VERSION = '0.16.0'
+VERSION = '0.17.0'
 ZONE = ZoneInfo('Asia/Karachi')
 TASK_NAME = 'SentinelAV Daily Scan'
 
@@ -167,14 +167,15 @@ def run_scheduled(data_dir):
         schedule=store.get('schedule',{})
         if not due(schedule):
             return dict(status='Not due')
-        roots=[Path(schedule['folder'])] if schedule['kind']=='Folder' else [p for p in [Path.home()/'Downloads',Path(os.environ.get('TEMP',str(Path.home()/'AppData/Local/Temp')))] if p.is_dir()]
+        from sentinelav.detection.scan_targets import targets
+        roots=[Path(schedule['folder'])] if schedule['kind']=='Folder' else targets('Full' if schedule['kind']=='Full' else 'Quick')
         result=Scanner(root/'signatures.json',root/'rules',store.get('max_mb',100),store.get('exclusions',[])+[str(store.path.parent)],store.get('trusted_hashes',[]),store.get('inspection_options',{})).scan(roots,lambda:False,lambda *args:None)
         result['kind']='Scheduled '+schedule['kind']
         store.save_scan(result)
         schedule['next_run']=next_daily(schedule['hour'],schedule['minute']).isoformat()
         store.set('schedule',schedule)
         level='Alert' if result['detections'] else 'Warning' if result['status']!='Complete' or result.get('warnings') else 'Info'
-        store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan completed',details=f"{result['scanned']} files; {len(result['detections'])} detections; {result['status']}",source='Scheduler',level=level))
+        store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan completed',details=f"{result['scanned']} files; {len(result['detections'])} detections; {len(result.get('suspicious',[]))} suspicious; {result['status']}",source='Scheduler',level=level))
         return result
     except Exception as error:
         store.save_event(dict(time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),kind='Scheduled scan failed',details=str(error),source='Scheduler',level='Warning'))

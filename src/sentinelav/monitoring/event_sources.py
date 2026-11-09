@@ -13,6 +13,14 @@ from collections import OrderedDict
 from watchdog.events import FileSystemEventHandler
 
 
+# Browsers write here until a download finishes, then rename to the final name, which triggers the scan.
+IN_PROGRESS_SUFFIXES=('.crdownload','.part','.partial','.download','.opdownload','.tmpdownload')
+
+
+def still_downloading(path):
+    return str(path).casefold().endswith(IN_PROGRESS_SUFFIXES)
+
+
 class PendingFiles:
     def __init__(self, capacity=1024, delay=.7):
         self.capacity, self.delay = capacity, delay
@@ -20,13 +28,13 @@ class PendingFiles:
         self.lock = threading.Lock()
         self.dropped = 0
 
-    def add(self, path, source='Filesystem'):
+    def add(self, path, source='Filesystem', wait=0):
         with self.lock:
             key = os.path.normcase(os.path.abspath(path))
             if key not in self.items and len(self.items) >= self.capacity:
                 self.dropped += 1
                 return
-            self.items[key] = (time.monotonic(), source)
+            self.items[key] = (time.monotonic()+wait, source)
 
     def pop(self):
         with self.lock:
@@ -44,17 +52,17 @@ class Changes(FileSystemEventHandler):
 
     def on_created(self, event):
         if not event.is_directory:
-            self.queue.add(event.src_path)
+            if not still_downloading(event.src_path):self.queue.add(event.src_path)
             self.activity('modified',event.src_path)
 
     def on_modified(self, event):
         if not event.is_directory:
-            self.queue.add(event.src_path)
+            if not still_downloading(event.src_path):self.queue.add(event.src_path)
             self.activity('modified',event.src_path)
 
     def on_moved(self, event):
         if not event.is_directory:
-            self.queue.add(event.dest_path)
+            if not still_downloading(event.dest_path):self.queue.add(event.dest_path)
             self.activity('moved',event.dest_path)
 
     def on_deleted(self,event):

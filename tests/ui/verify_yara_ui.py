@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as temp:
             app.processEvents()
             assert '15 research rules' in window.yara_health.text()
             assert '2 private helpers' in window.yara_health.text()
-            assert window.yara_table.rowCount()==10
+            assert window.yara_table.rowCount()==11
             assert all(f.get('source_revision') for f in window.yara_files)
             for width,height in [(960,600),(1440,900)]:
                 window.resize(width,height)

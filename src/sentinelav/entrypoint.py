@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--scheduled-scan',action='store_true')
     parser.add_argument('--self-test',action='store_true')
     parser.add_argument('--data-dir',type=Path)
+    parser.add_argument('--scan',metavar='quick|full|PATH',help='Run a headless scan and print JSON; exit 1 if anything is flagged')
     parser.add_argument('--evaluate-corpus',type=Path,help='Read-only manifest-based static evaluation')
     parser.add_argument('--signature-free',action='store_true',help='Strict signature-free corpus evaluation only')
     parser.add_argument('--batch-offset',type=int,help=argparse.SUPPRESS)
@@ -114,6 +115,14 @@ def main():
         except Exception as error:
             if sys.stderr:print(str(error),file=sys.stderr)
             return 1
+    if args.scan:
+        if args.self_test or args.scheduled_scan or args.startup:
+            parser.error('--scan cannot be combined with other execution modes')
+        from sentinelav.platform.cli_scan import run as cli_scan
+        try:return cli_scan(args.scan,args.data_dir or Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'SentinelAV')
+        except Exception as error:
+            if sys.stderr:print(str(error),file=sys.stderr)
+            return 2
     if args.self_test and not args.data_dir:
         parser.error('--self-test requires an isolated --data-dir')
     if args.self_test:
@@ -140,7 +149,8 @@ def main():
         from sentinelav.ui.design import configure_app
         configure_app(app)
         from sentinelav.ui.application import Window,ROOT
-        window=Window(data_dir=data)
+        # Real desktop launches protect by default; self-tests stay isolated from the real profile.
+        window=Window(data_dir=data,protect_by_default=not args.self_test)
         if args.self_test:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
             verification_key=Ed25519PrivateKey.generate()

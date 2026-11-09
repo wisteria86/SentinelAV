@@ -21,8 +21,9 @@ class ResponseMixin(ResponsePagesMixin, ResponseActionsMixin):
 
 
     def ready_for_response(self):
-        if self.worker or self.protection_worker or self.response_worker or self.monitor_state=='Unknown':
-            QMessageBox.information(self,'Workers active','Stop monitoring and wait for scans or response actions to finish first.')
+        # Monitoring keeps running: threats must be removable while protection is on, and the vault waits out brief file locks.
+        if self.worker or self.response_worker:
+            QMessageBox.information(self,'Operation active','Wait for the scan or response action to finish first.')
             return False
         return True
 

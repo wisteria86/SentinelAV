@@ -10,19 +10,21 @@ from sentinelav.response.response import ResponseService
 
 class ResponsePagesMixin:
     def quarantine_page(self):
-        layout = self.page('Quarantine','Review signature detections and manage encrypted, isolated files.')
-        self.response_status = QLabel('Actions require review. Behavior warnings are not automatically quarantined.',objectName='small')
+        layout = self.page('Quarantine','Review flagged files and manage encrypted, isolated files.')
+        self.response_status = QLabel('Select a file to act on it. Only high-confidence detections in watched folders are quarantined automatically.',objectName='small')
         self.response_status.setWordWrap(True)
         layout.addWidget(self.response_status)
         tabs = QTabWidget()
         pending = QWidget()
         pl = QVBoxLayout(pending)
-        self.pending_table = self.table(['File','Detection','SHA-256'])
+        self.pending_table = self.table(['File','Verdict','Score','Why','SHA-256'])
+        self.pending_table.cellDoubleClicked.connect(lambda row,column:self.show_finding(self.pending_detections[row]))
         self.pending_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.pending_table.setMinimumHeight(140)
         pl.addWidget(self.pending_table)
         row = QHBoxLayout()
         self.quarantine_button = self.action(row,'Quarantine Selected',self.quarantine_selected,True)
+        self.action(row,'Remove Permanently',self.remove_selected)
         self.action(row,'Trust Exact File',self.trust_selected)
         pl.addLayout(row)
         row = QHBoxLayout()
@@ -48,7 +50,7 @@ class ResponsePagesMixin:
         tabs.addTab(isolated,'Isolated Files')
         tabs.setFixedHeight(330)
         layout.addWidget(tabs)
-        label = QLabel('Quarantine is encrypted for your Windows account. Restore never overwrites a file.\nStop scanning and monitoring before response actions. All actions appear under Reports → Protection Events.',objectName='small')
+        label = QLabel('Quarantine is encrypted for your Windows account. Restore never overwrites a file.\nAll actions appear under Reports → Protection Events.',objectName='small')
         label.setWordWrap(True)
         layout.addWidget(label)
         layout.addStretch()
@@ -58,7 +60,7 @@ class ResponsePagesMixin:
         tabs = self.stack.widget(5).findChild(QTabWidget)
         page = QWidget()
         layout = QVBoxLayout(page)
-        label = QLabel('Exact SHA-256 trust overrides signature matches only. It does not suppress behavior warnings. Remove trust to scan that content normally again.',objectName='small')
+        label = QLabel('Trusting an exact SHA-256 stops file detections for that content. It does not suppress behavior warnings. Remove trust to scan that content normally again.',objectName='small')
         label.setWordWrap(True)
         layout.addWidget(label)
         self.trusted_list = QListWidget()
@@ -76,13 +78,14 @@ class ResponsePagesMixin:
         isolated = {(r['original'],r['sha256']) for r in records if r['state'] in ('Preparing','Quarantined','Delete pending','Restore pending')}
         items = {}
         for scan in reversed(self.store.history()):
-            for detection in scan['detections']:
+            for detection in scan['detections']+scan.get('suspicious',[]):
                 items[(detection['path'],detection['sha256'])]=detection
         for event in reversed(self.store.events(5000)):
-            if event['kind']=='Threat detected' and event.get('sha256'):
-                items[(event['path'],event['sha256'])]=dict(path=event['path'],sha256=event['sha256'],reasons=event['reasons'])
+            if event['kind'] in ('Threat detected','Suspicious file') and event.get('sha256'):
+                items[(event['path'],event['sha256'])]={key:value for key,value in event.items() if key not in ('time','kind','details','source','level')}
         self.pending_detections = [d for key,d in items.items() if key not in isolated and d['sha256'] not in trusted and Path(d['path']).is_file()]
-        self.fill(self.pending_table,[(d['path'],'; '.join(d['reasons']),d['sha256']) for d in self.pending_detections])
+        self.pending_detections.sort(key=lambda d:-d.get('score',100))
+        self.fill(self.pending_table,[(d['path'],d.get('verdict','Malicious'),d.get('score',''),'; '.join(d['reasons']),d['sha256']) for d in self.pending_detections])
         self.quarantine_records = records
         self.fill(self.quarantine_table,[(Path(r['original']).name,'; '.join(r['reasons']),r['date'],r['state']) for r in records])
 

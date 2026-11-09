@@ -93,11 +93,11 @@ class DashboardMixin:
             note.setText(description)
         self.latest.setText('Scan results cover inspected files only. Real-time protection is not active.')
         if self.report_mode == 0:
-            headings = ['Date','Scan Type','Files Scanned','Threats Found','Result']
-            rows = [(s['started'],s.get('kind',''),s['scanned'],len(s['detections']),s['status']) for s in history]
+            headings = ['Date','Scan Type','Files Scanned','Malicious / Suspicious','Result']
+            rows = [(s['started'],s.get('kind',''),s['scanned'],f"{len(s['detections'])} / {len(s.get('suspicious',[]))}",s['status']) for s in history]
         elif self.report_mode == 1:
             headings = ['Date','File','Detection','SHA-256','Action']
-            rows = [(s['started'],d['path'],'; '.join(d['reasons']),d['sha256'],'Reported') for s in history for d in s['detections']]
+            rows = [(s['started'],d['path'],'; '.join(d['reasons']),d['sha256'],d.get('verdict','Malicious')+' '+str(d.get('score',''))) for s in history for d in s['detections']+s.get('suspicious',[])]
         else:
             headings = ['Date','Event','Details','Source','Status']
             rows = []

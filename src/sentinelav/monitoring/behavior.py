@@ -5,6 +5,7 @@
 """Explainable heuristics. Scores indicate suspicion, never proof of infection."""
 import hashlib
 import ipaddress
+import os
 import time
 import uuid
 from collections import OrderedDict
@@ -17,6 +18,11 @@ def create_canary(folder):
     with path.open('xb') as stream:
         stream.write(content)
     return dict(path=str(path.resolve()), sha256=hashlib.sha256(content).hexdigest())
+
+
+USER_WRITABLE={'temp','tmp','downloads','public','appdata'}
+REMOTE_CONTROL_PORTS={1337,1604,3333,4444,4445,5552,6666,6667,6668,6669,6697,7777,8888,9001,12345,31337,54321}
+COMMON_PORTS={21,22,25,53,80,110,123,143,443,465,587,853,993,995,3478,5222,5228,8080,8443}
 
 
 class BehaviorEngine:
@@ -32,6 +38,12 @@ class BehaviorEngine:
         self.connections = OrderedDict()
         self.canary_states = {}
         self.attributed_writes=OrderedDict()
+        self.flagged_images=OrderedDict()
+
+    def flag_image(self,path,verdict):
+        """Remember a program the file scanner flagged, so its network activity can be correlated."""
+        self.flagged_images[os.path.normcase(str(path))]=verdict
+        while len(self.flagged_images)>4096:self.flagged_images.popitem(last=False)
 
     def attributed_file_event(self,event,roots,exclusions):
         info=event['process']; path=Path(event['path']).resolve()
@@ -159,6 +171,15 @@ class BehaviorEngine:
                 self.indicator(entity,'network_list',70,f'Connection to a configured IP/CIDR indicator: {ip}',**metadata)
             if not ip.is_global:
                 continue
+            image=str(info.get('exe') or '')
+            verdict=self.flagged_images.get(os.path.normcase(image))
+            if verdict:
+                self.indicator(entity,'flagged_image_network',45,f'A program rated {verdict} by the file scanner connected to {ip}',**metadata)
+            parts=set(image.lower().replace('\\','/').split('/'))
+            if parts.intersection(USER_WRITABLE) and connection.raddr.port in REMOTE_CONTROL_PORTS:
+                self.indicator(entity,'remote_control_port',45,f'A program in a user-writable folder connected to {ip} on port {connection.raddr.port}, commonly used for remote control',**metadata)
+            elif parts.intersection(USER_WRITABLE) and connection.raddr.port not in COMMON_PORTS:
+                self.indicator(entity,'uncommon_port_from_user_folder',20,f'A program in a user-writable folder connected to {ip} on uncommon port {connection.raddr.port}',**metadata)
             peers = self.connections.setdefault(entity,{})
             self.connections.move_to_end(entity)
             peers[str(ip)] = now

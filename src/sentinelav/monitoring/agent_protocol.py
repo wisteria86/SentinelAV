@@ -84,6 +84,7 @@ def request(data, command, **fields):
 
 
 def configuration(store, root):
+    from sentinelav.response.auto_response import policy_for
     folders = store.get('watch_folders', [])
     if not isinstance(folders, list) or len(folders) > 64 or any(
             not isinstance(p, str) or not Path(p).is_absolute() or not Path(p).is_dir() for p in folders):
@@ -96,7 +97,7 @@ def configuration(store, root):
                   canaries=store.get('canaries', []), network_indicators=store.get('network_indicators', []),
                   trusted_hashes=store.get('trusted_hashes', []))
     result.update(inspection_options=store.get('inspection_options',{}),event_processes=store.get('event_processes',True),
-                  auto_response=store.get('auto_response',{}),data_dir=str(store.path.parent),artifact_updates=store.get('artifact_updates',{}))
+                  auto_response=policy_for(store.get('auto_response',None),folders),data_dir=str(store.path.parent),artifact_updates=store.get('artifact_updates',{}))
     result.update(watch_app_changes=store.get('watch_app_changes',False),tracked_settings=store.get('tracked_settings',[]))
     result['evaluation_attestation']=store.get('evaluation_attestation',False) is True
     if store.get('kernel_collector',''): result['kernel_collector']=store.get('kernel_collector','')

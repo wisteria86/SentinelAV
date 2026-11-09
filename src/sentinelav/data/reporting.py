@@ -18,6 +18,7 @@ def snapshot(store):
                 protection_events=events,quarantine=store.quarantine(),
                 summary=dict(scans=len(scans),files=sum(s['scanned'] for s in scans),
                              scan_detections=sum(len(s['detections']) for s in scans),
+                             scan_suspicious=sum(len(s.get('suspicious',[])) for s in scans),
                              live_detections=sum(is_detection(e) for e in events),
                              behavioral_alerts=sum(e.get('level')=='Alert' and not is_detection(e) for e in events),
                              live_alerts=sum(e['level']=='Alert' for e in events),
@@ -34,9 +35,9 @@ def render_report(data,kind):
     if kind=='csv':
         out=io.StringIO(newline='')
         writer=csv.writer(out)
-        writer.writerow(['Date','Type','Files scanned','Detections','Result'])
+        writer.writerow(['Date','Type','Files scanned','Detections','Suspicious','Result'])
         for scan in data['scans']:
-            values=[scan['started'],scan.get('kind',''),scan['scanned'],len(scan['detections']),scan['status']]
+            values=[scan['started'],scan.get('kind',''),scan['scanned'],len(scan['detections']),len(scan.get('suspicious',[])),scan['status']]
             writer.writerow(["'"+str(v) if str(v).lstrip().startswith(('=','+','-','@')) else str(v) for v in values])
         return out.getvalue()
     esc=lambda value:html.escape(str(value),quote=True)
@@ -49,4 +50,4 @@ def render_report(data,kind):
             '<h2>Scan history</h2><table><tr><th>Date</th><th>Type</th><th>Files</th><th>Detections</th><th>Result</th></tr>'+rows+'</table>'
             '<h2>Protection and response events</h2><table><tr><th>Date</th><th>Event</th><th>Level</th><th>Details</th></tr>'+events+'</table>'
             +evidence_sections(data)+
-            '<small>Prototype findings require review. Results cover inspected sources and do not prove a system is clean. JSON includes full evidence and quarantine metadata.</small></html>')
+            '<small>Heuristic findings describe traits and are not proof of malware. Results cover inspected sources and do not prove a system is clean. JSON includes full evidence and quarantine metadata.</small></html>')
