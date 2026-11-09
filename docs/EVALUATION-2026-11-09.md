@@ -122,13 +122,13 @@ A read-only Quick scan of this development PC, on the frozen detection code, is 
 | `generic_techniques.yar`, SentinelAV's own rule file | Malicious, 99 | It contains the patterns it looks for |
 | Compiled copy of SentinelAV's string rules | Malicious, 74 | Same reason |
 | Inno Setup `whatsnew.htm`, a changelog | Malicious, 70 | **Rule weakness:** text describing downloads and Startup reads like a script |
-| 6 Inno Setup uninstaller and setup stubs | Suspicious, 45 | They embed a program and use autorun and self-copy, as droppers do |
-| 7 other compiled Python files, including SentinelAV's rules and analysis libraries | Suspicious, 37 to 55 | Their text mentions the behaviors they detect or handle |
+| 7 Inno Setup uninstaller and setup stubs | Suspicious, 45 | They embed a program and use autorun and self-copy, as droppers do |
+| 5 other compiled Python files, including SentinelAV's rules and analysis libraries | Suspicious, 37 to 55 | Their text mentions the behaviors they detect or handle |
 | 4 Python `setuptools` launcher stubs | Suspicious, 35 | The model gives an elevated score |
 | 2 browser translation packs | Suspicious, 35 | The ransom-wording rule matches ordinary strings |
 | An unpackaged SentinelAV build | Suspicious, 51 | Model score plus a large overlay |
 | qBittorrent installer temp copy | Suspicious, 40 | Autorun and mail-protocol strings |
-| 2 course PDFs (one is a ZIP holding three) | Suspicious, 38 to 46 | They do contain JavaScript set to run on open, so the description is accurate |
+| A course PDF and a ZIP of course PDFs | Suspicious, 38 to 46 | They do contain JavaScript set to run on open, so the description is accurate |
 
 **One of these met the automatic quarantine score:** the rule file, with score 99 and High confidence. It was protected only because response actions refuse the project folder. **A copy of these rules, or of similar security research text, in a watched folder could be quarantined automatically.** It can be restored, but people who keep such files should exclude that folder.
 
