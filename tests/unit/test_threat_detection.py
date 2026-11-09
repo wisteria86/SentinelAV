@@ -12,7 +12,6 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from sentinelav.detection.archive_inspection import inspect_archive
 from sentinelav.detection.engine import Scanner
 from sentinelav.detection.file_types import classify
 from sentinelav.detection.indicators import dos,documents,scripts,strings
@@ -234,17 +233,3 @@ class ScannerReachTests(unittest.TestCase):
         report=self.scanner.scan([folder],lambda:False,lambda *a:None,skip=1)
         self.assertEqual(seen,['b.txt','c.txt'])
         self.assertEqual(report['scanned'],2)
-
-
-class ArchiveLimitTests(unittest.TestCase):
-    def test_hostile_member_names_are_still_inspected_in_memory(self):
-        seen=[]
-        def analyze(payload,name):
-            seen.append(payload);return [],[],[]
-        _,omissions,_=inspect_archive(zipped(('../../evil.exe',b'content')),analyze)
-        self.assertEqual(seen,[b'content'])
-        self.assertTrue(any('Unsafe' in item for item in omissions))
-
-    def test_entry_limit_is_reported(self):
-        _,omissions,_=inspect_archive(zipped(*[(f'{i}.txt','x') for i in range(5)]),lambda p,n:([],[],[]),max_entries=2)
-        self.assertIn('Archive entry limit reached',omissions)

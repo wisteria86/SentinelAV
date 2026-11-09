@@ -9,9 +9,7 @@ omission, and an extreme expansion ratio is recorded as decompression-bomb evide
 """
 import hashlib
 from pathlib import PurePosixPath
-import tarfile
 import time
-from zipfile import BadZipFile
 
 from sentinelav.detection.archive_formats import EXECUTABLE_SUFFIXES,READERS
 from sentinelav.detection.file_types import classify
@@ -72,8 +70,9 @@ def inspect_archive(data,analyze,cancelled=lambda:False,max_depth=MAX_DEPTH,max_
             state['bomb']=True
             omissions.append('Archive expansion/ratio limit: '+label);return
         budget=min(max_member,max_expanded-state['expanded'])
+        # Decoders raise many error types on corrupt data. A damaged member must never hide the members after it.
         try:payload=item.read(budget)
-        except (RuntimeError,ValueError,OSError,BadZipFile,NotImplementedError,EOFError,tarfile.TarError) as error:
+        except Exception as error:
             if item.encrypted:
                 omissions.append('Encrypted archive member could not be opened: '+label)
                 if name.casefold().endswith(EXECUTABLE_SUFFIXES):state['encrypted_executables'].append(label)
@@ -103,7 +102,7 @@ def inspect_archive(data,analyze,cancelled=lambda:False,max_depth=MAX_DEPTH,max_
         try:
             for item in READERS[kind](bytes(content)):member(item,chain,depth)
         except Stop:raise
-        except (BadZipFile,RuntimeError,NotImplementedError,OSError,ValueError,EOFError,tarfile.TarError) as error:
+        except Exception as error:
             prefix='ZIP parser failed: ' if kind=='zip' else kind.upper()+' inspection incomplete: '
             omissions.append(prefix+str(error)[:300])
 
