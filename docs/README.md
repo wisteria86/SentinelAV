@@ -2,6 +2,7 @@
 
 | Read this | For |
 | --- | --- |
+| [How SentinelAV detects threats](DETECTION.md) | Scoring, file types, scan modes, real-time protection, removal and limits |
 | [Module interaction map](../map.md) | Runtime flows, process boundaries, UI composition, and actual imports between small modules |
 | [Critical product evaluation](CRITICAL-EVALUATION.md) | One-click profiles, evidence scoring, telemetry, Sandbox/Hyper-V prerequisites and qualification gates |
 | [Critical harness validation](CRITICAL-EVALUATION-VALIDATION-2026-11-04.md) | 262 passing unit tests, packaged checks, actual regression metrics and blocked guest qualification |

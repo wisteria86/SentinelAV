@@ -15,6 +15,9 @@ from sentinelav.detection.indicators import collect
 from sentinelav.detection.threat_score import arm_scores,automatic_eligible,indicator,score
 
 GRAY_LOW=15
+# 0 of 591 programs from the calibration products reached 0.5, so these bands sit well above ordinary software.
+ELEVATED_SCORE=.9
+NOTABLE_SCORE=.7
 GRAY_HIGH=70
 TRUST_CHECK_FROM=25
 MEMBER_MODEL_BYTES=64*1024*1024
@@ -50,8 +53,10 @@ def _model_items(decision):
         if model.get('review'):
             weight=55 if value>=.999 else 45
             items.append(indicator('learned_pe_model','ml',weight,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
-        elif value>=.9:
-            items.append(indicator('learned_pe_model_elevated','ml',15,f'A machine-learning model gives an elevated score of {value:.1%}, below its alert threshold.','ml'))
+        elif value>=ELEVATED_SCORE:
+            items.append(indicator('learned_pe_model_elevated','ml',35,f'A machine-learning model gives an elevated score of {value:.1%}, below its alert threshold.','ml'))
+        elif value>=NOTABLE_SCORE:
+            items.append(indicator('learned_pe_model_notable','ml',20,f'A machine-learning model gives a notable score of {value:.1%}. This is weak evidence on its own.','ml'))
     return items
 
 
