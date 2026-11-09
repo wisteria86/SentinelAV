@@ -29,3 +29,10 @@ class ModelEvidenceTests(unittest.TestCase):
         packed=[indicator(code,'packing',20,'Fixture') for code in ('a','b','c','d')]
         self.assertEqual(score(packed)['verdict'],'Clean')
         self.assertEqual(score(packed+[indicator('capability','injection',32,'Fixture')])['verdict'],'Suspicious')
+
+    def test_a_signed_script_gets_the_same_trust_as_a_signed_program(self):
+        from sentinelav.detection.file_analysis import SIGNABLE_KINDS
+        self.assertLessEqual({'pe','vbscript','powershell','javascript','batch','ole'},SIGNABLE_KINDS)
+        items=[indicator('rewrites','replication',30,'Fixture'),indicator('shell','obfuscation',22,'Fixture')]
+        self.assertEqual(score(items)['verdict'],'Suspicious')
+        self.assertEqual(score(items,trusted=True)['verdict'],'Clean')

@@ -14,6 +14,8 @@ from sentinelav.detection.file_types import classify
 from sentinelav.detection.indicators import collect
 from sentinelav.detection.threat_score import arm_scores,automatic_eligible,indicator,score
 
+# Windows can sign scripts and installers as well as programs, directly or through a catalog.
+SIGNABLE_KINDS={'pe','data','ole','powershell','vbscript','javascript','batch','html'}
 GRAY_LOW=15
 # 0 of 591 programs from the calibration products reached 0.5, so these bands sit well above ordinary software.
 ELEVATED_SCORE=.9
@@ -149,7 +151,7 @@ class FileAnalysisMixin:
             if context:items.append(context)
         current=score(items,platform,partial=partial)
         trusted=False
-        if path and file_type['kind'] in ('pe','data') and current['score']>=TRUST_CHECK_FROM and current['score']<100:
+        if path and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
             from sentinelav.detection.trust import signature_status
             trusted=signature_status(path)=='trusted'
             if trusted:current=score(items,platform,trusted=True,partial=partial)
