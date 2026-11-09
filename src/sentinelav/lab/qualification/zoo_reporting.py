@@ -115,7 +115,7 @@ def render(store):
     profile = store.manifest['profile']
     lines = [f'# SentinelAV Zoo evaluation ({profile})', '',
              f'Pinned revision {revision}. Each batch ran in a fresh offline Windows Sandbox. Samples were read, never launched.',
-             f"Code under test: {store.manifest.get('versions', {}).get('source_identity', store.manifest.get('versions', {}).get('source', 'see manifest'))}",
+             f"Code under test: {store.manifest.get('versions', {}).get('source_sha256', 'see manifest')}",
              'Files that could not be assessed stay in the denominator and count as not detected.', '',
              f"**{summary['status'].upper()}** · {len(results)}/{len(cases)} batches recorded", '',
              '## Detection rates (malware binaries)', '',

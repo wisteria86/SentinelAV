@@ -67,7 +67,7 @@ class SuiteManifest:
 
     def __post_init__(self):
         identifier(self.run_id)
-        if self.schema!=1 or self.profile not in ('regression','critical','soak','zoo-static','zoo-quick'):raise ValueError('Invalid suite')
+        if self.schema!=1 or self.profile not in ('regression','critical','soak','zoo-static','zoo-quick','zoo-dev','zoo-holdout'):raise ValueError('Invalid suite')
         ids=[c['id'] for c in self.cases]
         if not ids or len(ids)!=len(set(ids)) or len(ids)>10000:raise ValueError('Invalid/duplicate case inventory')
         for c in self.cases:CaseDefinition(**c)
