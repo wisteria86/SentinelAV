@@ -1,3 +1,7 @@
+# Purpose: Verify test monitoring behavior using controlled fixtures.
+# Works with: monitoring.behavior, monitoring.monitoring, paths, tests.unit.test_sequences
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import json
 import tempfile
@@ -6,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import patch,Mock
 from sentinelav.monitoring.monitoring import Monitor, PendingFiles, SysmonReader
 
 ROOT = RESOURCE_ROOT
@@ -59,14 +63,35 @@ class MonitoringTests(unittest.TestCase):
 
     def test_bounded_debounce(self):
         queue = PendingFiles(capacity=1, delay=.02)
-        queue.add('one')
-        queue.add('one')
-        queue.add('two')
-        self.assertIsNone(queue.pop())
-        self.assertEqual(queue.dropped,1)
-        time.sleep(.03)
-        self.assertTrue(queue.pop()[0].endswith('one'))
-        self.assertIsNone(queue.pop())
+        with patch('sentinelav.monitoring.monitoring.time.monotonic',return_value=100) as clock:
+            queue.add('one')
+            queue.add('one')
+            queue.add('two')
+            self.assertIsNone(queue.pop())
+            self.assertEqual(queue.dropped,1)
+            clock.return_value=100.03
+            self.assertTrue(queue.pop()[0].endswith('one'))
+            self.assertIsNone(queue.pop())
+
+    def test_incomplete_inspection_and_worker_recovery_are_visible(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            target=root/'ordinary.txt'
+            target.write_text('Inert content')
+            events=[]
+            monitor=Monitor(self.config(root),events.append,lambda _:None)
+            monitor.allowed_roots=[root.resolve()]
+            scanner=Mock()
+            scanner.excluded.return_value=False
+            scanner.scan.side_effect=[
+                dict(status='Complete with omissions',scanned=0,detections=[],errors=['Worker exited'],skipped=0),
+                dict(status='Complete',scanned=1,detections=[],errors=[],skipped=0,worker_restarted=True)]
+            monitor.inspect(scanner,str(target),'Filesystem')
+            self.assertTrue(monitor.inspection_error)
+            self.assertTrue(any(e['kind']=='Inspection failed' for e in events))
+            monitor.inspect(scanner,str(target),'Filesystem')
+            self.assertFalse(monitor.inspection_error)
+            self.assertTrue(any(e['kind']=='Inspection worker restarted' for e in events))
 
     def test_process_baseline_new_process_and_pid_reuse(self):
         events = []
@@ -92,6 +117,28 @@ class MonitoringTests(unittest.TestCase):
             self.assertIn('EventRecordID > 100', run.call_args.args[0][-1])
             self.assertEqual(reader.cursor,101)
 
+    def test_structured_sysmon_records_reach_sequence_alerts_and_respect_exclusions(self):
+        from tests.unit.test_sequences import event,xml_event
+        from sentinelav.monitoring.behavior import BehaviorEngine
+        events=[]
+        config=self.config(ROOT)
+        config['behavior']=True
+        monitor=Monitor(config,events.append,lambda _:None)
+        monitor.behavior=BehaviorEngine(events.append)
+        monitor.exclusions=[]
+        for record,kind in ((1,1),(2,13),(3,3)):
+            monitor.sysmon_event(dict(RecordId=record,Id=kind,Xml=xml_event(event(record,kind))))
+        self.assertEqual(sum(e['kind']=='Suspicious behavior sequence' for e in events),1)
+        monitor.sysmon_event(dict(RecordId=4,Id=1,Xml='<broken'))
+        self.assertEqual(events[-1]['kind'],'Sysmon correlation omitted')
+        events.clear()
+        monitor=Monitor(config,events.append,lambda _:None)
+        monitor.behavior=BehaviorEngine(events.append)
+        monitor.exclusions=[Path('C:/Windows').resolve()]
+        for record,kind in ((1,1),(2,13),(3,3)):
+            monitor.sysmon_event(dict(RecordId=record,Id=kind,Xml=xml_event(event(record,kind))))
+        self.assertFalse(any(e['kind']=='Suspicious behavior sequence' for e in events))
+
     def test_network_runtime_failure_preserves_folder_monitoring(self):
         with tempfile.TemporaryDirectory() as temp:
             events, states = [], []
@@ -103,6 +150,7 @@ class MonitoringTests(unittest.TestCase):
             self.assertTrue(any(e['kind']=='Network telemetry unavailable' for e in events))
             self.assertFalse(states[0]['network'])
             self.assertEqual(states[0]['folders'],1)
+            self.assertIn('Network',states[0]['telemetry_error'])
 
     def test_worker_combines_network_and_process_context(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -112,7 +160,8 @@ class MonitoringTests(unittest.TestCase):
             monitor = Monitor(config,events.append,lambda _:monitor.stop.set())
             info = dict(pid=42,ppid=1,name='demo.exe',exe='C:/Temp/demo.exe',create_time=1,cmdline=[])
             connection = SimpleNamespace(pid=42,status='ESTABLISHED',raddr=SimpleNamespace(ip='192.0.2.1',port=443))
-            with patch('sentinelav.monitoring.monitoring.psutil.process_iter',return_value=[SimpleNamespace(info=info)]), patch('sentinelav.monitoring.monitoring.psutil.net_connections',return_value=[connection]):
+            with patch('sentinelav.monitoring.monitoring.psutil.process_iter',return_value=[SimpleNamespace(info=info)]), patch('sentinelav.monitoring.monitoring.psutil.net_connections',return_value=[connection]), patch('sentinelav.monitoring.health.psutil.Process') as process:
+                process.return_value.create_time.return_value=1
                 monitor.run()
             event = next(e for e in events if e.get('score')==95)
             self.assertEqual(event['level'],'Alert')

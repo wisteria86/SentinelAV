@@ -1,3 +1,7 @@
+# Purpose: Temporary WMI event subscription plus PID-reuse-aware process ancestry.
+# Works with: paths
+# Used by: monitoring.monitor_loop, monitoring.monitoring, tests.unit.test_defense_layers
+
 """Temporary WMI event subscription plus PID-reuse-aware process ancestry."""
 from sentinelav.paths import RESOURCE_ROOT
 from collections import OrderedDict

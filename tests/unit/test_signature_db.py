@@ -1,3 +1,7 @@
+# Purpose: Verify test signature db behavior using controlled fixtures.
+# Works with: detection.engine, detection.signature_db, updates.hash_archive
+# Used by: unittest discovery
+
 import hashlib
 import json
 from pathlib import Path
@@ -35,6 +39,8 @@ class SignatureDatabaseTests(unittest.TestCase):
                 report=scanner.scan([root/'fixture.txt',root/'benign.txt'],lambda:False,lambda *a:None)
                 self.assertEqual(len(report['detections']),1)
                 self.assertIn('Fixture / OtherLabel',report['detections'][0]['reasons'][0])
+                self.assertIn('Hash database:',report['detections'][0]['reasons'][0])
+                self.assertNotIn('MalwareBazaar:',report['detections'][0]['reasons'][0])
                 self.assertEqual(report['scanned'],2)
             finally: scanner.signatures.close()
 

@@ -1,5 +1,9 @@
 # Project map
 
+Follow [map.md](../map.md) for runtime interactions and module import diagrams.
+First-party code files are limited to 250 lines. Each starts with purpose and
+collaborator comments; `test.ps1` enforces the size/header check.
+
 All SentinelAV application files live in this project folder. The SQL injection
 lab in the parent directory is a separate project.
 

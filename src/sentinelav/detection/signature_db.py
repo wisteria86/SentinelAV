@@ -1,3 +1,7 @@
+# Purpose: Read-only exact-hash lookup with an optional versioned SQLite feed.
+# Works with: sibling modules in detection
+# Used by: detection.engine, entrypoint, tests.unit.test_definition_updates, tests.unit.test_signature_db
+
 """Read-only exact-hash lookup with an optional versioned SQLite feed."""
 import json
 from pathlib import Path
@@ -57,7 +61,10 @@ class SignatureIndex:
                 return default
             rows=self.db.execute('SELECT label FROM labels WHERE sha256=? ORDER BY label LIMIT 16',(bytes.fromhex(digest),)).fetchall()
             if rows:
-                return 'MalwareBazaar: '+' / '.join(row[0] for row in rows)
+                # This snapshot can contain manual corrections and signed deltas
+                # from other sources. Do not falsely attribute every row to the
+                # provider that supplied the original base database.
+                return 'Hash database: '+' / '.join(row[0] for row in rows)
         return self.local.get(digest,default)
 
     def __contains__(self,digest):

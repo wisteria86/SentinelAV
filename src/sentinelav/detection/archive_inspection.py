@@ -1,3 +1,7 @@
+# Purpose: Inspect ZIP members in memory. Never extract paths or execute contents.
+# Works with: sibling modules in detection
+# Used by: detection.engine, detection.scan_flow, tests.unit.test_defense_layers
+
 """Inspect ZIP members in memory. Never extract paths or execute contents."""
 import io
 from pathlib import PurePosixPath

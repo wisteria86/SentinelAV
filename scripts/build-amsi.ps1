@@ -1,3 +1,7 @@
+# Purpose: Compile the native AMSI provider and its inert test harness.
+# Works with: the matching src/sentinelav subsystem; related scripts in scripts
+# Used by: the CLI, desktop launcher, or packaging workflow
+
 param([switch]$Test)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -15,6 +19,8 @@ $commands = @(
     ('cl /nologo /std:c++17 /EHsc /W4 /WX /O2 /MT /guard:cf /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_WIN32_WINNT=0x0A00 /LD "' + $projectRoot + '\native\amsi\provider.cpp" /Fe:SentinelAVAmsi.dll /link /DEF:"' + $projectRoot + '\native\amsi\provider.def" ole32.lib advapi32.lib /DYNAMICBASE /NXCOMPAT'),
     'if errorlevel 1 exit /b 1',
     ('cl /nologo /std:c++17 /EHsc /W4 /WX /O2 /MT /guard:cf /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_WIN32_WINNT=0x0A00 /DSENTINEL_AMSI_TESTING "' + $projectRoot + '\native\amsi\provider.cpp" "' + $projectRoot + '\native\amsi\harness.cpp" /Fe:AmsiHarness.exe /link ole32.lib advapi32.lib /DYNAMICBASE /NXCOMPAT'),
+    'if errorlevel 1 exit /b 1',
+    ('cl /nologo /std:c++17 /EHsc /W4 /WX /O2 /MT /guard:cf /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_WIN32_WINNT=0x0A00 "' + $projectRoot + '\native\amsi\probe.cpp" /Fe:AmsiProbe.exe /link ole32.lib amsi.lib advapi32.lib user32.lib /DYNAMICBASE /NXCOMPAT'),
     'if errorlevel 1 exit /b 1'
 )
 if ($Test) {

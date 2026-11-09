@@ -1,3 +1,7 @@
+# Purpose: Harmless UI response lifecycle; only temporary demo-marker files are isolated.
+# Works with: paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """Harmless UI response lifecycle; only temporary demo-marker files are isolated."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os

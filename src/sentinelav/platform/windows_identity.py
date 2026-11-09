@@ -1,3 +1,7 @@
+# Purpose: Read the current Windows account SID without changing its token or permissions.
+# Works with: amsi_broker.py; remediation_broker.py; service_changes.py; windows_service.py
+# Used by: platform.amsi_broker, platform.remediation_broker, platform.service_changes, platform.windows_service
+
 import ctypes
 from ctypes import wintypes
 import os

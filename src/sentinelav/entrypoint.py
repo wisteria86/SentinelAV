@@ -1,3 +1,7 @@
+# Purpose: Dispatch desktop, scan-worker, background-engine, service, broker, and guest modes.
+# Works with: ui/application.py; monitoring/background.py; detection/inspection.py; lab/qualification/guest.py
+# Used by: __main__, ui.application, tests.unit.test_hardening
+
 import argparse
 import json
 import os
@@ -23,10 +27,75 @@ def main():
     parser.add_argument('--scheduled-scan',action='store_true')
     parser.add_argument('--self-test',action='store_true')
     parser.add_argument('--data-dir',type=Path)
+    parser.add_argument('--evaluate-corpus',type=Path,help='Read-only manifest-based static evaluation')
+    parser.add_argument('--signature-free',action='store_true',help='Strict signature-free corpus evaluation only')
+    parser.add_argument('--batch-offset',type=int,help=argparse.SUPPRESS)
+    parser.add_argument('--runtime-job',type=Path,help='Explicit offline-guest runtime job; never allowed on the host')
+    parser.add_argument('--qualification-job',type=Path,help=argparse.SUPPRESS)
+    parser.add_argument('--evaluation-output',type=Path,help='New directory for static evaluation reports')
+    parser.add_argument('--static-pilot-key',help=argparse.SUPPRESS)
+    parser.add_argument('--static-corpus-key',help=argparse.SUPPRESS)
+    parser.add_argument('--static-holdout-key',help=argparse.SUPPRESS)
+    parser.add_argument('--zeus-validation-key',help=argparse.SUPPRESS)
     parser.add_argument('--engine-host',action='store_true',help='Run the non-elevated per-user background engine')
     parser.add_argument('--inspection-worker',action='store_true',help=argparse.SUPPRESS)
     parser.add_argument('--windows-service',action='store_true',help=argparse.SUPPRESS)
+    parser.add_argument('--remediation-broker',help=argparse.SUPPRESS)
     args=parser.parse_args()
+    if args.qualification_job:
+        if any(value for key,value in vars(args).items() if key!='qualification_job'):
+            parser.error('Qualification job mode is exclusive')
+        from sentinelav.lab.qualification.guest import main as qualification_main
+        return qualification_main(args.qualification_job)
+    if args.signature_free and not any((args.evaluate_corpus,args.static_corpus_key,args.static_holdout_key,args.zeus_validation_key)):parser.error('--signature-free requires a corpus evaluation mode')
+    if args.batch_offset is not None and not args.evaluate_corpus:parser.error('--batch-offset requires --evaluate-corpus')
+    if args.remediation_broker:
+        if any(value for key,value in vars(args).items() if key!='remediation_broker'):parser.error('Broker mode is exclusive')
+        from sentinelav.platform.remediation_broker import run
+        return run(args.remediation_broker)
+    if args.runtime_job:
+        if any((args.evaluate_corpus,args.evaluation_output,args.self_test,args.startup,args.scheduled_scan,args.engine_host,
+                args.inspection_worker,args.windows_service,args.data_dir,args.static_pilot_key,args.static_corpus_key,
+                args.static_holdout_key,args.zeus_validation_key)):
+            parser.error('--runtime-job cannot be combined with other modes')
+        from sentinelav.lab.runtime_job import run_job
+        from sentinelav.updates.artifacts import bounded_json
+        try:
+            result=run_job(bounded_json(args.runtime_job,16384))
+            if sys.stdout: print(json.dumps(result))
+            return 0 if result['status']!='Incomplete' else 2
+        except Exception as error:
+            if sys.stderr: print(str(error),file=sys.stderr)
+            return 2
+    if args.static_pilot_key or args.static_corpus_key or args.static_holdout_key or args.zeus_validation_key:
+        if any((args.evaluate_corpus,args.evaluation_output,args.self_test,args.startup,args.scheduled_scan,args.engine_host,args.inspection_worker,args.windows_service,args.data_dir)):
+            parser.error('Static pilot cannot be combined with other modes')
+        if sum(bool(v) for v in (args.static_pilot_key,args.static_corpus_key,args.static_holdout_key,args.zeus_validation_key))>1:
+            parser.error('Choose one static lab mode')
+        try:
+            if args.zeus_validation_key:
+                from sentinelav.lab.static_corpus import main as pilot_main
+                return pilot_main(args.zeus_validation_key,zeus_validation=True,signature_free=args.signature_free)
+            elif args.static_holdout_key:
+                from sentinelav.lab.static_corpus import main as pilot_main
+                return pilot_main(args.static_holdout_key,holdout=True,signature_free=args.signature_free)
+            elif args.static_corpus_key:
+                from sentinelav.lab.static_corpus import main as pilot_main
+            else:
+                from sentinelav.lab.static_pilot import main as pilot_main
+            if args.static_corpus_key:return pilot_main(args.static_corpus_key,signature_free=args.signature_free)
+            return pilot_main(args.static_pilot_key)
+        except Exception as error:
+            if os.environ.get('USERNAME')=='WDAGUtilityAccount':
+                Path('C:/SentinelAV-Test/static-pilot-error.txt').write_text(str(error)[:2000],encoding='utf-8')
+            return 16
+    if args.evaluate_corpus:
+        if not args.evaluation_output or any((args.self_test,args.startup,args.scheduled_scan,args.engine_host,args.inspection_worker,args.windows_service,args.data_dir)):
+            parser.error('--evaluate-corpus requires --evaluation-output and no other execution mode')
+        from sentinelav.lab.corpus_evaluation import main as evaluate_main
+        return evaluate_main([str(args.evaluate_corpus),'--output',str(args.evaluation_output)]+(['--signature-free'] if args.signature_free else [])+(['--batch-offset',str(args.batch_offset)] if args.batch_offset is not None else []))
+    if args.evaluation_output:
+        parser.error('--evaluation-output requires --evaluate-corpus')
     if args.windows_service:
         from sentinelav.platform.windows_service import run_service
         try: return run_service()
@@ -41,7 +110,10 @@ def main():
             parser.error('--engine-host cannot be combined with other execution modes')
         from sentinelav.monitoring.background import main as engine_main
         data=args.data_dir or Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'SentinelAV'
-        return engine_main(data)
+        try:return engine_main(data)
+        except Exception as error:
+            if sys.stderr:print(str(error),file=sys.stderr)
+            return 1
     if args.self_test and not args.data_dir:
         parser.error('--self-test requires an isolated --data-dir')
     if args.self_test:
@@ -94,6 +166,17 @@ def main():
             window.refresh()
             window.show()
             app.processEvents()
+            from sentinelav.lab.response_check import check_response_ui
+            response_result=check_response_ui(app,window,data)
+            from sentinelav.lab.advanced_check import check_advanced
+            advanced_result=check_advanced(data)
+            from sentinelav.lab.corpus_evaluation import create_demo,evaluate
+            corpus_result=evaluate(create_demo(data/'evaluation-fixtures'))
+            expected_outcomes={'ordinary.txt':'not_detected','renamed.bin':'detected','utf16.txt':'detected',
+                               'nested.zip':'detected','unsupported.7z':'unavailable'}
+            if {r['path']:r['outcome'] for r in corpus_result['rows']}!=expected_outcomes:
+                raise RuntimeError('Static evaluation fixture outcomes differ from expected coverage')
+            (data/'corpus-evaluation.json').write_text(json.dumps(corpus_result,indent=2),encoding='utf-8')
             if window.rules_worker:
                 if not window.rules_worker.wait(15000):
                     raise RuntimeError('Packaged YARA rule validation did not finish')
@@ -107,7 +190,10 @@ def main():
             signature_index=SignatureIndex(ROOT/'signatures.json')
             signature_count=len(signature_index)
             signature_index.close()
-            (data/'self-test.json').write_text(json.dumps(dict(status='PASS',signature_count=signature_count,scan=result,buffer=buffer_result,lab=lab_run,checks=['Qt UI','YARA','SHA-256','SQLite','DPAPI','Ed25519 verification','Isolated file and byte-only workers','HTML export','Four safe lab profiles','Fixture cleanup'])),encoding='utf-8')
+            advanced_checks=['Normalized-content detection']
+            if advanced_result['emulation'].get('api_calls')==1: advanced_checks.append('Emulated Win32 dispatch')
+            else: advanced_checks.append('Emulation unavailable: see advanced evidence')
+            (data/'self-test.json').write_text(json.dumps(dict(status='PASS',signature_count=signature_count,scan=result,buffer=buffer_result,lab=lab_run,response=response_result,advanced=advanced_result,checks=['Qt UI','YARA','SHA-256','SQLite','DPAPI','Ed25519 verification','Isolated file and byte-only workers','HTML export','Four safe lab profiles','Quarantine/restore Qt controls and workers','Restore no-overwrite','Response audit','Fixture cleanup']+advanced_checks)),encoding='utf-8')
             window.close()
             return 0
         window.show()

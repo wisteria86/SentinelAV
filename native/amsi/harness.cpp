@@ -1,3 +1,7 @@
+// Purpose: Exercise provider interfaces with inert integration-test buffers.
+// Works with: provider.cpp; provider.h; tests/integration/verify_amsi_provider.py
+// Used by: the matching native executable or library entry point
+
 // Inert local harness. No COM/AMSI registration, script execution or registry writes.
 #include "provider.h"
 #include <algorithm>
@@ -15,6 +19,7 @@ public:
     std::string data;
     ULONGLONG size;
     bool truncated = false, badCount = false, changing = false, badAttribute = false, readError = false;
+    bool addressOnly = false, invalidAddress = false;
     ULONG chunk = 65536, attributes = 0;
     explicit Stream(std::string value) : data(std::move(value)), size(data.size()) {}
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** value) override {
@@ -26,12 +31,18 @@ public:
     ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
     ULONG STDMETHODCALLTYPE Release() override { return --refs; } // Harness owns stack lifetime.
     HRESULT STDMETHODCALLTYPE GetAttribute(AMSI_ATTRIBUTE attr, ULONG count, BYTE* bytes, ULONG* returned) override {
+        if (attr == AMSI_ATTRIBUTE_CONTENT_ADDRESS && addressOnly) {
+            const void* address = invalidAddress ? reinterpret_cast<const void*>(1) : data.data();
+            if (count < sizeof(address) || !bytes || !returned) return E_INVALIDARG;
+            memcpy(bytes,&address,sizeof(address)); *returned=sizeof(address); return S_OK;
+        }
         if (attr != AMSI_ATTRIBUTE_CONTENT_SIZE) return E_NOTIMPL;
         if (count < sizeof(size) || !bytes || !returned) return E_INVALIDARG;
         auto value = size + (changing && attributes++ > 0 ? 1 : 0);
         memcpy(bytes, &value, sizeof(value)); *returned = badAttribute ? 4 : sizeof(value); return S_OK;
     }
     HRESULT STDMETHODCALLTYPE Read(ULONGLONG position, ULONG count, BYTE* bytes, ULONG* returned) override {
+        if (addressOnly) return E_NOTIMPL;
         if (readError) return E_ABORT;
         if (truncated || position >= data.size()) { *returned = 0; return S_OK; }
         ULONG take = (std::min)({count, chunk, static_cast<ULONG>(data.size() - position)});
@@ -70,11 +81,15 @@ int wmain(int argc, wchar_t** argv) {
         Require(FAILED(provider->Scan(&attribute, &result)), "malformed size attribute");
         Stream broken("fixture"); broken.readError = true;
         Require(provider->Scan(&broken, &result) == E_ABORT, "read error propagated");
+        Stream invalid("fixture"); invalid.addressOnly = true; invalid.invalidAddress = true;
+        Require(FAILED(provider->Scan(&invalid, &result)), "invalid content address safely rejected");
         if (argc == 4 && std::wstring(argv[1]) == L"--broker") {
             DWORD pid = wcstoul(argv[3], nullptr, 10); SetTestBroker(argv[2], pid);
             Require(SUCCEEDED(provider->Scan(&clean, &result)) && result == AMSI_RESULT_NOT_DETECTED, "clean buffer no match");
             Stream marker("SENTINELAV_DEMO_THREAT_7C23A"); marker.chunk = 3;
             Require(SUCCEEDED(provider->Scan(&marker, &result)) && result == AMSI_RESULT_DETECTED, "real YARA marker through broker");
+            Stream addressMarker("SENTINELAV_DEMO_THREAT_7C23A"); addressMarker.addressOnly = true;
+            Require(SUCCEEDED(provider->Scan(&addressMarker, &result)) && result == AMSI_RESULT_DETECTED, "Windows-style address-only stream");
             Stream hash("SentinelAV native broker exact hash fixture");
             Require(SUCCEEDED(provider->Scan(&hash, &result)) && result == AMSI_RESULT_DETECTED, "real exact hash through broker");
             Stream empty("");

@@ -1,3 +1,7 @@
+# Purpose: Scheduling preference UI test; Windows persistence is mocked, never enabled.
+# Works with: paths, platform.runtime, ui.application, ui.design
+# Used by: unittest discovery
+
 """Scheduling preference UI test; Windows persistence is mocked, never enabled."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os

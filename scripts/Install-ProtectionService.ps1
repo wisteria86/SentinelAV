@@ -1,4 +1,8 @@
-param([Parameter(Mandatory=$true)][string[]]$WatchFolders,[string]$PackageRoot=(Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\dist\SentinelAV'))
+# Purpose: Install the least-privilege protection service with protected code and policy.
+# Works with: the matching src/sentinelav subsystem; related scripts in scripts
+# Used by: the CLI, desktop launcher, or packaging workflow
+
+param([Parameter(Mandatory=$true)][string[]]$WatchFolders,[string]$PackageRoot='F:\SentinelAV-Work\builds\dist\SentinelAV',[switch]$TrackAppChanges)
 $ErrorActionPreference='Stop'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 $principal=[Security.Principal.WindowsPrincipal]::new($identity)
@@ -15,7 +19,7 @@ foreach ($folder in $WatchFolders) {
 }
 # Refuse linked deployment ancestors. No recursive deletion or replacement.
 foreach ($parent in @($env:ProgramFiles,$env:ProgramData)) {
-    $entry=Get-Item -LiteralPath $parent
+    $entry=Get-Item -LiteralPath $parent -Force
     while ($null -ne $entry) {
         if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Linked deployment path rejected' }
         $entry=$entry.Parent
@@ -24,16 +28,16 @@ foreach ($parent in @($env:ProgramFiles,$env:ProgramData)) {
 New-Item -ItemType Directory -Path $destination,$configuration | Out-Null
 & icacls.exe $destination '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)RX' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Code ACL configuration failed' }
-& icacls.exe $configuration '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)RX' ($identity.User.Value+':(OI)(CI)R') | Out-Null
+& icacls.exe $configuration '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)RX' ('*'+$identity.User.Value+':(OI)(CI)R') | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Policy ACL configuration failed' }
 Copy-Item -Path (Join-Path $PackageRoot '*') -Destination $destination -Recurse
 & icacls.exe (Join-Path $destination '*') '/reset' '/T' '/C' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Inherited code ACL reset failed' }
 $data=Join-Path $configuration 'data'
 New-Item -ItemType Directory -Path $data | Out-Null
-& icacls.exe $data '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)M' ($identity.User.Value+':(OI)(CI)R') | Out-Null
+& icacls.exe $data '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)M' ('*'+$identity.User.Value+':(OI)(CI)R') | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Service data ACL configuration failed' }
-@{folders=$WatchFolders;owner_sid=$identity.User.Value;amsi_broker=$false} | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $configuration 'policy.json') -Encoding utf8
+@{folders=$WatchFolders;owner_sid=$identity.User.Value;amsi_broker=$false;watch_app_changes=[bool]$TrackAppChanges} | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $configuration 'policy.json') -Encoding utf8
 $hashes=[ordered]@{}
 Get-ChildItem -LiteralPath $destination -File -Recurse | ForEach-Object {
     $relative=$_.FullName.Substring($destination.Length+1)

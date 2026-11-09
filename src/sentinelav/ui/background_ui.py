@@ -1,3 +1,7 @@
+# Purpose: Qt adapter for the optional independent, current-user engine.
+# Works with: monitoring.background
+# Used by: ui.protection, tests.unit.test_background
+
 """Qt adapter for the optional independent, current-user engine."""
 import threading
 import time

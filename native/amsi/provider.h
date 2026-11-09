@@ -1,3 +1,7 @@
+// Purpose: Declare AMSI provider interfaces and shared native registration contracts.
+// Works with: provider.cpp; harness.cpp; probe.cpp
+// Used by: the matching native executable or library entry point
+
 #pragma once
 #include <windows.h>
 #include <amsi.h>

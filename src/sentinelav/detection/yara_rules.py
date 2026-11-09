@@ -1,3 +1,8 @@
+# Purpose: Bounded YARA source loading with a pinned provenance catalog.
+# Works with: sibling modules in detection
+# Used by: detection.engine, detection.memory_inspection, tests.unit.test_defense_layers,
+#   tests.unit.test_yara_rules
+
 """Bounded YARA source loading with a pinned provenance catalog.
 
 Source hashes provide local consistency, not tamper resistance or proof of

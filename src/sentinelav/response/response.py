@@ -1,3 +1,8 @@
+# Purpose: Windows response operations: user-scoped encrypted storage and verified identities.
+# Works with: detection.inspection, paths, response.containment, response.response_files
+# Used by: data.change_journal, entrypoint, lab.qualification.disk_pressure,
+#   lab.qualification.evaluation_environment
+
 """Windows response operations: user-scoped encrypted storage and verified identities."""
 from sentinelav.paths import PROJECT_ROOT
 import csv
@@ -15,103 +20,7 @@ import psutil
 from sentinelav.detection.inspection import IsolatedScanner as Scanner
 
 
-def digest(data):
-    return hashlib.sha256(data).hexdigest()
-
-
-def checked_path(path):
-    original = Path(path).absolute()
-    for part in [original,*original.parents]:
-        if part.is_symlink() or part.is_junction():
-            raise ValueError('Linked paths are not permitted for response actions')
-    resolved = original.resolve()
-    protected = [Path(os.environ[k]).resolve() for k in ['WINDIR','ProgramFiles','ProgramFiles(x86)'] if os.environ.get(k)]
-    protected += [PROJECT_ROOT.resolve(),Path(sys.executable).parent.resolve()]
-    if any(resolved==p or p in resolved.parents for p in protected):
-        raise ValueError('Response actions on Windows, installed application, or SentinelAV files are blocked')
-    if ':' in str(resolved)[2:]:
-        raise ValueError('Alternate data streams are not supported')
-    return resolved
-
-
-class Blob(ctypes.Structure):
-    _fields_ = [('size',wintypes.DWORD),('data',ctypes.POINTER(ctypes.c_ubyte))]
-
-
-def dpapi(data, decrypt=False):
-    if os.name != 'nt':
-        raise RuntimeError('Protected quarantine requires Windows DPAPI')
-    crypt = ctypes.WinDLL('crypt32',use_last_error=True)
-    kernel = ctypes.WinDLL('kernel32',use_last_error=True)
-    buffer = ctypes.create_string_buffer(data)
-    source = Blob(len(data),ctypes.cast(buffer,ctypes.POINTER(ctypes.c_ubyte)))
-    output = Blob()
-    if decrypt:
-        function = crypt.CryptUnprotectData
-        function.argtypes = [ctypes.POINTER(Blob),ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p,wintypes.DWORD,ctypes.POINTER(Blob)]
-        args = (ctypes.byref(source),None,None,None,None,1,ctypes.byref(output))
-    else:
-        function = crypt.CryptProtectData
-        function.argtypes = [ctypes.POINTER(Blob),wintypes.LPCWSTR,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p,wintypes.DWORD,ctypes.POINTER(Blob)]
-        args = (ctypes.byref(source),'SentinelAV quarantine',None,None,None,1,ctypes.byref(output))
-    function.restype = wintypes.BOOL
-    if not function(*args):
-        raise ctypes.WinError(ctypes.get_last_error())
-    try:
-        return ctypes.string_at(output.data,output.size)
-    finally:
-        kernel.LocalFree.argtypes = [ctypes.c_void_p]
-        kernel.LocalFree(output.data)
-
-
-def locked_file(path,create=False):
-    """Hold a Windows exclusive handle that can delete only this exact file object."""
-    import msvcrt
-    kernel = ctypes.WinDLL('kernel32',use_last_error=True)
-    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
-    kernel.CreateFileW.restype = wintypes.HANDLE
-    access=0x80000000|(0x40000000 if create else 0x10000)
-    handle = kernel.CreateFileW(str(path),access,0,None,1 if create else 3,0x00200000,None)
-    if handle == ctypes.c_void_p(-1).value:
-        raise ctypes.WinError(ctypes.get_last_error())
-    try:
-        fd = msvcrt.open_osfhandle(handle,(os.O_RDWR if create else os.O_RDONLY)|os.O_BINARY)
-    except Exception:
-        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-        kernel.CloseHandle(handle)
-        raise
-    return os.fdopen(fd,'w+b' if create else 'rb')
-
-
-def delete_locked(stream):
-    import msvcrt
-    class Disposition(ctypes.Structure):
-        _fields_ = [('delete',ctypes.c_ubyte)]
-    kernel = ctypes.WinDLL('kernel32',use_last_error=True)
-    kernel.SetFileInformationByHandle.argtypes = [wintypes.HANDLE,ctypes.c_int,ctypes.c_void_p,wintypes.DWORD]
-    kernel.SetFileInformationByHandle.restype = wintypes.BOOL
-    flag = Disposition(1)
-    if not kernel.SetFileInformationByHandle(msvcrt.get_osfhandle(stream.fileno()),4,ctypes.byref(flag),ctypes.sizeof(flag)):
-        raise ctypes.WinError(ctypes.get_last_error())
-
-
-def is_critical_process(pid):
-    kernel = ctypes.WinDLL('kernel32',use_last_error=True)
-    kernel.OpenProcess.argtypes = [wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
-    kernel.OpenProcess.restype = wintypes.HANDLE
-    handle = kernel.OpenProcess(0x1000,False,pid)
-    if not handle:
-        raise ctypes.WinError(ctypes.get_last_error())
-    try:
-        critical = wintypes.BOOL()
-        kernel.IsProcessCritical.argtypes = [wintypes.HANDLE,ctypes.POINTER(wintypes.BOOL)]
-        kernel.IsProcessCritical.restype = wintypes.BOOL
-        if not kernel.IsProcessCritical(handle,ctypes.byref(critical)):
-            raise ctypes.WinError(ctypes.get_last_error())
-        return bool(critical.value)
-    finally:
-        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-        kernel.CloseHandle(handle)
+from .response_files import digest, checked_path, Blob, dpapi, locked_file, delete_locked, is_critical_process
 
 
 class ResponseService:
@@ -122,6 +31,17 @@ class ResponseService:
     def audit(self,kind,details,level='Info',**extra):
         self.store.save_event(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'),kind=kind,
                                    details=details,source='Response',level=level,**extra))
+
+    def plan_process_tree(self,pid,creation):
+        from sentinelav.response.containment import plan_tree
+        plan=plan_tree(pid,creation)
+        self.audit('Process-tree plan created',f"PID {pid}; {len(plan['processes'])} eligible processes")
+        return dict(state='Plan ready',process_tree_plan=plan)
+
+    def respond_process_tree(self,plan,approved_hashes):
+        from sentinelav.response.containment import execute_plan
+        result=execute_plan(self,plan,approved_hashes)
+        return dict(state='Completed' if result['complete'] else 'Partial — review per-process results',process_tree_result=result)
 
     def secure_vault(self):
         if self.vault.is_symlink() or self.vault.is_junction():
@@ -141,11 +61,13 @@ class ResponseService:
         path = checked_path(detection['path'])
         if not path.is_file():
             raise ValueError('Detected file no longer exists')
-        scanner = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[]))
+        scanner = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[]),options=self.store.get('inspection_options',{}))
         result = scanner.scan([path],lambda:False,lambda *args:None)
         verified = next((d for d in result['detections'] if d['sha256']==detection['sha256']),None)
         if verified is None:
             raise ValueError('File changed, is excluded, or no longer matches a signature/rule; scan it again')
+        if detection.get('fusion_policy_id') and (not verified.get('automatic_response_eligible') or verified.get('fusion_policy_id')!=detection['fusion_policy_id']):
+            raise ValueError('Calibrated response policy no longer verifies; action requires renewed review')
         self.secure_vault()
         record = dict(id=uuid.uuid4().hex,original=str(path),sha256=detection['sha256'],
                       reasons=verified['reasons'],date=time.strftime('%Y-%m-%d %H:%M:%S'),state='Preparing')
@@ -250,7 +172,7 @@ class ResponseService:
         if pid in (0,4,os.getpid(),os.getppid()):
             raise ValueError('System, SentinelAV, and parent processes cannot be terminated')
         path = checked_path(detection['path'])
-        result = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[])).scan([path],lambda:False,lambda *args:None)
+        result = Scanner(self.root/'signatures.json',self.root/'rules',self.store.get('max_mb',100),self.store.get('exclusions',[]),self.store.get('trusted_hashes',[]),options=self.store.get('inspection_options',{})).scan([path],lambda:False,lambda *args:None)
         if not any(d['sha256']==detection['sha256'] for d in result['detections']):
             raise ValueError('Fresh signature detection is required; behavior alone is insufficient')
         process = psutil.Process(pid)

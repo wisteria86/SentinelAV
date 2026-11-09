@@ -1,3 +1,7 @@
+# Purpose: Download MalwareBazaar's recent hash CSV only; never fetch sample files.
+# Works with: paths, updates.definition_updates
+# Used by: tests.unit.test_hash_download
+
 """Download MalwareBazaar's recent hash CSV only; never fetch sample files."""
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import csv

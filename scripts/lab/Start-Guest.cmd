@@ -1,3 +1,7 @@
+@rem Purpose: Run the Start Guest Windows workflow from the project scripts.
+@rem Works with: app.py, src/sentinelav, and the matching build or lab scripts
+@rem Used by: the CLI, desktop launcher, or packaging workflow
+
 @echo off
 title SentinelAV - Disposable Development Lab
 echo SentinelAV disposable test environment - harmless checks only

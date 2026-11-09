@@ -1,10 +1,13 @@
+# Purpose: Daily scheduling, opt-in startup, and human-readable exports.
+# Works with: data.reporting, platform.runtime
+# Used by: ui.application
+
 """Daily scheduling, opt-in startup, and human-readable exports."""
 from pathlib import Path
-from datetime import datetime
 from PySide6.QtCore import QTimer,QTime,QThread,Signal
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLabel,QCheckBox,
     QTimeEdit,QComboBox,QLineEdit,QFileDialog,QTabWidget,QMessageBox)
-from sentinelav.platform.runtime import VERSION,ZONE,next_daily,due,set_startup,startup_enabled,register_schedule
+from sentinelav.platform.runtime import VERSION, next_daily, due, set_startup, startup_enabled, register_schedule
 from sentinelav.data.reporting import snapshot,render_report
 
 

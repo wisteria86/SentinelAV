@@ -1,3 +1,7 @@
+# Purpose: Definition maintenance in the existing Settings UI; file work stays off Qt UI.
+# Works with: ui.application, updates.definition_updates, updates.hash_archive
+# Used by: ui.application
+
 """Definition maintenance in the existing Settings UI; file work stays off Qt UI."""
 from pathlib import Path
 import threading

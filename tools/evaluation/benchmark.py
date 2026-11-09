@@ -1,3 +1,7 @@
+# Purpose: Repeatable harmless throughput and idle monitoring measurements.
+# Works with: detection.engine, monitoring.monitoring, paths
+# Used by: the Python module loader or CLI entry point
+
 """Repeatable harmless throughput and idle monitoring measurements."""
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import json

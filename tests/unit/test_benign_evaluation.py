@@ -1,3 +1,7 @@
+# Purpose: Verify test benign evaluation behavior using controlled fixtures.
+# Works with: tools.evaluation.evaluate_benign
+# Used by: unittest discovery
+
 import hashlib
 import json
 from pathlib import Path

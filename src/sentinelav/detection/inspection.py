@@ -1,7 +1,13 @@
+# Purpose: Manage isolated scan workers and their bounded JSON exchanges.
+# Works with: detection.buffer_scan, detection.inspection_protocol, detection.inspection_worker,
+#   detection.worker_limits, paths
+# Used by: entrypoint, lab.advanced_check, lab.corpus_evaluation, lab.qualification.corpus_inputs
+
 """JSON-only scan worker with Windows job limits and bounded transport.
 
 Fault/resource isolation, not a VM or an AppContainer security sandbox.
 """
+from .inspection_protocol import MAX_LINE,MAX_REQUEST
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import ctypes
 import base64
@@ -15,44 +21,9 @@ import sys
 import threading
 import time
 
-MAX_LINE=4*1024*1024
-MAX_REQUEST=2*1024*1024
 
-
-class WindowsJob:
-    def __init__(self,process,memory=768*1024*1024):
-        self.handle=None
-        if os.name!='nt': return
-        class Basic(ctypes.Structure):
-            _fields_=[('process_time',ctypes.c_longlong),('job_time',ctypes.c_longlong),('flags',wintypes.DWORD),
-                ('minimum_ws',ctypes.c_size_t),('maximum_ws',ctypes.c_size_t),('processes',wintypes.DWORD),
-                ('affinity',ctypes.c_size_t),('priority',wintypes.DWORD),('scheduling',wintypes.DWORD)]
-        class IO(ctypes.Structure):
-            _fields_=[(name,ctypes.c_ulonglong) for name in ('read_ops','write_ops','other_ops','read_bytes','write_bytes','other_bytes')]
-        class Extended(ctypes.Structure):
-            _fields_=[('basic',Basic),('io',IO),('process_memory',ctypes.c_size_t),('job_memory',ctypes.c_size_t),
-                      ('peak_process_memory',ctypes.c_size_t),('peak_job_memory',ctypes.c_size_t)]
-        self.kernel=ctypes.WinDLL('kernel32',use_last_error=True)
-        self.kernel.CreateJobObjectW.argtypes=[ctypes.c_void_p,wintypes.LPCWSTR]
-        self.kernel.CreateJobObjectW.restype=wintypes.HANDLE
-        self.kernel.SetInformationJobObject.argtypes=[wintypes.HANDLE,ctypes.c_int,ctypes.c_void_p,wintypes.DWORD]
-        self.kernel.AssignProcessToJobObject.argtypes=[wintypes.HANDLE,wintypes.HANDLE]
-        self.kernel.CloseHandle.argtypes=[wintypes.HANDLE]
-        handle=self.kernel.CreateJobObjectW(None,None)
-        if not handle: raise ctypes.WinError(ctypes.get_last_error())
-        info=Extended()
-        info.basic.flags=0x2000|0x100|0x200|0x8
-        info.basic.processes=2  # Windows venv redirector plus its interpreter.
-        info.process_memory=info.job_memory=memory
-        if not self.kernel.SetInformationJobObject(handle,9,ctypes.byref(info),ctypes.sizeof(info)) or not self.kernel.AssignProcessToJobObject(handle,wintypes.HANDLE(int(process._handle))):
-            self.kernel.CloseHandle(handle)
-            raise RuntimeError('Cannot enforce scan-worker job limits')
-        self.handle=handle
-
-    def close(self):
-        if self.handle:
-            self.kernel.CloseHandle(self.handle)
-            self.handle=None
+from .worker_limits import WindowsJob
+from .inspection_worker import worker_main
 
 
 class IndexInfo:
@@ -78,13 +49,18 @@ class IsolatedScanner:
         environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE')}
         environment['PYTHONIOENCODING']='utf-8'
         environment['QT_QPA_PLATFORM']='offscreen'
+        # Native model loaders can initialize OpenMP/BLAS pools before predict's
+        # per-call limit takes effect. Bound those pools at process startup so
+        # their thread stacks cannot consume the emulator's 1 GiB job budget.
+        for variable in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):
+            environment[variable]='2'
         self.messages=queue.Queue(maxsize=16)
         self.error=''
         self.process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
                                       cwd=str(RESOURCE_ROOT),env=environment,
                                       creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
         try:
-            self.job=WindowsJob(self.process)
+            self.job=WindowsJob(self.process,memory=1024*1024*1024 if any(self.config.get('options',{}).get(k) for k in ('emulation','model','neural')) else 768*1024*1024)
             process=self.process
             messages=self.messages
             errors=[]
@@ -147,7 +123,7 @@ class IsolatedScanner:
             try: reply=self.messages.get(timeout=.05)
             except queue.Empty:
                 if self.process.poll() is not None:
-                    if message['command']=='scan': return incomplete('Complete with omissions','Inspection worker exited; '+'; '.join(self.transport_errors))
+                    if message['command']=='scan': return incomplete('Complete with omissions','Inspection worker exited (code '+str(getattr(self.process,'returncode','unknown'))+'); '+'; '.join(self.transport_errors))
                     raise RuntimeError('Inspection worker exited; coverage is incomplete. '+'; '.join(self.transport_errors))
                 continue
             if not isinstance(reply,dict) or reply.get('protocol')!=1: raise ValueError('Invalid inspection response')
@@ -179,7 +155,16 @@ class IsolatedScanner:
 
     def scan(self,roots,cancelled,progress):
         timeout=30 if len(roots)==1 and Path(roots[0]).is_file() else 300
-        try: return self.exchange(dict(command='scan',roots=list(map(str,roots))),cancelled,progress,timeout)
+        if self.config.get('options',{}).get('emulation_profile')=='lab':timeout=max(timeout,60)
+        restarted=False
+        try:
+            if self.keep_alive and not cancelled() and (self.process is None or self.process.poll() is not None):
+                self.close()
+                self.start()
+                restarted=True
+            result=self.exchange(dict(command='scan',roots=list(map(str,roots))),cancelled,progress,timeout)
+            if restarted: result['worker_restarted']=True
+            return result
         finally:
             if not self.keep_alive: self.close()
 
@@ -215,73 +200,3 @@ class IsolatedScanner:
 
     def __del__(self):
         if getattr(self,'process',None) is not None: self.close()
-
-
-def worker_main():
-    from sentinelav.detection.engine import Scanner
-    scanner=None
-    input_stream=getattr(sys.stdin,'buffer',None)
-    output_stream=getattr(sys.stdout,'buffer',None)
-    if (input_stream is None or output_stream is None) and os.name=='nt':
-        import msvcrt
-        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
-        kernel.GetStdHandle.argtypes=[wintypes.DWORD]
-        kernel.GetStdHandle.restype=wintypes.HANDLE
-        if input_stream is None:
-            input_stream=os.fdopen(msvcrt.open_osfhandle(int(kernel.GetStdHandle(wintypes.DWORD(-10))),os.O_RDONLY|os.O_BINARY),'rb')
-        if output_stream is None:
-            output_stream=os.fdopen(msvcrt.open_osfhandle(int(kernel.GetStdHandle(wintypes.DWORD(-11))),os.O_WRONLY|os.O_BINARY),'wb')
-    def send(kind,**fields):
-        data=json.dumps(dict(protocol=1,type=kind,**fields)).encode()+b'\n'
-        if len(data)>MAX_LINE: data=json.dumps(dict(protocol=1,type='error',error='Inspection result exceeded limit; coverage is incomplete')).encode()+b'\n'
-        output_stream.write(data)
-        output_stream.flush()
-    try:
-        while True:
-            raw=input_stream.readline(MAX_REQUEST+1)
-            if not raw: break
-            try:
-                if len(raw)>MAX_REQUEST or not raw.endswith(b'\n'): raise ValueError('Invalid request framing')
-                request=json.loads(raw)
-                if not isinstance(request,dict) or request.get('protocol')!=1: raise ValueError('Invalid inspection protocol')
-                command=request.get('command')
-                if command!='buffer' and len(raw)>128*1024: raise ValueError('Request exceeds command limit')
-                if command=='initialize' and scanner is None:
-                    config=request['config']
-                    if (not isinstance(config,dict) or set(config)!={'signatures','rules','max_mb','exclusions','trusted_hashes','options'}
-                            or type(config['max_mb']) is not int or not 1<=config['max_mb']<=1024
-                            or not isinstance(config['exclusions'],list) or len(config['exclusions'])>1024
-                            or not isinstance(config['trusted_hashes'],list) or len(config['trusted_hashes'])>10000):
-                        raise ValueError('Invalid worker configuration')
-                    scanner=Scanner(config['signatures'],config['rules'],config['max_mb'],config['exclusions'],config['trusted_hashes'],config['options'])
-                    scanner.early_finding=lambda finding:send('finding',finding=finding)
-                    result=dict(signature_count=len(scanner.signatures),signature_metadata=scanner.signatures.metadata,yara=scanner.rule_summary,warnings=scanner.warnings)
-                elif command=='scan' and scanner is not None:
-                    roots=request.get('roots')
-                    if not isinstance(roots,list) or not 1<=len(roots)<=10000 or any(not isinstance(p,str) or len(p)>32768 or not Path(p).is_absolute() for p in roots):
-                        raise ValueError('Invalid scan paths')
-                    last=[0.]
-                    sent=[0]
-                    def progress(path,scanned,threats):
-                        detections=scanner.current_scan_result['detections']
-                        for finding in detections[sent[0]:]: send('finding',finding=finding)
-                        sent[0]=len(detections)
-                        if time.monotonic()-last[0]>.1:
-                            send('progress',path=path,scanned=scanned,threats=threats)
-                            last[0]=time.monotonic()
-                    result=scanner.scan(roots,lambda:False,progress)
-                elif command=='buffer' and scanner is not None:
-                    from sentinelav.detection.buffer_scan import inspect_buffer,MAX_BUFFER
-                    encoded=request.get('content')
-                    if set(request)!={'protocol','command','content'} or not isinstance(encoded,str) or len(encoded)>4*((MAX_BUFFER+2)//3):
-                        raise ValueError('Invalid buffer request')
-                    result=inspect_buffer(scanner,base64.b64decode(encoded,validate=True))
-                elif command=='memory' and scanner is not None:
-                    from sentinelav.detection.memory_inspection import inspect_memory
-                    result=inspect_memory(request['pid'],request['creation'],scanner.analyze_bytes)
-                else: raise ValueError('Unsupported worker request')
-                send('result',result=result)
-            except Exception as error: send('error',error=str(error)[:2000])
-    finally:
-        if scanner is not None: scanner.signatures.close()
-    return 0

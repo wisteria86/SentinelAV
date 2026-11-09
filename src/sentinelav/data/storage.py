@@ -1,3 +1,7 @@
+# Purpose: Persist settings, scan history, protection events, quarantine records, and audits in SQLite.
+# Works with: UI controllers; monitoring/background.py; response/response.py
+# Used by: lab.qualification.disk_pressure, lab.qualification.guest_inventory,
+
 import json
 import sqlite3
 from pathlib import Path
@@ -8,11 +12,16 @@ class Store:
         self.path = Path(path).resolve()
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
+        version=self.db.execute('PRAGMA user_version').fetchone()[0]
+        if version>1:
+            self.db.close()
+            raise ValueError('This history database requires a newer SentinelAV version')
         self.db.execute('CREATE TABLE IF NOT EXISTS scans (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS quarantine (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS lab_runs (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+        self.db.execute('PRAGMA user_version=1')
         self.db.commit()
         self._cache={}
         self._version=None

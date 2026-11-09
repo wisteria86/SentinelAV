@@ -1,3 +1,7 @@
+# Purpose: Defense controls and approved-hash response using harmless owned fixtures.
+# Works with: paths, response.response, ui.application, ui.design
+# Used by: unittest discovery
+
 """Defense controls and approved-hash response using harmless owned fixtures."""
 from sentinelav.paths import RESOURCE_ROOT, SCREENSHOTS_DIR
 import os

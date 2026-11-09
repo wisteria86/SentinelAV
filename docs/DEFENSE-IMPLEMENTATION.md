@@ -8,7 +8,7 @@ VM, and live-malware evaluation remain deferred at the user's request.
 | --- | --- | --- |
 | Windows service / secure GUI relationship | SCM service host, LocalService-only guard, protected-path/ACL checks, integrity manifest, admin deployment script, recovery configuration, read-only SCM/heartbeat/recent-alert UI | Not installed or started on this PC. Actual LocalService deployment and lifecycle require administrator approval and folder-access review. GUI source/per-user mode remains separate; it cannot reconfigure the service. |
 | Event-driven process telemetry | Temporary Win32_ProcessStartTrace WMI subscription, bounded queues, ancestry capture, polling reconciliation and explicit gaps | Current account returned Access denied in the probe; polling fallback remains. Rights/configuration must be reviewed for the deployment account. No permanent WMI subscription or Windows audit-policy changes are made. |
-| AMSI | Opt-in consumer calls for directly scanned script files through installed Windows providers | An x64 native COM provider and guarded LocalService byte-scanning broker are implemented and tested with a local inert harness. Neither is deployed as active protection. Signing, registration/removal, actual LocalService and real-host/VM validation remain. See AMSI-PROVIDER.md. No Windows signing checks are weakened. |
+| AMSI | Opt-in consumer calls for directly scanned script files through installed Windows providers | The x64 provider, real LocalService broker, registration/removal, reset and rollback were validated in Windows Sandbox with a self-signed DLL and harmless real PowerShell/API probes. No host deployment is active. Broader policy/OS coverage, x86 and active Defender coexistence remain. See GUEST-AMSI-VALIDATION.md. No Windows signing checks are weakened. |
 | Pre-execution | Read-only file check with explicit Block/Indeterminate/Not-approved decisions; checks file identity; never launches the file | No system-wide launch interception or enforcement. A caller must enforce a verdict and handle later races. A reviewed native minifilter or carefully deployed OS application-control integration is needed. |
 | Archives / formats | ZIP inspection in memory, including prepended ZIPs; bounded PE-header metadata | ZIP depth 2, 128 entries, 8 MiB/member, 32 MiB total expansion, ratio 100:1 and wall-clock bounds. No disk extraction. Encrypted, oversized, unsafe, unsupported or timed-out members are omissions. No general executable unpacker, OLE parser, or complete document engine. |
 | Memory / runtime | Isolated, read-only same-account executable-region inspection; two source-attributed memory candidate rules; no raw-memory saving | 32 MiB total, 128 regions, 1 MiB/region and time/traversal limits. Not a full memory scan; candidates require review. No injection, process modification, SeDebugPrivilege enabling, or protected-process bypass. |
@@ -72,9 +72,9 @@ GUI settings do not silently become privileged service policy.
 Service status exposes a heartbeat and ten bounded recent warning/alert
 summaries to the designated installer account. Full service events remain in
 its protected SQLite store. Service definitions/publisher configuration are
-admin-controlled and separate from per-user updates. Service deployment has
-been checked with simulated SCM callbacks, not activated on this PC. Do not
-interpret source/fixture checks as an actual deployed-service certification.
+admin-controlled and separate from per-user updates. Service deployment passed real LocalService checks inside the disposable guest;
+there is no host service deployment. See GUEST-AMSI-VALIDATION.md for exact scope.
+This is not production service certification.
 
 ## Verification performed
 
@@ -86,7 +86,7 @@ no raw bytes saved. A harmless AMSI buffer returned a platform no-detection
 result; this does not prove a SentinelAV provider exists. The WMI probe returned
 Access denied and verified the need for the visible polling fallback.
 
-No service installation, watch-folder permission change, kernel driver,
-AMSI-provider registration, disabled security check, VM, or live malware test
-was performed. Broader detection/evasion and false-positive evaluation remain
+No host service installation, host watch-folder permission change, kernel driver,
+host AMSI registration, disabled security check or live malware test was performed.
+Disposable-guest service/provider tests are recorded separately. Broader detection/evasion and false-positive evaluation remain
 unmeasured.

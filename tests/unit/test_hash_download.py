@@ -1,3 +1,7 @@
+# Purpose: Verify test hash download behavior using controlled fixtures.
+# Works with: tools.feeds.download_hashes
+# Used by: unittest discovery
+
 import json
 from pathlib import Path
 import tempfile

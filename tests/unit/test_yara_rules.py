@@ -1,3 +1,7 @@
+# Purpose: Verify test yara rules behavior using controlled fixtures.
+# Works with: detection.engine, detection.yara_rules, paths
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import hashlib
 import json
@@ -5,6 +9,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+import struct
 from unittest.mock import Mock
 from sentinelav.detection.engine import Scanner
 from sentinelav.detection.yara_rules import compile_rules,RuleValidationError
@@ -13,16 +18,33 @@ ROOT=RESOURCE_ROOT
 
 
 class YaraRuleTests(unittest.TestCase):
+    def test_vmzeus_candidate_requires_header_gates_and_retains_attribution(self):
+        rules,_,metadata=compile_rules(ROOT/'rules')
+        # Inert instruction bytes with a deliberately incomplete file header;
+        # this fixture is not an executable and is never launched.
+        data=bytearray(512)
+        fragment=bytes.fromhex('75086a0458e90000000032c06a4c8d7c242c59f3aa')
+        data[256:256+len(fragment)]=fragment
+        self.assertFalse(any(m.rule=='win_vmzeus_auto' for m in rules.match(data=bytes(data))))
+        data[:2]=b'MZ'
+        self.assertFalse(any(m.rule=='win_vmzeus_auto' for m in rules.match(data=bytes(data))))
+        struct.pack_into('<I',data,0x3c,128)
+        data[128:132]=b'PE\0\0'
+        self.assertTrue(any(m.rule=='win_vmzeus_auto' for m in rules.match(data=bytes(data))))
+        item=metadata['malpedia_vmzeus']
+        self.assertEqual(item['license'],'CC-BY-SA-4.0')
+        self.assertIn('gates added',item['changes'])
+
     def test_managed_subset_compiles_with_pinned_license_and_expected_counts(self):
         _,summary,metadata=compile_rules(ROOT/'rules')
-        self.assertEqual(summary['research_rules'],10)
+        self.assertEqual(summary['research_rules'],15)
         self.assertEqual(summary['private_helpers'],2)
         self.assertEqual(summary['demo_rules'],1)
         self.assertEqual(summary['warnings'],[])
         self.assertEqual(summary['local_rules'],0)
         for item in metadata.values():
             if not item.get('demo'):
-                self.assertEqual(item['license'],'BSD-2-Clause')
+                self.assertIn(item['license'],('BSD-2-Clause','MIT','CC-BY-SA-4.0'))
                 self.assertEqual(len(item['source_revision']),40)
                 self.assertTrue((ROOT/'rules'/item['license_file']).is_file())
 

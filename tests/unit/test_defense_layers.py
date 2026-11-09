@@ -1,3 +1,8 @@
+# Purpose: Verify test defense layers behavior using controlled fixtures.
+# Works with: detection.archive_inspection, detection.engine, detection.inspection, detection.memory_inspection,
+#   detection.preexecution
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import hashlib
 import io
@@ -155,6 +160,26 @@ class IsolatedWorkerTests(unittest.TestCase):
     def test_memory_rejects_system_pid_before_reading(self):
         from sentinelav.detection.memory_inspection import inspect_memory
         with self.assertRaises(ValueError): inspect_memory(4,1,lambda data:([],[],[]))
+
+    def test_persistent_worker_recovers_after_exit_and_closed_timeout_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            target=Path(temp)/'inert-marker.txt'
+            target.write_text('SENTINELAV_DEMO_THREAT_7C23A')
+            scanner=IsolatedScanner(ROOT/'signatures.json',ROOT/'rules',persistent=True)
+            try:
+                for failure in ('exit','closed'):
+                    with self.subTest(failure=failure):
+                        previous=scanner.process
+                        if failure=='exit':
+                            previous.kill()
+                            previous.wait(timeout=5)
+                        else: scanner.close()
+                        result=scanner.scan([target],lambda:False,lambda *args:None)
+                        self.assertEqual(result['status'],'Complete')
+                        self.assertTrue(result['detections'])
+                        self.assertTrue(result['worker_restarted'])
+                        self.assertIsNot(scanner.process,previous)
+            finally: scanner.close()
 
 
 if __name__=='__main__': unittest.main()

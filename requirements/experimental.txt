@@ -1,0 +1,3 @@
+# Optional CPU emulation backend. Not installed or executed automatically.
+unicorn>=2.1,<3
+oletools>=0.60,<1

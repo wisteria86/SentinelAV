@@ -1,3 +1,7 @@
+# Purpose: Definition UI regressions with tiny harmless hash-only fixture feeds.
+# Works with: paths, ui.application, ui.design, updates.definition_updates, updates.hash_archive
+# Used by: unittest discovery
+
 """Definition UI regressions with tiny harmless hash-only fixture feeds."""
 from sentinelav.paths import SCREENSHOTS_DIR
 import os

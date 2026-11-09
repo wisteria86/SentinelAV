@@ -1,3 +1,7 @@
+# Purpose: YARA status/provenance UI check using copied text rules only.
+# Works with: paths, ui.application, ui.design
+# Used by: unittest discovery
+
 """YARA status/provenance UI check using copied text rules only."""
 from sentinelav.paths import RESOURCE_ROOT, SCREENSHOTS_DIR
 import os
@@ -41,9 +45,9 @@ with tempfile.TemporaryDirectory() as temp:
             tabs=window.stack.widget(5).findChild(QTabWidget)
             tabs.setCurrentIndex(next(i for i in range(tabs.count()) if tabs.tabText(i)=='YARA Rules'))
             app.processEvents()
-            assert '10 research rules' in window.yara_health.text()
+            assert '15 research rules' in window.yara_health.text()
             assert '2 private helpers' in window.yara_health.text()
-            assert window.yara_table.rowCount()==5
+            assert window.yara_table.rowCount()==10
             assert all(f.get('source_revision') for f in window.yara_files)
             for width,height in [(960,600),(1440,900)]:
                 window.resize(width,height)

@@ -1,14 +1,27 @@
 # SentinelAV
 
-Windows desktop endpoint-protection research prototype, version 0.12.0.
+Windows desktop endpoint-protection research prototype, version 0.16.0.
 
 Repository: [wisteria86/SentinelAV](https://github.com/wisteria86/SentinelAV).
 
-Start here: [project map and reading order](docs/PROJECT-STRUCTURE.md).
+Start here: [module interaction diagrams](map.md).
+For the folder layout, see [project structure](docs/PROJECT-STRUCTURE.md).
+First-party code files are at most 250 lines and start with purpose/collaborator
+comments. Run `.\.venv\Scripts\python.exe tools/maintenance/check_structure.py`
+to check those conventions; `test.ps1` also runs the check.
 Browse the [documentation index](docs/README.md) for the other guides.
+See the [proposal audit](docs/PROPOSAL-AUDIT.md) for the current requirement map,
+validation evidence, and remaining effectiveness limits.
+The historical [first-iteration contract](docs/FIRST-ITERATION.md) records earlier
+user paths, dependencies and supported limits.
 For capabilities and unfinished protections, read [defense status](docs/DEFENSE-IMPLEMENTATION.md).
 
 ## Run
+
+For critical product evaluation, double-click **Run-SentinelAV-Tests.cmd**.
+Read the [evaluation guide](docs/CRITICAL-EVALUATION.md) for corpus approval,
+guest telemetry, dedicated VM enrollment, blocked qualification and report limits.
+Reports are written under `logs`; heavy lab material remains on F:.
 
 For a fresh checkout:
 
@@ -61,8 +74,9 @@ records describe this development machine, not a fresh clone.
 .\build.ps1 -Installer
 ```
 
-The packaged app is in `artifacts/dist/SentinelAV/`. Installers are in
-`artifacts/release/`. Run hash download from the project root with
+The packaged app is in `F:\SentinelAV-Work\builds\dist\SentinelAV\`. Installers are in
+`F:\SentinelAV-Work\builds\release\`. Tests use F: for temporary fixtures
+(`test.ps1 -TempRoot <absolute path>` overrides this explicitly). Run hash download from the project root with
 `.\scripts\Download-Hashes.ps1`, or use
 `.\.venv\Scripts\python.exe -m tools.feeds.download_hashes --help`.
 
@@ -71,3 +85,29 @@ See [the detailed feature guide](docs/FEATURES.md),
 [release notes](docs/RELEASE-NOTES.txt).
 
 Native AMSI development: [implementation and test commands](docs/AMSI-PROVIDER.md). The provider remains unregistered.
+
+Guest-only AMSI/service integration, reset, removal and rollback results:
+[validation guide](docs/GUEST-AMSI-VALIDATION.md). Host deployment remains inactive.
+## Zoo static evaluation
+
+Double-click **Run-SentinelAV-Quick-Zoo.cmd** for one offline Sandbox run using
+four pinned, cached Zoo specimens. It saves its own report under `logs` and
+ends after that batch. The first run after source changes may rebuild SentinelAV.
+
+Start the profile with `.\Run-SentinelAV-Tests.cmd --profile zoo-static`.
+The profile expects a local bare checkout of theZoo at `F:\SentinelAV-Work\datasets\theZoo.git`
+containing commit `48515e492013bc5bb2769249ea539436bb3e733f`. The harness reads that
+commit's pinned Git tree inventory, freezes it in the run manifest, and stages encrypted ZIP
+blobs in batches of four. It has no automatic download step.
+
+Each batch uses a fresh offline Windows Sandbox. The guest decodes members under inert
+generated names and invokes the inspection worker with all signature sources and emulation
+disabled. The report and JSONL ledger record the outcome for each inspected member.
+The scanner covers Windows PE and supported active content. Other formats, corrupt or
+unsupported archives, and inputs above the bounded archive or member limits are recorded
+separately. The current limits are 64 MiB per archive, 24 members per archive, and 64 MiB
+per member. If members cannot be enumerated within those limits, the ledger records the
+archive-level failure.
+
+Resume an interrupted run with `--profile zoo-static --resume "<run folder>"`.
+The queue preserves completed batches and restarts an interrupted batch in a fresh guest.

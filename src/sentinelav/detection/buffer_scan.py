@@ -1,3 +1,7 @@
+# Purpose: Bounded byte-only inspection. Never treats a content label as a file path.
+# Works with: sibling modules in detection
+# Used by: detection.inspection, detection.inspection_worker, platform.amsi_broker, tests.unit.test_amsi_buffers
+
 """Bounded byte-only inspection. Never treats a content label as a file path."""
 import hashlib
 

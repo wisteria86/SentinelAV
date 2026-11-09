@@ -1,4 +1,159 @@
-SentinelAV 0.12.0 - native AMSI development milestone
+SentinelAV 0.16.0 — critical product evaluation harness
+
+Added versioned case/evidence contracts, fail-closed statistical gates, durable
+queues, independent guest telemetry probes and ownership-bound Sandbox/Hyper-V
+adapters. Added approved-corpus interfaces, recurrence/deployment/recovery/soak
+tracks, paired performance workloads and redacted Markdown/JSON failure ledgers.
+Missing environments, datasets, unsupported sleep/resume and incomplete workload
+coverage remain qualification blockers. Host tests do not validate guest tracks.
+No automatic model activation, host security changes or uncontrolled downloads.
+
+SentinelAV 0.15.0 — installed learned malware classifiers
+
+Integrated signed published Win32/Win64/.NET/general-PE boosting experts and
+MalConv2 raw-byte neural inference. Both run locally, including without saved
+signatures, and produce review warnings. Bounded NumPy neural inference fits
+the existing worker budget and matches direct PyTorch equations numerically.
+Separate feature-holdout evaluation: .NET recall 89.15%, false positives 0.2%.
+These are not raw Zoo results or release-validated automatic-action models.
+
+SentinelAV 0.14.2 — strict signature-free evaluation preparation
+
+Added shared signature ablation, worker attestation, separate model candidate
+coverage, metadata-only readiness and deduplicated bounded corpus batches.
+Production detection readiness remains blocked by missing validated models and
+full pinned corpus inventory. No Zoo samples were acquired or tested here.
+
+SentinelAV 0.14.1 — serialized cleanup and complete crash receipts (2026-11-04)
+
+Added cross-process execution/recovery locks to local and protected journals.
+Recovery no longer treats active helpers as crashed, omits unattempted actions,
+or misses interrupted operations outside the visible history page. Recovered
+receipts require fresh review and never automatically replay side effects.
+
+SentinelAV 0.14.0 — protected machine history and reviewed UAC cleanup (2026-11-04)
+
+Added encrypted service history in App Changes, an independent one-shot UAC
+broker with protected plans and exact-target confirmation, and safeguards against
+client verdicts and demo signatures authorizing machine repair. Persistence-only
+response now reports remaining payloads. New native/lab build paths use F:;
+bounded opt-in cache retention preserves datasets, source and reports.
+Native offline Sandbox negative controls passed. Positive repair, interactive
+approval and detection efficacy remain separate release gates.
+
+Packaged emulator follow-up (2026-11-03)
+
+Resolved the tested Unicorn/CFG crash using compiler-visible setjmp and native
+unwind metadata for generated host frames. CFG and Windows mitigations remain
+enabled. All 159 unit tests, four frozen emulator regressions and the rebuilt
+application's core/advanced self-tests pass. Packaging includes an identity
+receipt, upstream licenses and corresponding modified source. This is a local
+prototype patch with bounded Windows semantics, not a malware efficacy result.
+See native/emulator/README.md. The old release installer remains unchanged.
+
+Earlier integration validation and repairs (2026-11-03)
+
+156 unit tests and all 11 Qt integration scripts passed. Native telemetry builds
+with zero warnings/errors; its noncollecting self-check passed. Fixed TLS return,
+dynamic Unicorn packaging, collector settings forwarding, process-tree ordering,
+Windows PowerShell reset environment, guest readiness and compact settings layout.
+Frozen core self-test and a harmless offline guest execution/disposal cycle passed.
+Packaged Unicorn emulation remains unavailable under CFG and is explicitly partial;
+mitigations were not disabled. No real malware, host deployment or efficacy claim.
+See VALIDATION-2026-11-03.md. The old installer remains unchanged.
+
+Historical unvalidated source implementation (2026-11-03)
+
+First-iteration integration connects derived-content signature detections to fresh
+response verification, independent optional analysis controls, per-user publisher
+pin management, signed payload validation/reloading, process-tree review UI,
+native collector selection, explicit hash-only App Control enforcement tooling,
+and prepare/start/runtime/reset guest controller paths. Old guest kits are rejected
+before execution; failed disposal blocks reuse. Documentation now distinguishes
+source controller dependencies from unsupported or unimplemented protection.
+No tests, builds, installs, scans or specimen executions were performed. Earlier
+passing test counts and existing installers do not apply. See FIRST-ITERATION.md.
+
+Continuation adds a bounded Win32 API emulator with ordinary/delay import
+dispatch, modeled TLS callback execution, virtual OS effects, modified page/file
+inspection, RTF/HTML extraction, attributed DNS reputation, recurring signed-data
+updates with UI configuration, native collector build/staging scripts, and a
+managed host audit-policy lifecycle. None of this continuation was executed,
+compiled, tested or deployed. Full Windows semantics and enforcement remain
+incomplete. See CODE-IMPLEMENTATION-STATUS.md for exact boundaries.
+
+User requested implementation without execution/testing. Adds shared evidence
+decisions, bounded content/Office analysis, supervised JSON classifier code,
+signed model/reputation publishing and activation, optional CPU emulation,
+guest-only runtime orchestration, expanded behavior sequences, native ETW
+collector source and integration, explicit process-tree response, ConfigCI audit
+export and guest deployment scripts, and shared service policy/UI wiring.
+No tests, builds, scans, training, installers or sample jobs were run. New analysis
+is experimental/opt-in; no models, feeds or trust keys were activated. Existing
+installers are unchanged. See CODE-IMPLEMENTATION-STATUS.md for substantial limits
+and code still required; this is not a completed production antivirus.
+
+Unreleased source update - PE capabilities and Sysmon sequences (2026-11-03)
+
+Adds bounded PE32/PE32+ import decoding and combined capability review, plus
+structured Sysmon XML ingestion and process-GUID-attributed ordered behavior
+correlation. Policy steps are stored in resources/behavior/sequence-policy.json.
+Review signals do not authorize automatic response. Live Sysmon coverage requires
+deployment/configuration; no Sysmon service or event channel was found on this PC.
+135 unit tests and ten Qt integration checks passed. A 500-file System32 scan
+had zero signature detections/errors and one structural capability review signal.
+See DEFENDER-GAP-ANALYSIS.md for the full method comparison and remaining gaps.
+Existing installer and frozen lab bundles remain unchanged.
+
+Unreleased source update - protection path audit (2026-11-03)
+
+Repairs persistent scan-worker recovery after exit/timeout closure. Recovery is
+logged and earlier incomplete files still require a rescan. Incomplete live
+inspections now display a degraded monitoring state. 123 unit tests and all ten
+Qt integration checks passed, including real owned-worker restart, quarantine,
+restore and overwrite refusal. A fresh 500-file System32 run found no signature
+detections or inspection errors (18.4954 seconds). Previous real-sample misses
+remain misses; no broader malware efficacy claim. See PROTECTION-AUDIT.md.
+Existing installer and frozen lab bundles are unchanged.
+
+Unreleased source/lab update - reviewed Zeus coverage
+
+Adds two explicitly local reviewed hash definitions with source/identity records,
+neutral database attribution for mixed-origin signatures, and two source-pinned
+Zeus/Gameover YARA candidates with retained CC-BY-SA notices and PE header gates.
+The active database has 1,164,912 hashes and the catalog has 15 research rules.
+Earlier misses are retained as historical results; curated files now detect by
+hash and are regression cases. Both unused original validation specimens were
+missed; broader variant coverage is not established. 110 unit tests and ten Qt
+UI checks passed. No samples were executed and the test guest was discarded.
+The release installer is unchanged; source and separate lab bundles are updated.
+
+Unreleased source/lab update - reviewed YARA expansion and static holdouts
+
+Adds three attributed, checksum-pinned YARA rules (13 research rules total),
+MIT and CC-BY-SA component notices, fixed holdout acquisition and guest-only
+static evaluation. All samples stay unexecuted. One regression gained a YARA
+match (WannaCry); ZeusVM and the Gameover holdout remained missed. No hashes
+were added to tune these results. See YARA-REVIEW.md for scope and evidence.
+110 unit tests and ten Qt UI checks passed. The 0.13 release installer remains
+the earlier build; this update is in source and a separate lab bundle.
+
+SentinelAV 0.13.0 - verified disposable-guest AMSI integration
+
+Verified Sandbox reset and real LocalService deployment. Adds guarded guest-only
+provider registration/removal, ownership markers, idempotent cleanup and rollback
+checks after service creation and registration. Self-signed x64 provider passed
+registered COM, Windows AMSI API, real PowerShell benign/block comparisons, four
+concurrent consumers and stopped-service failure/recovery under existing guest
+FeatureBits=1, without trust-store or signing-policy changes.
+Fixed native address-only AMSI streams using bounded checked self-process reads;
+invalid pointers remain errors. Demo fixture supports ASCII/UTF-16LE, not broad
+script-malware coverage. Fixed hidden ProgramData inspection and SID ACL format.
+Host service/provider remain undeployed. x86, active Defender coexistence,
+other Windows policies/versions, broad efficacy and live samples remain untested.
+See GUEST-AMSI-VALIDATION.md for evidence, commands and scope.
+
+Previous SentinelAV 0.12.0 - native AMSI development milestone
 
 Adds byte-only isolated hash/YARA scanning, an x64 native COM provider,
 service-PID-verified named-pipe client, and guarded LocalService broker.

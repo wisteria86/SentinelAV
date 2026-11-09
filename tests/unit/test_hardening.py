@@ -1,3 +1,7 @@
+# Purpose: Verify test hardening behavior using controlled fixtures.
+# Works with: detection.engine, entrypoint, paths, platform.runtime
+# Used by: unittest discovery
+
 from sentinelav.paths import RESOURCE_ROOT
 import os
 import subprocess
