@@ -71,7 +71,7 @@ def _response_totals(ledger):
 
 
 def summarize(ledger, counts, results, cases):
-    binaries = [row for row in ledger if '/Binaries/' in row['archive']]
+    binaries = [row for row in ledger if '/Source/' not in row['archive']]
     source = [row for row in ledger if '/Source/' in row['archive']]
     arms = {}
     for arm, _ in ARMS:
@@ -115,7 +115,7 @@ def render(store):
     profile = store.manifest['profile']
     lines = [f'# SentinelAV Zoo evaluation ({profile})', '',
              f'Pinned revision {revision}. Each batch ran in a fresh offline Windows Sandbox. Samples were read, never launched.',
-             f"Code under test: {store.manifest.get('versions', {}).get('source', 'see manifest')}",
+             f"Code under test: {store.manifest.get('versions', {}).get('source_identity', store.manifest.get('versions', {}).get('source', 'see manifest'))}",
              'Files that could not be assessed stay in the denominator and count as not detected.', '',
              f"**{summary['status'].upper()}** · {len(results)}/{len(cases)} batches recorded", '',
              '## Detection rates (malware binaries)', '',
@@ -129,7 +129,7 @@ def render(store):
     lines += [f"| {label} | {_rate(summary['arms'][arm]['source_archives']['flagged'], summary['arms'][arm]['source_archives']['total'])} |" for arm, label in ARMS]
     lines += ['', '## Outcomes', '', '| Outcome | Count |', '| --- | ---: |']
     lines += [f"| {key.replace('_', ' ')} | {count} |" for key, count in summary['outcomes'].items()]
-    binaries = [row for row in ledger if '/Binaries/' in row['archive']]
+    binaries = [row for row in ledger if '/Source/' not in row['archive']]
     lines += ['', '## Arm B by file type', '', '| File type | Flagged | Malicious |', '| --- | ---: | ---: |']
     lines += [f"| {escape(name)} | {_rate(tally['flagged'], tally['total'])} | {tally['malicious']} |" for name, tally in _breakdown(binaries, lambda row: str(row.get('kind') or row['outcome']))]
     lines += ['', '## Arm B by family', '', '| Family | Flagged | Malicious |', '| --- | ---: | ---: |']
