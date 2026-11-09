@@ -11,6 +11,7 @@ First-party code files are at most 250 lines and start with purpose/collaborator
 comments. Run `.\.venv\Scripts\python.exe tools/maintenance/check_structure.py`
 to check those conventions; `test.ps1` also runs the check.
 Browse the [documentation index](docs/README.md) for the other guides.
+Read the [evaluation report](docs/EVALUATION-2026-11-09.md) for measured detection and false-positive rates.
 See the [proposal audit](docs/PROPOSAL-AUDIT.md) for the current requirement map,
 validation evidence, and remaining effectiveness limits.
 The historical [first-iteration contract](docs/FIRST-ITERATION.md) records earlier
