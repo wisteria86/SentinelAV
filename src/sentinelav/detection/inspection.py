@@ -67,7 +67,8 @@ class IsolatedScanner:
     def start(self):
         if getattr(sys,'frozen',False): command=[sys.executable,'--inspection-worker']
         else: command=[str(Path(sys.executable).with_name('python.exe') if os.name=='nt' else Path(sys.executable)),str((PROJECT_ROOT/'app.py')),'--inspection-worker']
-        environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE')}
+        environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE',
+            'SENTINELAV_WORK_ROOT','SENTINELAV_CLAMAV_HOME','SENTINELAV_CLAMAV_DB','SENTINELAV_DEFINITIONS')}
         environment['PYTHONIOENCODING']='utf-8'
         environment['QT_QPA_PLATFORM']='offscreen'
         # Native model loaders can initialize OpenMP/BLAS pools before predict's

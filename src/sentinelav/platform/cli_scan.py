@@ -33,6 +33,9 @@ def run(target,data_dir):
         roots,kind=[path],'Custom Folder'
     Path(data_dir).mkdir(parents=True,exist_ok=True)
     store=Store(Path(data_dir)/'sentinelav.db')
+    from sentinelav.detection.clamav_engine import ensure_service
+    _,problem=ensure_service(store.get('inspection_options',{}).get('clamav',True))
+    if problem:print('ClamAV unavailable: '+problem,file=sys.stderr)
     try:
         scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',store.get('max_mb',100),
             store.get('exclusions',[])+[str(store.path.parent)],store.get('trusted_hashes',[]),store.get('inspection_options',{}))
