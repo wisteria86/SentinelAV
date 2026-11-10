@@ -12,14 +12,17 @@ MALICIOUS=70
 SUSPICIOUS=35
 AUTOMATIC_SCORE=85
 TRUST_DAMPING=.35
-DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature'}
-DAMPED_LAYERS={'heuristic','generic_yara','ml'}
+DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature','clamav_signature'}
+DAMPED_LAYERS={'heuristic','generic_yara','ml','clamav_heuristic'}
+# A ClamAV signature on a validly signed file is more likely a false positive than stolen-certificate malware.
+TRUSTED_CLAMAV_WEIGHT=60
 # Installers and DRM pack legitimately, so packing alone stays below Suspicious and only supports other evidence.
 GROUP_CAPS={'packing':28,'structure':30,'ml':65,'context':10,'obfuscation':25,'generic_yara':45,'destruction':70,
-    'ransomware':60,'replication':55}
+    'ransomware':60,'replication':55,'clamav_heuristic':45,'clamav':60,'yara_pack':45}
 DEFAULT_CAP=45
 # Evaluation arms re-score the same evidence: A full product, B generalized, C without learned models.
-ARMS={'full':None,'generalized':{'heuristic','generic_yara','ml','context'},'heuristic':{'heuristic','generic_yara','context'}}
+ARMS={'full':None,'generalized':{'heuristic','generic_yara','ml','context','clamav_heuristic'},
+    'heuristic':{'heuristic','generic_yara','context','clamav_heuristic'}}
 
 
 def indicator(code,group,weight,explanation,layer='heuristic',category='',evidence=''):
@@ -57,11 +60,14 @@ def _threat_name(items,platform,decisive):
 
 def score(items,platform='Generic',trusted=False,partial=False):
     """Pure function of its evidence, so evaluation arms and repeat scans reproduce it."""
+    if trusted:
+        items=[dict(i,layer='clamav_trusted',group='clamav',weight=TRUSTED_CLAMAV_WEIGHT) if i['layer']=='clamav_signature' else i for i in items]
     decisive=[i for i in items if i['layer'] in DECISIVE_LAYERS]
     groups=_groups(items,trusted)
+    if 'clamav' in groups:groups['clamav']=TRUSTED_CLAMAV_WEIGHT
     value=100 if decisive else min(99,round(sum(groups.values())))
-    # Valid signers ship unusual but legitimate code. Only a learned model can keep a signed file above Clean (stolen certificates).
-    if trusted and not decisive and 'ml' not in groups:value=min(value,SUSPICIOUS-1)
+    # Valid signers ship unusual but legitimate code. Only a learned model or a ClamAV signature keeps a signed file above Clean.
+    if trusted and not decisive and 'ml' not in groups and 'clamav' not in groups:value=min(value,SUSPICIOUS-1)
     ordered=sorted(items,key=lambda i:(i['layer'] not in DECISIVE_LAYERS,-i['weight']))
     return dict(score=value,verdict=verdict_for(value),confidence=_confidence(value,groups,decisive,partial),
         threat_name=_threat_name(items,platform,decisive),trusted_signature=bool(trusted),

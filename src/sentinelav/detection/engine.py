@@ -40,6 +40,17 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         if self.options['advanced']:
             from sentinelav.detection.advanced_pipeline import AdvancedPipeline
             self.advanced=AdvancedPipeline(self.options.get('analysis_store'),self.options)
+        self.packs=[]
+        if self.options['rule_packs']:
+            from sentinelav.detection.rule_packs import load_packs
+            self.packs,problems=load_packs()
+            self.warnings.extend(problems)
+        self.clamav=None
+        if self.options['clamav']:
+            from sentinelav.detection.clamav_engine import read_endpoint
+            self.clamav=read_endpoint()
+            # Reported once per scan, never as a per-file error, so scans are not marked incomplete.
+            if not self.clamav:self.warnings.append('ClamAV signatures unavailable: the ClamAV service is not running')
 
     def analyze_bytes(self,data,sha=None):
         if self.options['signature_free']:return [],[],[]
@@ -60,7 +71,31 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
                     if found.get('scope')!='generic':names.append('YARA: '+match.rule)
                     matches.append(found)
             except Exception as error: errors.append('YARA inspection failed: '+str(error))
+        for pack in self.packs:
+            try:
+                for item in pack.match(data):
+                    if item['kind']=='family':names.append('YARA: '+item['rule'])
+                    else:matches.append(item)
+            except Exception as error:errors.append(f'Rule pack {pack.name} inspection failed: '+str(error)[:120])
+        if self.clamav:self.clamav_check(data,names,matches,errors)
         return names,matches,errors
+
+    def clamav_check(self,data,names,matches,errors):
+        from sentinelav.detection.clamav_engine import STREAM_LIMIT,scan_bytes
+        if len(data)>STREAM_LIMIT:return
+        try:found=scan_bytes(self.clamav,data)
+        except OSError as error:
+            self.clamav=None
+            self.warnings.append('ClamAV stopped answering during this scan: '+str(error)[:120])
+            return
+        except Exception as error:
+            errors.append(str(error)[:160]);return
+        if not found:return
+        if found.startswith('Heuristics.') or found.startswith('PUA.'):
+            # ClamAV heuristics describe traits, not identities, so they add weight instead of deciding.
+            matches.append(dict(rule=found,code='clamav_heuristic',scope='generic',layer='clamav_heuristic',group='clamav_heuristic',
+                weight=40,category=found.split('.')[1] if '.' in found else 'Heuristic',description=f'ClamAV heuristic: {found}'))
+        else:names.append('ClamAV: '+found)
 
     def excluded(self, path):
         resolved = path.resolve()

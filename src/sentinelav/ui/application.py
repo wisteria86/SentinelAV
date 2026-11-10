@@ -100,6 +100,7 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
             QMessageBox.information(self, 'Finishing scan', 'Cancellation requested. Close the window after the scan stops.')
             event.ignore()
         else:
+            if hasattr(self,'stop_clamav'):self.stop_clamav()
             self.store.db.close()
             event.accept()
 
@@ -141,6 +142,8 @@ class Window(AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,Finali
         self.schedule_timer.start(30000)
         QTimer.singleShot(1000,self.check_schedule)
         QTimer.singleShot(0,self.validate_yara_rules)
+        self.clamav_service=None
+        QTimer.singleShot(0,self.start_clamav)
         if self.store.get('background_engine',False):
             QTimer.singleShot(0,self.reconnect_background)
         if self.store.get('resume_protection',protect_by_default):
@@ -150,6 +153,17 @@ class Window(AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,Finali
             self.tray = QSystemTrayIcon(icon('shield'),self)
             self.tray.setToolTip('SentinelAV — check Real-Time Protection for monitoring mode')
             self.tray.show()
+
+    def start_clamav(self):
+        """Loading ClamAV signatures takes seconds, so it happens off the interface thread."""
+        import threading
+        from sentinelav.detection.clamav_engine import ensure_service
+        enabled=self.store.get('inspection_options',{}).get('clamav',True)
+        def run():self.clamav_service,self.clamav_problem=ensure_service(enabled)
+        threading.Thread(target=run,daemon=True,name='clamd-start').start()
+
+    def stop_clamav(self):
+        if getattr(self,'clamav_service',None):self.clamav_service.stop()
 
     def update_elapsed(self):
         self.live_stats[2].setText(time.strftime('%H:%M:%S', time.gmtime(time.monotonic() - self.scan_started)))

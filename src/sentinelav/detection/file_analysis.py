@@ -39,11 +39,13 @@ def signature_items(names,matches):
         elif name.startswith('YARA: '):items.append(indicator('family_rule','identity',100,name,'family_yara'))
         elif name.startswith('EICAR'):items.append(indicator('eicar_test_file','identity',100,name,'test_marker'))
         elif name.startswith('AMSI: '):items.append(indicator('amsi_block','identity',100,name,'amsi'))
+        elif name.startswith('ClamAV: '):items.append(indicator('clamav_signature','identity',100,name,'clamav_signature'))
         else:items.append(indicator('derived_signature','identity',100,name,'derived_signature'))
         items[-1]['threat']='EICAR-Test-File' if name.startswith('EICAR') else name.split(': ',1)[-1][:80]
     for match in matches:
         if match.get('scope')=='generic':
-            items.append(indicator('yara_'+match['rule'],match.get('group','generic_yara'),match.get('weight',15),match.get('description') or match['rule'],'generic_yara',match.get('category','')))
+            items.append(indicator(match.get('code','yara_'+match['rule']),match.get('group','generic_yara'),match.get('weight',15),
+                match.get('description') or match['rule'],match.get('layer','generic_yara'),match.get('category','')))
     return items
 
 

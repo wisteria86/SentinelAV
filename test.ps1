@@ -20,6 +20,11 @@ try {
     $env:TEMP = $fixtureTemp
     $env:TMP = $fixtureTemp
     $env:PYTHONPATH = (Join-Path $PSScriptRoot 'src') + [IO.Path]::PathSeparator + $PSScriptRoot
+    # Unit tests stay hermetic: no live ClamAV service or downloaded rule packs.
+    $previousDefinitions = $env:SENTINELAV_DEFINITIONS
+    $previousClamDb = $env:SENTINELAV_CLAMAV_DB
+    $env:SENTINELAV_DEFINITIONS = Join-Path $fixtureTemp 'empty-definitions'
+    $env:SENTINELAV_CLAMAV_DB = Join-Path $fixtureTemp 'empty-clamav-db'
     $python = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
     & $python tools/maintenance/check_structure.py
     if ($LASTEXITCODE -ne 0) { throw 'Module size/header checks failed' }
@@ -37,5 +42,7 @@ try {
     $env:TEMP = $previousTemp
     $env:TMP = $previousTmp
     $env:PYTHONPATH = $previousPythonPath
+    $env:SENTINELAV_DEFINITIONS = $previousDefinitions
+    $env:SENTINELAV_CLAMAV_DB = $previousClamDb
     Pop-Location
 }
