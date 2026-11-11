@@ -12,7 +12,7 @@ MALICIOUS=70
 SUSPICIOUS=35
 AUTOMATIC_SCORE=85
 TRUST_DAMPING=.35
-DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature','clamav_signature','hash_md5'}
+DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature','clamav_signature','hash_md5','pack_family'}
 DAMPED_LAYERS={'heuristic','generic_yara','ml','clamav_heuristic'}
 # A ClamAV signature on a validly signed file is more likely a false positive than stolen-certificate malware.
 TRUSTED_CLAMAV_WEIGHT=60
@@ -62,7 +62,9 @@ def score(items,platform='Generic',trusted=False,partial=False):
     """Pure function of its evidence, so evaluation arms and repeat scans reproduce it."""
     if trusted:
         # Broad third-party identities (ClamAV, MD5 lists) on a validly signed file go to a person instead of deciding.
-        items=[dict(i,layer='clamav_trusted',group='clamav',weight=TRUSTED_CLAMAV_WEIGHT) if i['layer'] in ('clamav_signature','hash_md5') else i for i in items]
+        # MD5 lists include signed system files, so on a signed file they carry no weight at all.
+        items=[dict(i,layer='clamav_trusted',group='clamav',weight=TRUSTED_CLAMAV_WEIGHT) if i['layer'] in ('clamav_signature','pack_family') else i
+            for i in items if i['layer']!='hash_md5']
     decisive=[i for i in items if i['layer'] in DECISIVE_LAYERS]
     groups=_groups(items,trusted)
     if 'clamav' in groups:groups['clamav']=TRUSTED_CLAMAV_WEIGHT
