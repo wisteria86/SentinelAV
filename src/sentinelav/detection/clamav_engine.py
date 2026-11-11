@@ -77,9 +77,20 @@ def alive(endpoint):
         return False
 
 
+def runtime_dir(database=None):
+    """Where clamd's config, log and endpoint go: SENTINELAV_CLAMAV_RUNTIME, else beside the signatures.
+
+    The evaluation guest maps signatures read-only, so it points this at a writable folder."""
+    if os.environ.get('SENTINELAV_CLAMAV_RUNTIME'):
+        path = Path(os.environ['SENTINELAV_CLAMAV_RUNTIME'])
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    return database or database_dir()
+
+
 def read_endpoint(database=None):
     """The endpoint written by whichever process started clamd, if it still answers."""
-    path = (database or database_dir()) / ENDPOINT_FILE
+    path = runtime_dir(database) / ENDPOINT_FILE
     try:
         state = json.loads(path.read_text(encoding='utf-8'))
         endpoint = ('127.0.0.1', int(state['port']))
@@ -114,6 +125,7 @@ class ClamdService:
     def __init__(self, home=None, database=None):
         self.home = home
         self.database = database or database_dir()
+        self.runtime = runtime_dir(self.database)
         self.process = None
 
     def endpoint(self):
@@ -129,9 +141,9 @@ class ClamdService:
         if not has_definitions(self.database):
             raise ClamAVUnavailable('ClamAV signatures have not been downloaded')
         port = _free_port()
-        config = self.database / 'clamd.conf'
+        config = self.runtime / 'clamd.conf'
         config.write_text(_config(self.database, port), encoding='utf-8')
-        log = (self.database / 'clamd.log').open('ab')
+        log = (self.runtime / 'clamd.log').open('ab')
         self.process = subprocess.Popen([str(tools['clamd']), '--config-file=' + str(config)], cwd=str(tools['home']),
             stdin=subprocess.DEVNULL, stdout=log, stderr=log, creationflags=NO_WINDOW)
         log.close()
@@ -142,7 +154,7 @@ class ClamdService:
             if self.process.poll() is not None:
                 raise ClamAVUnavailable(f'clamd exited with code {self.process.returncode}; see clamd.log')
             if alive(endpoint):
-                state = self.database / ENDPOINT_FILE
+                state = self.runtime / ENDPOINT_FILE
                 state.write_text(json.dumps(dict(port=port, pid=self.process.pid)), encoding='utf-8')
                 return endpoint
             time.sleep(.5)
@@ -162,11 +174,11 @@ class ClamdService:
             except (OSError, subprocess.TimeoutExpired, ClamAVUnavailable):
                 self.process.kill()
         self.process = None
-        (self.database / ENDPOINT_FILE).unlink(missing_ok=True)
+        (self.runtime / ENDPOINT_FILE).unlink(missing_ok=True)
 
     def _port(self):
         try:
-            return int(json.loads((self.database / ENDPOINT_FILE).read_text(encoding='utf-8'))['port'])
+            return int(json.loads((self.runtime / ENDPOINT_FILE).read_text(encoding='utf-8'))['port'])
         except (OSError, ValueError, KeyError):
             return 0
 

@@ -3,6 +3,7 @@
 
 import base64
 import hashlib
+import json
 from io import BytesIO
 from pathlib import Path
 import re
@@ -184,6 +185,19 @@ def inspect_cached(entry, root, scanner, key, files, state):
     return [dict(member_index=0, member=spec['member'], **row)]
 
 
+SNAPSHOT = Path('C:/SentinelAV-Definitions')
+
+
+def use_snapshot():
+    """Point every definition lookup at the frozen, read-only snapshot mapped into the guest."""
+    if not (SNAPSHOT / 'snapshot.json').is_file():
+        return None
+    import os
+    os.environ.update(SENTINELAV_DEFINITIONS=str(SNAPSHOT / 'definitions'), SENTINELAV_CLAMAV_DB=str(SNAPSHOT / 'clamav-db'),
+        SENTINELAV_CLAMAV_HOME=str(SNAPSHOT / 'clamav'), SENTINELAV_CLAMAV_RUNTIME='C:/SentinelAV-Work/clamd')
+    return json.loads((SNAPSHOT / 'snapshot.json').read_text(encoding='utf-8'))['name']
+
+
 def execute(context, root):
     import json
     from cryptography.exceptions import InvalidTag
@@ -192,12 +206,13 @@ def execute(context, root):
     case = context['case']
     quick = case['id'] == 'zoo-quick'
     batch = case['parameters'] if quick else context['zoo_input']
-    if context['backend'] != 'sandbox' or batch['revision'] != REVISION:
+    if context['backend'] != 'sandbox' or not (batch['revision'] == REVISION or str(batch['revision']).startswith('bazaar:')):
         raise ValueError('Zoo scans require Windows Sandbox and the pinned revision')
     if not 1 <= len(batch['entries']) <= 64:
         raise ValueError('Invalid Zoo batch size')
+    snapshot = use_snapshot()
     from sentinelav.detection.clamav_engine import ensure_service
-    clamd, _ = ensure_service()
+    clamd, clamd_problem = ensure_service()
     scanner = IsolatedScanner(RESOURCE_ROOT/'signatures.json', RESOURCE_ROOT/'rules', max_mb=64, options=dict(SETTINGS), persistent=True)
     state = dict(response=0, realtime=0, deadline=time.monotonic()+max(60, case['seconds']-120))
     groups = []
@@ -217,4 +232,5 @@ def execute(context, root):
         scanner.close()
         if clamd:
             clamd.stop()
-    return dict(zoo_accounted=True, zoo_revision=REVISION, zoo_groups=groups, sample_execution=False)
+    return dict(zoo_accounted=True, zoo_revision=batch['revision'], zoo_groups=groups, sample_execution=False,
+        definitions_snapshot=snapshot, clamav='running' if clamd else (clamd_problem or 'disabled')[:120])
