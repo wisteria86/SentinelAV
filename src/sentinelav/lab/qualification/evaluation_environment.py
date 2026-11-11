@@ -97,7 +97,8 @@ def build(project,work,identity,cancelled,progress,folder):
 
 def resource_identity(project):
     root=project/'resources';paths=list((root/'analysis-data').glob('*.json'))+list((root/'analysis-data').glob('*.npz'))
-    active=root/'signature-data/active.json'
+    from sentinelav.detection.definition_paths import signature_data_dir
+    active=signature_data_dir(root)/'active.json'
     if active.exists():
         import re
         data=json.loads(active.read_text(encoding='utf-8-sig'));name=data.get('database','')

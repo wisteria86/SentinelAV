@@ -39,6 +39,7 @@ def signature_items(names,matches):
         elif name.startswith('YARA: '):items.append(indicator('family_rule','identity',100,name,'family_yara'))
         elif name.startswith('EICAR'):items.append(indicator('eicar_test_file','identity',100,name,'test_marker'))
         elif name.startswith('AMSI: '):items.append(indicator('amsi_block','identity',100,name,'amsi'))
+        elif name.startswith('MD5: '):items.append(indicator('md5_match','identity',100,name,'hash_md5'))
         elif name.startswith('ClamAV: '):items.append(indicator('clamav_signature','identity',100,name,'clamav_signature'))
         else:items.append(indicator('derived_signature','identity',100,name,'derived_signature'))
         items[-1]['threat']='EICAR-Test-File' if name.startswith('EICAR') else name.split(': ',1)[-1][:80]
@@ -136,6 +137,13 @@ class FileAnalysisMixin:
         items.extend(collect(data,file_type,metadata,analysis,malformed,omissions))
         if decision:items.extend(_decision_items(decision))
         items.extend(extra)
+        listed=None
+        if file_type['kind']=='pe':
+            from sentinelav.detection.cert_blocklist import blocklisted
+            try:listed=blocklisted(data)
+            except Exception as error:omissions.append('Certificate blocklist check failed: '+str(error)[:120])
+            if listed:items.append(indicator('blocklisted_certificate','certificate',60,
+                f"Signed with a certificate abuse.ch lists as used to sign malware ({listed['subject']}; {listed['reason']}).",'cert_reputation','SignedMalware'))
         platform=file_type['platform']
         if file_type['kind']=='pe' and metadata.get('machine')=='0x8664':platform='Win64'
         current=score(items,platform,partial=partial)
@@ -153,7 +161,8 @@ class FileAnalysisMixin:
             if context:items.append(context)
         current=score(items,platform,partial=partial)
         trusted=False
-        if path and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
+        # A blocklisted certificate never earns the trusted-signature discount.
+        if path and not listed and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
             from sentinelav.detection.trust import signature_status
             trusted=signature_status(path)=='trusted'
             if trusted:current=score(items,platform,trusted=True,partial=partial)

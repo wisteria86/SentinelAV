@@ -12,13 +12,13 @@ MALICIOUS=70
 SUSPICIOUS=35
 AUTOMATIC_SCORE=85
 TRUST_DAMPING=.35
-DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature','clamav_signature'}
+DECISIVE_LAYERS={'hash','family_yara','test_marker','amsi','fusion','derived_signature','clamav_signature','hash_md5'}
 DAMPED_LAYERS={'heuristic','generic_yara','ml','clamav_heuristic'}
 # A ClamAV signature on a validly signed file is more likely a false positive than stolen-certificate malware.
 TRUSTED_CLAMAV_WEIGHT=60
 # Installers and DRM pack legitimately, so packing alone stays below Suspicious and only supports other evidence.
 GROUP_CAPS={'packing':28,'structure':30,'ml':65,'context':10,'obfuscation':25,'generic_yara':45,'destruction':70,
-    'ransomware':60,'replication':55,'clamav_heuristic':45,'clamav':60,'yara_pack':45}
+    'ransomware':60,'replication':55,'clamav_heuristic':45,'clamav':60,'yara_pack':45,'certificate':60}
 DEFAULT_CAP=45
 # Evaluation arms re-score the same evidence: A full product, B generalized, C without learned models.
 ARMS={'full':None,'generalized':{'heuristic','generic_yara','ml','context','clamav_heuristic'},
@@ -61,7 +61,8 @@ def _threat_name(items,platform,decisive):
 def score(items,platform='Generic',trusted=False,partial=False):
     """Pure function of its evidence, so evaluation arms and repeat scans reproduce it."""
     if trusted:
-        items=[dict(i,layer='clamav_trusted',group='clamav',weight=TRUSTED_CLAMAV_WEIGHT) if i['layer']=='clamav_signature' else i for i in items]
+        # Broad third-party identities (ClamAV, MD5 lists) on a validly signed file go to a person instead of deciding.
+        items=[dict(i,layer='clamav_trusted',group='clamav',weight=TRUSTED_CLAMAV_WEIGHT) if i['layer'] in ('clamav_signature','hash_md5') else i for i in items]
     decisive=[i for i in items if i['layer'] in DECISIVE_LAYERS]
     groups=_groups(items,trusted)
     if 'clamav' in groups:groups['clamav']=TRUSTED_CLAMAV_WEIGHT

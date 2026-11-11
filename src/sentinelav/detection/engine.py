@@ -45,6 +45,12 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
             from sentinelav.detection.rule_packs import load_packs
             self.packs,problems=load_packs()
             self.warnings.extend(problems)
+        self.md5=None
+        if self.options['md5_feed']:
+            from sentinelav.detection.md5_feed import Md5Feed
+            try:self.md5=Md5Feed()
+            except FileNotFoundError:pass
+            except Exception as error:self.warnings.append('MD5 hash list unavailable: '+str(error)[:120])
         self.clamav=None
         if self.options['clamav']:
             from sentinelav.detection.clamav_engine import read_endpoint
@@ -61,6 +67,9 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         errors=[]
         label=self.signatures.get(sha)
         if label is not None: names.append('SHA-256: '+label)
+        if self.md5:
+            listed=self.md5.get(hashlib.md5(data).hexdigest())
+            if listed and label is None:names.append(f'MD5: listed by {listed}')
         eicar=b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$'+b'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
         if eicar in data: names.append('EICAR test file (not malware)')
         if self.rules:

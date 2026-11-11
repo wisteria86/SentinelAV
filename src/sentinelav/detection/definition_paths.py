@@ -54,6 +54,13 @@ def definitions_dir(name):
     return path
 
 
+def signature_data_dir(resource_root):
+    """The hash database folder: the definitions area once it holds an active feed, else the bundled resources."""
+    root = Path(os.environ['SENTINELAV_DEFINITIONS']) if os.environ.get('SENTINELAV_DEFINITIONS') else _base() / 'definitions'
+    moved = root / 'signature-data'
+    return moved if (moved / 'active.json').is_file() else Path(resource_root) / 'signature-data'
+
+
 def database_dir():
     path = Path(os.environ['SENTINELAV_CLAMAV_DB']) if os.environ.get('SENTINELAV_CLAMAV_DB') else _base() / 'clamav-db'
     path.mkdir(parents=True, exist_ok=True)

@@ -22,7 +22,8 @@ class DefinitionWorker(QThread):
         self.cancelled=threading.Event()
 
     def run(self):
-        folder=self.root/'signature-data'
+        from sentinelav.detection.definition_paths import signature_data_dir
+        folder=signature_data_dir(self.root)
         try:
             if self.kind=='recent': result=import_recent(folder,self.path)
             elif self.kind=='signed': result=apply_signed(folder,self.path,self.root/'trusted-update-keys.json')
@@ -69,7 +70,8 @@ class UpdatesMixin:
     def refresh_definition_health(self):
         from sentinelav.ui.application import ROOT
         try:
-            metadata=load_active(ROOT/'signature-data')
+            from sentinelav.detection.definition_paths import signature_data_dir
+            metadata=load_active(signature_data_dir(ROOT))
             state,hours=freshness(metadata)
             age=f'{hours:g} hours' if hours is not None else 'unknown'
             self.definition_health.setText(f"{metadata['unique_sha256']:,} full-feed hashes · {state} · import age: {age}\n"
