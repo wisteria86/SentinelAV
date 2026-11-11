@@ -40,6 +40,7 @@ class Monitor(MonitorLoopMixin):
         self.process_count = 0
         self.process_infos = {}
         self.behavior = None
+        self.honeypots = self.network_honeypot = None
         self.activity = queue.Queue(maxsize=2048)
         self.network_count = 0
         self.process_graph=ProcessGraph()

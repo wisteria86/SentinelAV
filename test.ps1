@@ -25,6 +25,11 @@ try {
     $previousClamDb = $env:SENTINELAV_CLAMAV_DB
     $env:SENTINELAV_DEFINITIONS = Join-Path $fixtureTemp 'empty-definitions'
     $env:SENTINELAV_CLAMAV_DB = Join-Path $fixtureTemp 'empty-clamav-db'
+    # Decoy files go to a scratch profile, never the real Documents and Desktop.
+    $previousDecoyHome = $env:SENTINELAV_DECOY_HOME
+    $decoyHome = Join-Path $fixtureTemp 'decoy-home'
+    New-Item -ItemType Directory -Path (Join-Path $decoyHome 'Documents'),(Join-Path $decoyHome 'Desktop') -Force | Out-Null
+    $env:SENTINELAV_DECOY_HOME = $decoyHome
     $python = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
     & $python tools/maintenance/check_structure.py
     if ($LASTEXITCODE -ne 0) { throw 'Module size/header checks failed' }
@@ -44,5 +49,6 @@ try {
     $env:PYTHONPATH = $previousPythonPath
     $env:SENTINELAV_DEFINITIONS = $previousDefinitions
     $env:SENTINELAV_CLAMAV_DB = $previousClamDb
+    $env:SENTINELAV_DECOY_HOME = $previousDecoyHome
     Pop-Location
 }

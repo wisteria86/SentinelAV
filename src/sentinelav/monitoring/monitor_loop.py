@@ -77,6 +77,12 @@ class MonitorLoopMixin:
                 self.responder=AutoResponder(self.config['data_dir'],Path(self.config['signatures']).parent,policy,self.emit)
             if self.config.get('behavior') or self.config.get('network'):
                 self.behavior = BehaviorEngine(self.emit,self.config.get('canaries',[]),self.config.get('network_indicators',[]))
+            from sentinelav.monitoring.honeypots import HoneypotWatcher,NetworkHoneypot
+            self.honeypots=HoneypotWatcher(self.config['honeypots'],self.emit,self.behavior) if self.config.get('honeypots') else None
+            self.network_honeypot=NetworkHoneypot(self.emit,self.config['network_honeypot']) if self.config.get('network_honeypot') else None
+            if self.network_honeypot:
+                bound=self.network_honeypot.start()
+                self.event('Network honeypot listening',f'Ports {bound}; ports already in use were left alone: {self.network_honeypot.skipped}','Honeypot')
             if self.config.get('kernel_collector') and self.config.get('behavior'):
                 try:
                     from sentinelav.monitoring.kernel_telemetry import KernelFileEvents
@@ -206,6 +212,7 @@ class MonitorLoopMixin:
                     if lost:
                         self.event('Monitoring backlog', f'{lost} file events dropped; run an on-demand scan to cover omissions.', 'Filesystem', 'Warning')
                     next_status = now + 2
+                    if self.honeypots:self.honeypots.poll()
                 if not item:
                     self.stop.wait(.1)
         finally:
@@ -214,7 +221,8 @@ class MonitorLoopMixin:
                 except Exception as error: self.event('Update shutdown incomplete',str(error),'Signed updates','Warning')
                 self.artifact_updater=None
             owned=[('app changes',self.change_monitor),('kernel collector',self.kernel_reader),('automatic responder',self.responder),
-                   ('process events',locals().get('process_reader')),('scanner',locals().get('scanner'))]
+                   ('process events',locals().get('process_reader')),('scanner',locals().get('scanner')),
+                   ('network honeypot',getattr(self,'network_honeypot',None))]
             for name,resource in owned:
                 if resource is None: continue
                 try: resource.close()
