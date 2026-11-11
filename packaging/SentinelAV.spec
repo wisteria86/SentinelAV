@@ -8,6 +8,7 @@ import os
 import json
 import re
 import importlib.util
+import sys
 from PyInstaller.utils.hooks import collect_dynamic_libs,collect_submodules,collect_data_files,copy_metadata
 os.environ['PATH']=os.pathsep.join(p for p in os.environ.get('PATH','').split(os.pathsep) if 'codex-runtimes' not in p.lower())
 root=Path(SPECPATH).parent
@@ -47,7 +48,9 @@ if (native_runtime/'emulator-build.json').exists():
     native_datas=[(str(native_runtime/'emulator-build.json'),'.')]+[
         (str(native_runtime/name),'licenses/unicorn') for name in
         ('COPYING','COPYING.LGPL2','COPYING_GLIB','unicorn-corresponding-source.zip')]
-feed_manifest=resources/'signature-data'/'active.json'
+sys.path.insert(0,str(root/'src'))
+from sentinelav.detection.definition_paths import binaries as clamav_binaries,signature_data_dir
+feed_manifest=signature_data_dir(resources)/'active.json'
 if feed_manifest.exists():
     if feed_manifest.stat().st_size>16384:
         raise ValueError('Signature manifest exceeds size limit')
@@ -89,3 +92,11 @@ exe=EXE(pyz,a.scripts,[],exclude_binaries=True,name='SentinelAV',debug=False,
         bootloader_ignore_signals=False,strip=False,upx=False,console=os.getenv('SENTINEL_CONSOLE')=='1',
         icon=str(resources/'assets/sentinelav.ico'))
 coll=COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='SentinelAV')
+# ClamAV is a separate GPL program run as its own process. Its runtime (no debug symbols) ships beside the app;
+# signatures are downloaded by freshclam after installation.
+clamav=clamav_binaries()
+if clamav:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'clamav'
+    shutil.rmtree(target,ignore_errors=True)
+    shutil.copytree(clamav['home'],target,ignore=shutil.ignore_patterns('*.pdb','*.lib','UserManual','conf_examples'))
