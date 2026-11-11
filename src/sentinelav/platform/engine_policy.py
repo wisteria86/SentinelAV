@@ -4,7 +4,7 @@
 
 """Shared inspection policy validation across all scanner entry points."""
 # Generalized detection is on by default. neural_gray runs MalConv only on undecided PE files; emulation stays opt-in.
-DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=True,documents=True,model=True,reputation=False,signature_free=False,neural=False,neural_gray=True,clamav=True,rule_packs=True,md5_feed=True,score_all=False)
+DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=True,documents=True,model=True,reputation=False,signature_free=False,neural=False,neural_gray=True,clamav=True,rule_packs=True,md5_feed=True,score_all=False,capa=True,capa_memory=False)
 
 
 def inspection_options(value=None):

@@ -15,15 +15,18 @@ class ModelEvidenceTests(unittest.TestCase):
 
     def test_score_bands(self):
         self.assertEqual(self.bands(.5),[])
-        self.assertEqual(self.bands(.7),[('learned_pe_model_notable',20)])
-        self.assertEqual(self.bands(.9),[('learned_pe_model_elevated',35)])
-        self.assertEqual(self.bands(.99,True),[('learned_pe_model',45)])
-        self.assertEqual(self.bands(.9995,True),[('learned_pe_model',55)])
+        self.assertEqual(self.bands(.7),[('learned_pe_model_notable',25)])
+        self.assertEqual(self.bands(.9),[('learned_pe_model_elevated',40)])
+        self.assertEqual(self.bands(.99,True),[('learned_pe_model',70)])
+        self.assertEqual(self.bands(.9995,True),[('learned_pe_model',70)])
 
-    def test_a_model_alone_never_reaches_malicious_or_automatic_action(self):
-        result=score([indicator('learned_pe_model','ml',55,'Model','ml'),indicator('learned_byte_model','ml',30,'Model','ml')])
-        self.assertEqual(result['verdict'],'Suspicious')
+    def test_a_model_alone_can_convict_but_never_acts_automatically(self):
+        result=score([indicator('learned_pe_model','ml',70,'Model','ml'),indicator('learned_byte_model','ml',30,'Model','ml')])
+        self.assertEqual((result['verdict'],result['score']),('Malicious',70))
         self.assertFalse(automatic_eligible(result))
+        # An elevated score plus packing traits stays Suspicious: packing only supports independent evidence.
+        packed=[indicator('learned_pe_model_elevated','ml',40,'Model','ml'),indicator('wx','packing',28,'Fixture')]
+        self.assertEqual(score(packed)['verdict'],'Suspicious')
 
     def test_packing_alone_stays_clean_but_supports_other_evidence(self):
         packed=[indicator(code,'packing',20,'Fixture') for code in ('a','b','c','d')]

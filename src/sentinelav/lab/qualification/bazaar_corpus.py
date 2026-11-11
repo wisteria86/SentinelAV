@@ -22,7 +22,7 @@ import zipfile
 from pathlib import Path
 
 from .contracts import CaseDefinition
-from .zoo_inventory import BATCH_BYTES, BATCH_SECONDS, BATCH_SIZE, MAX_ARCHIVE, SHA1, blob_identity, seal, unseal
+from .zoo_inventory import BATCH_SECONDS, MAX_ARCHIVE, SHA1, blob_identity, seal, unseal
 
 API = 'https://mb-api.abuse.ch/api/v1/'
 PASSWORD = b'infected'
@@ -64,6 +64,14 @@ def corpus_key(root):
     return key
 
 
+# SentinelAV protects Windows, so evaluations leave out formats that only run on other systems.
+NON_WINDOWS_TYPES = frozenset({'elf', 'macho', 'apk', 'dex', 'dmg', 'sh', 'zsh', 'bash', 'php', 'pl'})
+
+
+def windows_target(file_type):
+    return (file_type or '').casefold() not in NON_WINDOWS_TYPES
+
+
 def family_of(row):
     signature = (row.get('signature') or '').strip()
     return signature.casefold() if signature and signature.casefold() != 'n/a' else 'unlabeled-' + (row.get('file_type_guess') or 'unknown')
@@ -87,7 +95,7 @@ def candidates(full_zip, start, end):
             if len(values) != len(header):
                 continue
             row = dict(zip(header, (value.strip() for value in values)))
-            if start <= row['first_seen_utc'] < end:
+            if start <= row['first_seen_utc'] < end and windows_target(row.get('file_type_guess')):
                 yield row
 
 
@@ -155,11 +163,17 @@ def build(name, full_zip, start, end, count, seed, delay=1.0, progress=print):
     return manifest
 
 
+# Each batch pays about 7 minutes of fixed Sandbox setup and teardown, while scanning costs seconds per sample,
+# so these single-file batches are much larger than theZoo's multi-member archive batches.
+BATCH_SIZE = 64  # Prepare-TestEnvironment.ps1 stages at most 64 sealed archives per guest
+BATCH_BYTES = 384 * 1024**2
+
 def cases(name, definitions=None):
     manifest = json.loads((corpus_root(name, create=False) / 'manifest.json').read_text(encoding='utf-8'))
     password = base64.b64encode(PASSWORD).decode()
     entries = [dict(path=f"bazaar/{name}/{item['family']}/{item['sha256']}.zip", blob=item['blob'], bytes=item['bytes'],
-        family=item['family'], split=name, sha256=item['sha256'], password_b64=password) for item in manifest['entries']]
+        family=item['family'], split=name, sha256=item['sha256'], password_b64=password) for item in manifest['entries']
+        if windows_target(item.get('file_type'))]
     batches, current = [], []
     for entry in entries:
         if current and (len(current) >= BATCH_SIZE or sum(row['bytes'] for row in current) + entry['bytes'] > BATCH_BYTES):

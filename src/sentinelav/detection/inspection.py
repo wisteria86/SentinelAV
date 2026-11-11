@@ -84,7 +84,9 @@ class IsolatedScanner:
         try:
             from sentinelav.platform.engine_policy import inspection_options
             effective=inspection_options(self.config.get('options') or {})
-            self.job=WindowsJob(self.process,memory=1536*1024*1024 if any(effective.get(k) for k in ('emulation','model','neural','neural_gray')) else 768*1024*1024)
+            # capa runs as one extra child process with its own memory needs, so its worker gets room for it.
+            memory=1536*1024*1024 if any(effective.get(k) for k in ('emulation','model','neural','neural_gray')) else 768*1024*1024
+            self.job=WindowsJob(self.process,memory=memory+(2*1024**3 if effective.get('capa') else 0),process_limit=3 if effective.get('capa') else 2)
             process=self.process
             messages=self.messages
             errors=[]

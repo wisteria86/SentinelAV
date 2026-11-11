@@ -12,15 +12,16 @@ from pathlib import Path
 from sentinelav.detection.file_formats import pe_metadata,static_analysis
 from sentinelav.detection.file_types import classify
 from sentinelav.detection.indicators import collect
-from sentinelav.detection.threat_score import arm_scores,automatic_eligible,indicator,score
+from sentinelav.detection.threat_score import MALICIOUS,SUSPICIOUS,arm_scores,automatic_eligible,indicator,score
 
 # Windows can sign scripts and installers as well as programs, directly or through a catalog.
 SIGNABLE_KINDS={'pe','data','ole','powershell','vbscript','javascript','batch','html'}
-GRAY_LOW=15
-# 0 of 591 programs from the calibration products reached 0.5, so these bands sit well above ordinary software.
+# EMBER2024's own Dec-2024 test week: 0.98 flags 85.7% of malware at 0.08% false alarms (0.99 for .NET, 0.12%),
+# 0.9 flags 92.6% at 0.32%. Only the first convicts alone; the others need agreeing evidence. 0 of 3,700 local programs reached 0.85.
+CONVICT_SCORES={'Win32':.98,'Win64':.98,'Dot_Net':.99}
 ELEVATED_SCORE=.9
 NOTABLE_SCORE=.7
-GRAY_HIGH=70
+GRAY_LOW,GRAY_HIGH=15,70
 TRUST_CHECK_FROM=25
 MEMBER_MODEL_BYTES=64*1024*1024
 PARENT_MODEL_BYTES=256*1024*1024
@@ -58,13 +59,12 @@ def _model_items(decision):
     model=coverage.get('model',{})
     value=model.get('model_score')
     if isinstance(value,(int,float)):
-        if model.get('review'):
-            weight=55 if value>=.999 else 45
-            items.append(indicator('learned_pe_model','ml',weight,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
+        if value>=CONVICT_SCORES.get(model.get('file_type'),.99):
+            items.append(indicator('learned_pe_model','ml',70,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
         elif value>=ELEVATED_SCORE:
-            items.append(indicator('learned_pe_model_elevated','ml',35,f'A machine-learning model gives an elevated score of {value:.1%}, below its alert threshold.','ml'))
+            items.append(indicator('learned_pe_model_elevated','ml',40,f'A machine-learning model gives an elevated score of {value:.1%}, below its conviction threshold.','ml'))
         elif value>=NOTABLE_SCORE:
-            items.append(indicator('learned_pe_model_notable','ml',20,f'A machine-learning model gives a notable score of {value:.1%}. This is weak evidence on its own.','ml'))
+            items.append(indicator('learned_pe_model_notable','ml',25,f'A machine-learning model gives a notable score of {value:.1%}. This is weak evidence on its own.','ml'))
     return items
 
 
@@ -173,13 +173,15 @@ class FileAnalysisMixin:
                 model_scores['raw_bytes']=round(float(output['model_score']),5)
                 if found and gray and self.options.get('neural_gray'):items.append(found)
             except Exception as error:omissions.append('Neural inference unavailable: '+str(error)[:160])
-        if self.options.get('neural') and decision:
-            neural=decision.get('coverage',{}).get('neural',{})
-            if neural.get('review'):items.append(indicator('learned_byte_model','ml',30,f"A raw-byte neural network rates this file {neural['model_score']:.1%} likely malicious.",'ml'))
-        if path:
-            context=mark_of_the_web(path)
-            if context:items.append(context)
+        neural=(decision or {}).get('coverage',{}).get('neural',{}) if self.options.get('neural') else {}
+        if neural.get('review'):items.append(indicator('learned_byte_model','ml',30,f"A raw-byte neural network rates this file {neural['model_score']:.1%} likely malicious.",'ml'))
+        context=mark_of_the_web(path) if path else None
+        if context:items.append(context)
         current=score(items,platform,partial=partial)
+        # capa is slow, so it only weighs in on Windows programs already Suspicious but not yet Malicious.
+        if self.options.get('capa') and file_type['kind']=='pe' and SUSPICIOUS<=current['score']<MALICIOUS:
+            from sentinelav.detection.capa_engine import capability_items
+            if (found:=capability_items(path,data,self.options.get('capa_memory'),omissions)):items.extend(found);current=score(items,platform,partial=partial)
         trusted=False
         # A blocklisted certificate never earns the trusted-signature discount.
         if path and not listed and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:

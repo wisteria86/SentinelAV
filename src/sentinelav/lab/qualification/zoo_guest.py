@@ -17,7 +17,7 @@ MAX_MEMBER = 64 * 1024**2
 MAX_MEMBERS = 256
 SAFE_SUFFIX = re.compile(r'\.[a-z0-9]{1,8}')
 # Generalized detection as it ships. Emulation stays off, so nothing from a sample ever runs, even virtually.
-SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False, clamav=True, score_all=True)
+SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False, clamav=True, score_all=True, capa=True, capa_memory=True)
 RESPONSE_CYCLES_PER_BATCH = 2
 REALTIME_CHECKS_PER_BATCH = 1
 
