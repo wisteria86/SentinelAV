@@ -28,7 +28,9 @@ PARENT_MODEL_MEMBERS=200
 MAX_FINDINGS=2000
 OVERSIZE_HASH_LIMIT=4*1024**3
 OVERSIZE_SAMPLE=32*1024*1024
-FIELDS=('score','verdict','confidence','threat_name','trusted_signature','indicators','groups','arms','file_kind','platform','automatic_response_eligible')
+FIELDS=('score','verdict','confidence','threat_name','trusted_signature','indicators','groups','arms','file_kind','platform','automatic_response_eligible','model_scores')
+# Program folders are where legitimate tools sit that were uploaded to hash services as parts of malware bundles.
+INSTALL_MARKERS=('/program files/','/program files (x86)/','/windows/')
 
 
 def signature_items(names,matches):
@@ -83,6 +85,17 @@ def _decision_items(decision):
     return items
 
 
+def _installed_hash_support(items):
+    """A hash-list match alone on an installed program asks a person instead of convicting it."""
+    result=[]
+    for item in items:
+        listed=item['layer']=='hash_md5' or (item['layer']=='hash' and 'Hash database' in item['explanation'])
+        result.append(dict(item,layer='hash_installed',group='hash_list',weight=60,
+            explanation=item['explanation']+' (installed program: hash lists include legitimate tools bundled with malware, so this needs review)')
+            if listed else item)
+    return result
+
+
 def neural_item(data):
     from sentinelav.detection.neural_bytes import predict
     output=predict(data)
@@ -114,7 +127,7 @@ def parse_object(data,file_type):
 
 
 def public_fields(assessment):
-    return {key:assessment[key] for key in FIELDS}
+    return {key:assessment.get(key) for key in FIELDS}
 
 
 class FileAnalysisMixin:
@@ -147,12 +160,18 @@ class FileAnalysisMixin:
                 f"Signed with a certificate abuse.ch lists as used to sign malware ({listed['subject']}; {listed['reason']}).",'cert_reputation','SignedMalware'))
         platform=file_type['platform']
         if file_type['kind']=='pe' and metadata.get('machine')=='0x8664':platform='Win64'
+        if path and any(marker in str(path).replace(chr(92),'/').casefold() for marker in INSTALL_MARKERS):items=_installed_hash_support(items)
         current=score(items,platform,partial=partial)
-        if (self.options.get('neural_gray') and not self.options.get('neural') and file_type['kind']=='pe'
-                and GRAY_LOW<=current['score']<GRAY_HIGH):
+        model_scores={}
+        model=(decision or {}).get('coverage',{}).get('model',{}).get('model_score')
+        if isinstance(model,(int,float)):model_scores['pe_features']=round(float(model),5)
+        gray=GRAY_LOW<=current['score']<GRAY_HIGH
+        # score_all records the raw-byte model on every program for calibration; only gray-zone results add evidence.
+        if (self.options.get('neural_gray') or self.options.get('score_all')) and not self.options.get('neural') and file_type['kind']=='pe' and (gray or self.options.get('score_all')):
             try:
-                found,_=neural_item(data)
-                if found:items.append(found)
+                found,output=neural_item(data)
+                model_scores['raw_bytes']=round(float(output['model_score']),5)
+                if found and gray and self.options.get('neural_gray'):items.append(found)
             except Exception as error:omissions.append('Neural inference unavailable: '+str(error)[:160])
         if self.options.get('neural') and decision:
             neural=decision.get('coverage',{}).get('neural',{})
@@ -170,6 +189,7 @@ class FileAnalysisMixin:
         current.update(arms=arm_scores(items,platform,trusted,partial),file_kind=file_type['kind'],platform=platform,
             analyzed=file_type['analyzed'],inert=file_type['inert'],omissions=omissions)
         current['automatic_response_eligible']=automatic_eligible(current)
+        current['model_scores']=model_scores
         return current
 
     def assess_member(self,payload,name):
@@ -220,7 +240,7 @@ class FileAnalysisMixin:
         from sentinelav.detection.indicators import strings
         items=signature_items(names,matches)+strings.indicators(sample,kind['kind'])
         assessed=score(items,kind['platform'],partial=True)
-        assessed.update(arms={},file_kind=kind['kind'],platform=kind['platform'])
+        assessed.update(arms={},file_kind=kind['kind'],platform=kind['platform'],model_scores={})
         assessed['automatic_response_eligible']=automatic_eligible(assessed) and bool(names)
         if assessed['verdict']=='Clean':return
         target='detections' if assessed['verdict']=='Malicious' else 'suspicious'

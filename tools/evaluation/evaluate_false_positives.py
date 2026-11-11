@@ -93,7 +93,7 @@ def evaluate(chosen,budget):
     from sentinelav.detection.inspection import IsolatedScanner
     from sentinelav.detection.trust import signature_status
     from sentinelav.paths import RESOURCE_ROOT
-    scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',max_mb=64,options={},persistent=True)
+    scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',max_mb=64,options=dict(score_all=True),persistent=True)
     deadline=time.monotonic()+budget
     rows=[];omitted=Counter();times=[]
     try:
@@ -113,7 +113,8 @@ def evaluate(chosen,budget):
                 omitted['not assessed']+=1;continue
             signed=signature_status(path)=='trusted' if item['file_kind'] in ('pe','dos_mz') else None
             row=dict(path=str(path),product=product,root=root,kind=item['file_kind'],verdict=item['verdict'],score=item['score'],confidence=item['confidence'],
-                signed=signed,automatic=bool(item.get('automatic_response_eligible')),codes=[entry['code'] for entry in item.get('indicators',[])[:8]],arms=item.get('arms',{}))
+                signed=signed,automatic=bool(item.get('automatic_response_eligible')),codes=[entry['code'] for entry in item.get('indicators',[])[:8]],arms=item.get('arms',{}),
+                model_scores=item.get('model_scores',{}))
             rows.append(row)
     finally:
         scanner.close()

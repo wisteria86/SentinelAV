@@ -18,7 +18,7 @@ DAMPED_LAYERS={'heuristic','generic_yara','ml','clamav_heuristic'}
 TRUSTED_CLAMAV_WEIGHT=60
 # Installers and DRM pack legitimately, so packing alone stays below Suspicious and only supports other evidence.
 GROUP_CAPS={'packing':28,'structure':30,'ml':65,'context':10,'obfuscation':25,'generic_yara':45,'destruction':70,
-    'ransomware':60,'replication':55,'clamav_heuristic':45,'clamav':60,'yara_pack':45,'certificate':60,'boot_residency':50,'boot_hook':40}
+    'ransomware':60,'replication':55,'clamav_heuristic':45,'clamav':60,'yara_pack':45,'certificate':60,'boot_residency':50,'boot_hook':40,'hash_list':60}
 DEFAULT_CAP=45
 # Evaluation arms re-score the same evidence: A full product, B generalized, C without learned models.
 ARMS={'full':None,'generalized':{'heuristic','generic_yara','ml','context','clamav_heuristic'},
