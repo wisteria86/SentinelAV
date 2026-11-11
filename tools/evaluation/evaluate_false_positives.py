@@ -150,9 +150,15 @@ def main(argv=None):
     roots=[refuse_private(root) for root in (args.root or default_roots())]
     chosen,products=select(roots,args.split,args.per_product)
     print(f'{args.split}: {products} products, {len(chosen)} files selected',flush=True)
-    rows,omitted,times=evaluate(chosen,args.budget)
+    # Measure the product as shipped: ClamAV signatures are the layer most likely to flag clean software.
+    from sentinelav.detection.clamav_engine import ensure_service
+    service,problem=ensure_service()
+    print('ClamAV:',problem or 'running',flush=True)
+    try:rows,omitted,times=evaluate(chosen,args.budget)
+    finally:
+        if service:service.stop()
     summary=summarize(rows,omitted,times,products,args.split)
-    summary.update(created_utc=datetime.now(timezone.utc).isoformat(),roots=[str(root) for root in roots],ground_truth='Presumed benign installed software; not independently verified',files_executed=False)
+    summary.update(created_utc=datetime.now(timezone.utc).isoformat(),roots=[str(root) for root in roots],ground_truth='Presumed benign installed software; not independently verified',files_executed=False,clamav=problem or 'running')
     output=Workspace().run('evaluations','benign-'+args.split)
     (output/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     (output/'rows.json').write_text(json.dumps(rows),encoding='utf-8')

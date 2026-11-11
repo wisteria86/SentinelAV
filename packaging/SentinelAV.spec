@@ -100,3 +100,11 @@ if clamav:
     target=Path(DISTPATH)/'SentinelAV'/'clamav'
     shutil.rmtree(target,ignore_errors=True)
     shutil.copytree(clamav['home'],target,ignore=shutil.ignore_patterns('*.pdb','*.lib','UserManual','conf_examples'))
+# capa (Mandiant, Apache-2.0) is a standalone program that SentinelAV runs on undecided Windows programs.
+from sentinelav.detection.capa_engine import locate as capa_locate
+capa=capa_locate()
+if capa:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'capa'
+    shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
+    shutil.copy2(capa,target/'capa.exe')
