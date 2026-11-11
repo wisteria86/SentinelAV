@@ -17,7 +17,7 @@ MAX_MEMBER = 64 * 1024**2
 MAX_MEMBERS = 256
 SAFE_SUFFIX = re.compile(r'\.[a-z0-9]{1,8}')
 # Generalized detection as it ships. Emulation stays off, so nothing from a sample ever runs, even virtually.
-SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False, clamav=True)
+SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False, clamav=True, score_all=True)
 RESPONSE_CYCLES_PER_BATCH = 2
 REALTIME_CHECKS_PER_BATCH = 1
 
@@ -55,7 +55,8 @@ def describe(scan):
     return dict(kind=assessment.get('file_kind'), platform=assessment.get('platform'), score=assessment.get('score'),
                 confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:48],
                 arms={name: [value['score'], value['verdict']] for name, value in (assessment.get('arms') or {}).items()},
-                codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]])
+                codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]],
+                model_scores=assessment.get('model_scores') or {})
 
 
 def read_member(archive, info, password):
