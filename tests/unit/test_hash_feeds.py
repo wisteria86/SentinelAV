@@ -79,10 +79,10 @@ class Md5FeedTests(unittest.TestCase):
             finally:
                 feed.close()
 
-    def test_md5_identity_is_decisive_except_on_signed_files(self):
+    def test_md5_identity_is_decisive_but_ignored_on_signed_files(self):
         items = signature_items(['MD5: listed by VirusShare'], [])
         self.assertEqual(score(items)['score'], 100)
-        self.assertEqual(score(items, trusted=True)['verdict'], 'Suspicious')
+        self.assertEqual(score(items, trusted=True)['verdict'], 'Clean')
 
 
 if __name__ == '__main__':

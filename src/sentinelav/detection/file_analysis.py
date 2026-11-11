@@ -37,6 +37,7 @@ def signature_items(names,matches):
     for name in names:
         if name.startswith('SHA-256: '):items.append(indicator('hash_match','identity',100,name,'hash'))
         elif name.startswith('YARA: '):items.append(indicator('family_rule','identity',100,name,'family_yara'))
+        elif name.startswith('YARA-Forge: '):items.append(indicator('third_party_family_rule','identity',100,name,'pack_family'))
         elif name.startswith('EICAR'):items.append(indicator('eicar_test_file','identity',100,name,'test_marker'))
         elif name.startswith('AMSI: '):items.append(indicator('amsi_block','identity',100,name,'amsi'))
         elif name.startswith('MD5: '):items.append(indicator('md5_match','identity',100,name,'hash_md5'))

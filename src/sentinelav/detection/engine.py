@@ -14,6 +14,9 @@ from sentinelav.detection.yara_rules import compile_rules,evidence
 from sentinelav.detection.archive_inspection import inspect_zip
 
 
+MIN_HASH_BYTES=1
+
+
 class DisabledSignatures:
     metadata=dict(status='Disabled',reason='Signature-free evaluation',count=0)
     def __len__(self):return 0
@@ -65,9 +68,10 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         names=[]
         matches=[]
         errors=[]
-        label=self.signatures.get(sha)
+        # Hash lists include the empty file, so empty content never matches by hash.
+        label=self.signatures.get(sha) if len(data)>=MIN_HASH_BYTES else None
         if label is not None: names.append('SHA-256: '+label)
-        if self.md5:
+        if self.md5 and len(data)>=MIN_HASH_BYTES:
             listed=self.md5.get(hashlib.md5(data).hexdigest())
             if listed and label is None:names.append(f'MD5: listed by {listed}')
         eicar=b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$'+b'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
@@ -83,7 +87,7 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         for pack in self.packs:
             try:
                 for item in pack.match(data):
-                    if item['kind']=='family':names.append('YARA: '+item['rule'])
+                    if item['kind']=='family':names.append('YARA-Forge: '+item['rule'])
                     else:matches.append(item)
             except Exception as error:errors.append(f'Rule pack {pack.name} inspection failed: '+str(error)[:120])
         if self.clamav:self.clamav_check(data,names,matches,errors)
