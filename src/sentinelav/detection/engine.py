@@ -53,10 +53,10 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
             except Exception as error:self.warnings.append('MD5 hash list unavailable: '+str(error)[:120])
         self.clamav=None
         if self.options['clamav']:
-            from sentinelav.detection.clamav_engine import read_endpoint
+            from sentinelav.detection.clamav_engine import environment_ready,read_endpoint
             self.clamav=read_endpoint()
-            # Reported once per scan, never as a per-file error, so scans are not marked incomplete.
-            if not self.clamav:self.warnings.append('ClamAV signatures unavailable: the ClamAV service is not running')
+            # Reported once per scan, never as a per-file error. Not installed at all is shown on the Updates page instead.
+            if not self.clamav and environment_ready():self.warnings.append('ClamAV signatures unavailable: the ClamAV service is not running')
 
     def analyze_bytes(self,data,sha=None):
         if self.options['signature_free']:return [],[],[]
