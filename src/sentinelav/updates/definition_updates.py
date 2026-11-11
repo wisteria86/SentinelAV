@@ -144,7 +144,8 @@ def main():
     parser.add_argument('action',choices=['status','recent','signed','corrections','rollback'])
     parser.add_argument('file',nargs='?',type=Path)
     args=parser.parse_args()
-    folder=ROOT/'signature-data'
+    from sentinelav.detection.definition_paths import signature_data_dir
+    folder=signature_data_dir(ROOT)
     if args.action in ('recent','signed','corrections') and args.file is None: parser.error('A file is required')
     if args.action=='recent': value=import_recent(folder,args.file)
     elif args.action=='signed': value=apply_signed(folder,args.file,ROOT/'trusted-update-keys.json')

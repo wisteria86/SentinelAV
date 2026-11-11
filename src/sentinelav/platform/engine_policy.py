@@ -4,7 +4,7 @@
 
 """Shared inspection policy validation across all scanner entry points."""
 # Generalized detection is on by default. neural_gray runs MalConv only on undecided PE files; emulation stays opt-in.
-DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=True,documents=True,model=True,reputation=False,signature_free=False,neural=False,neural_gray=True,clamav=True,rule_packs=True)
+DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=True,documents=True,model=True,reputation=False,signature_free=False,neural=False,neural_gray=True,clamav=True,rule_packs=True,md5_feed=True)
 
 
 def inspection_options(value=None):
@@ -27,6 +27,7 @@ def inspection_options(value=None):
     if result['signature_free']:
         result['clamav']=False
         result['rule_packs']=False
+        result['md5_feed']=False
         if result['amsi'] or result['reputation']:raise ValueError('Signature-free inspection forbids AMSI and reputation feeds')
         result['advanced']=True
     return result

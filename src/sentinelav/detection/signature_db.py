@@ -20,7 +20,8 @@ class SignatureIndex:
         self.db=None
         self.metadata=None
         self.revocations=False
-        pointer=path.parent/'signature-data'/'active.json'
+        from sentinelav.detection.definition_paths import signature_data_dir
+        pointer=signature_data_dir(path.parent)/'active.json'
         if pointer.exists():
             if pointer.stat().st_size>16384:
                 raise ValueError('Signature manifest exceeds size limit')
