@@ -50,7 +50,10 @@ def definitions_dir(name):
     """A named definition area, such as 'yara-forge' or 'feeds'."""
     root = Path(os.environ['SENTINELAV_DEFINITIONS']) if os.environ.get('SENTINELAV_DEFINITIONS') else _base() / 'definitions'
     path = root / name
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass  # Read-only snapshot mapping: the folder is either there or the set is absent.
     return path
 
 
@@ -63,5 +66,8 @@ def signature_data_dir(resource_root):
 
 def database_dir():
     path = Path(os.environ['SENTINELAV_CLAMAV_DB']) if os.environ.get('SENTINELAV_CLAMAV_DB') else _base() / 'clamav-db'
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     return path

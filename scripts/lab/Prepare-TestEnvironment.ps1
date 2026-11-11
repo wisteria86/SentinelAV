@@ -3,7 +3,7 @@
 # Used by: the CLI, desktop launcher, or packaging workflow
 
 # Stage only known application/native build files. No certificate private keys or samples.
-param([string]$PackageRoot,[switch]$SealedStaticPilot,[switch]$SealedStaticCorpus,[switch]$SealedStaticHoldout,[switch]$SealedZeusValidation,[string]$ApprovedInventory,[ValidateRange(0,100000)][int]$BatchOffset=0,[ValidateRange(1,32)][int]$BatchCount=32,[string]$ZooInput)
+param([string]$PackageRoot,[switch]$SealedStaticPilot,[switch]$SealedStaticCorpus,[switch]$SealedStaticHoldout,[switch]$SealedZeusValidation,[string]$ApprovedInventory,[ValidateRange(0,100000)][int]$BatchOffset=0,[ValidateRange(1,32)][int]$BatchCount=32,[string]$ZooInput,[string]$DefinitionsRoot)
 $ErrorActionPreference = 'Stop'
 if ($SealedStaticPilot -and ($SealedStaticCorpus -or $SealedStaticHoldout -or $SealedZeusValidation)) { throw 'Pilot cannot be combined with corpus inputs' }
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -144,6 +144,26 @@ if ($SealedZeusValidation) { $manifest.purpose='Harmless bootstrap and fixed AES
 $manifestPath = Join-Path $inputRoot 'manifest.json'
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
 $escapedInput = [Security.SecurityElement]::Escape($inputRoot)
+# A frozen definitions snapshot (ClamAV, rule packs, hash lists) is shared read-only instead of copied into every kit.
+$definitionsMapping = ''
+$definitionsManifest = ''
+if ($DefinitionsRoot) {
+    $DefinitionsRoot = [IO.Path]::GetFullPath($DefinitionsRoot)
+    Assert-UnlinkedPath $DefinitionsRoot
+    $snapshot = Join-Path $DefinitionsRoot 'snapshot.json'
+    if (-not (Test-Path -LiteralPath $snapshot -PathType Leaf)) { throw 'Definitions folder is not a frozen snapshot' }
+    if (Get-ChildItem -LiteralPath $DefinitionsRoot -Recurse -Force | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 }) { throw 'Linked definitions member rejected' }
+    $definitionsManifest = (Get-FileHash -LiteralPath $snapshot -Algorithm SHA256).Hash.ToLowerInvariant()
+    $escapedDefinitions = [Security.SecurityElement]::Escape($DefinitionsRoot)
+    $definitionsMapping = @"
+
+    <MappedFolder>
+      <HostFolder>$escapedDefinitions</HostFolder>
+      <SandboxFolder>C:\SentinelAV-Definitions</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+"@
+}
 $configuration = @"
 <Configuration>
   <Networking>Disable</Networking>
@@ -159,7 +179,7 @@ $configuration = @"
       <HostFolder>$escapedInput</HostFolder>
       <SandboxFolder>C:\SentinelAV-Input</SandboxFolder>
       <ReadOnly>true</ReadOnly>
-    </MappedFolder>
+    </MappedFolder>$definitionsMapping
   </MappedFolders>
   <LogonCommand>
     <Command>C:\Windows\System32\cmd.exe /d /k C:\SentinelAV-Input\Start-Guest.cmd</Command>
@@ -174,6 +194,7 @@ $status = [ordered]@{
     manifest_sha256=(Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
     state='Prepared; guest isolation and checks not yet verified';guest_executed=$false
 }
+if ($DefinitionsRoot) { $status['definitions']=$DefinitionsRoot; $status['definitions_snapshot_sha256']=$definitionsManifest }
 if ($previous.active_guest_verified -and $previous.active_guest_id -match '^[0-9a-f-]{36}$') {
     $status['active_guest_id']=$previous.active_guest_id
     $status['active_guest_kit_id']=$previous.active_guest_kit_id
