@@ -8,10 +8,11 @@ Limits are cumulative across the whole outer file. Reaching one is reported as a
 omission, and an extreme expansion ratio is recorded as decompression-bomb evidence.
 """
 import hashlib
+import io
 from pathlib import PurePosixPath
 import time
 
-from sentinelav.detection.archive_formats import EXECUTABLE_SUFFIXES,READERS
+from sentinelav.detection.archive_formats import EXECUTABLE_SUFFIXES,MSI_CLSID,READERS
 from sentinelav.detection.file_types import classify
 
 MAX_DEPTH=4
@@ -20,7 +21,7 @@ MAX_MEMBER=64*1024*1024
 MAX_EXPANDED=512*1024*1024
 MAX_RATIO=200
 SECONDS=60
-CONTAINER_KINDS={'zip','tar','gzip','bzip2','xz','7z','rar'}
+CONTAINER_KINDS={'zip','tar','gzip','bzip2','xz','7z','rar','cab'}
 
 
 def container_kind(data,name=''):
@@ -28,9 +29,17 @@ def container_kind(data,name=''):
     if not head:return None
     kind=classify(data,PurePosixPath(name).suffix.lower() if name else '')['kind']
     if kind in CONTAINER_KINDS:return kind
+    if kind=='ole' and _is_msi(data):return 'msi'
     # Self-extractors and appended archives keep a ZIP end record after other content.
     if head[:2]!=b'MZ' and bytes(data).find(b'PK\x05\x06',max(0,len(data)-65558))>=0 and kind not in ('apk','jar','ooxml'):return 'zip'
     return None
+
+
+def _is_msi(data):
+    try:
+        import olefile
+        return olefile.OleFileIO(io.BytesIO(bytes(data))).root.clsid==MSI_CLSID
+    except Exception:return False
 
 
 def _unsafe(name):

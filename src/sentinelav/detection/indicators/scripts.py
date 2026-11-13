@@ -52,6 +52,14 @@ RULES=(
     (('batch',),'batch_security_tampering','evasion',28,'Evasion','Stops security services or the firewall.',
      (r'net\s+stop\s+"?(?:windefend|wscsvc|mpssvc|sharedaccess)|taskkill[^\r\n]{0,40}(?:msmpeng|avp|avast|mcafee)|netsh\s+(?:advfirewall|firewall)[^\r\n]{0,40}(?:off|disable)',)),
     (('batch',),'batch_hide_and_flood','obfuscation',12,'Script','Hides files with attributes or loops on itself.',(r'attrib\s+\+[hs]',)),
+    # Windows Script Host droppers: launchers and loaders that ordinary software has no reason to ship as loose scripts.
+    (('vbscript','javascript','html','batch'),'script_launches_hidden_powershell','launch',30,'Downloader','Starts PowerShell hidden, without a profile or with policy bypass.',
+     (r'powershell(?:\.exe)?["\'\s][^\r\n]{0,160}(?:-w(?:indowstyle)?\s+h|-nop\b|-noni\b|-e(?:nc|ncodedcommand)?\s+[a-z0-9+/=]{16}|bypass)',r'-e(?:nc|ncodedcommand)?\s+[a-z0-9+/=]{16}|\biex\b|invoke-expression|frombase64string|downloadstring|invoke-webrequest|\biwr\b|net\.webclient')),
+    (('vbscript','javascript','batch','powershell'),'lolbin_remote_fetch','download',30,'Downloader','Uses a built-in Windows tool to fetch or run content from the Internet.',
+     (r'\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin|curl|msiexec)(?:\.exe)?\b[^\r\n]{0,160}https?://',)),
+    (('vbscript','javascript'),'encoded_wsh_script','evasion',30,'Script','Hides its code with legacy Windows script encoding (#@~^).',(r'#@~\^',)),
+    (('html',),'hta_script_with_shell','launch',30,'Downloader','An HTML application whose VB or J script creates system objects.',
+     (r'<script[^>]{0,60}language\s*=\s*["\']?(?:vb|j)script|hta:application',r'createobject|activexobject|getobject')),
     (('shell','python','perl','ruby','php'),'reverse_shell','remote_control',45,'Backdoor','Opens a reverse shell over the network.',
      (r'/dev/(?:tcp|udp)/|nc\s+(?:-\w+\s+)*-e\s|socket\.socket[^\n]{0,200}\n?.{0,200}(?:dup2|subprocess)|fsockopen\s*\(.{0,120}(?:exec|shell_exec|system)|bash\s+-i\s+>&',)),
     (('shell',),'unix_persistence','persistence',22,'Persistence','Adds a cron job, rc.local entry or authorized SSH key.',(r'crontab\s|/etc/rc\.local|/etc/cron|\.ssh/authorized_keys|/etc/ld\.so\.preload',)),
@@ -60,6 +68,8 @@ RULES=(
     (('php',),'webshell','remote_control',45,'Backdoor','Runs code taken directly from a web request.',
      (r'(?:eval|assert|system|shell_exec|passthru|exec|popen)\s*\(.{0,80}\$_(?:get|post|request|cookie)|eval\s*\(\s*(?:base64_decode|gzinflate|str_rot13)',)),
 )
+OBFUSCATOR_ID=re.compile(r'\b_0x[0-9a-f]{4,6}\b',re.I)
+RUNTIME_TOKENS=re.compile(r'\b(?:window|document|require|module\.exports|exports|navigator|process\.env)\b')
 _COMPILED=[(kinds,code,group,weight,category,text,[re.compile(p,re.I|re.S) for p in patterns]) for kinds,code,group,weight,category,text,patterns in RULES]
 
 
@@ -78,7 +88,7 @@ def variants_of(data,kind,omissions):
     """Original text plus bounded normalized forms, so concealment does not hide behavior."""
     from sentinelav.detection.content_analysis import normalized_variants
     texts=[_decode(data)]
-    if kind in SUFFIX and len(data)<=2*1024*1024:
+    if kind in SUFFIX:
         payloads,errors=normalized_variants(data,SUFFIX[kind])
         omissions.extend(errors)
         texts.extend(_decode(payload) for _,payload in payloads)
@@ -96,6 +106,10 @@ def indicators(data,kind,omissions=None,text=None):
                 sample=patterns[0].search(candidate[:4*1024*1024]).group()
                 found[code]=indicator(code,group,weight,explanation,category=category,evidence=sample[:120])
                 break
+    # javascript-obfuscator output that never touches a browser or Node.js runtime is a loose Windows Script Host program.
+    head=texts[0][:4*1024*1024]
+    if kind=='javascript' and len(OBFUSCATOR_ID.findall(head[:1024*1024]))>=30 and not RUNTIME_TOKENS.search(head):
+        found['standalone_obfuscated_wsh_script']=indicator('standalone_obfuscated_wsh_script','evasion',35,'A standalone script hides its code with an obfuscator and runs outside any browser or Node.js app.',category='Script')
     if len(texts)>1 and any(t!=texts[0] for t in texts[1:]) and found:
         found['content_concealment']=indicator('content_concealment','obfuscation',10,'Risky behavior became visible only after decoding concealed text.',category='Script')
     return list(found.values())

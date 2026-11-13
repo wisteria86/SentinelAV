@@ -50,9 +50,16 @@ def main():
         review_threshold=.99,validated=False,validation=dict(source='Published research benchmark; local efficacy not yet established'),
         provenance=dict(repository='joyce8/EMBER2024-benchmark-models',revision=REV,license='Apache-2.0'),
         fusion='Equal mean of specialist/general PE logits; correlated evidence, no automatic actions')
+    sign_and_activate(model,'model',folder)
+    (folder/'provenance.json').write_text(json.dumps(dict(revision=REV,files=FILES,license='Apache-2.0',activated=True,automatic_actions=False),indent=2))
+    print('Installed signed local ensemble. Research model; automatic response remains disabled.')
+
+
+def sign_and_activate(model,kind,folder):
+    """Sign a validated ensemble payload with the local research key and make it the active artifact of this kind."""
     from sentinelav.detection.pe_ensemble import validate
     validate(model)
-    keypath=folder/'publisher-private.dpapi'
+    keypath=Workspace().area('models')/'ember2024-published'/'publisher-private.dpapi'
     if keypath.exists():key=Ed25519PrivateKey.from_private_bytes(dpapi(keypath.read_bytes(),True))
     else:
         key=Ed25519PrivateKey.generate()
@@ -60,14 +67,12 @@ def main():
     public=key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw).hex()
     trust=RESOURCE_ROOT/'trusted-update-keys.json';update_pin(trust,'sentinelav-local-research',public)
     store=RESOURCE_ROOT/'analysis-data';revision=int(time.time())
-    manifest=dict(kind='model',key_id='sentinelav-local-research',revision=revision,issued=revision-1,expires=revision+90*86400,
+    manifest=dict(kind=kind,key_id='sentinelav-local-research',revision=revision,issued=revision-1,expires=revision+90*86400,
         payload_sha256=hashlib.sha256(canonical(model)).hexdigest())
     envelope=dict(schema=1,manifest=manifest,payload=model,signature=base64.b64encode(key.sign(canonical(manifest))).decode())
-    output=folder/('ensemble-'+str(revision)+'.json')
+    output=folder/(kind+'-'+str(revision)+'.json')
     with output.open('xb') as stream:stream.write(canonical(envelope))
-    activate(output,store,trust,'model')
-    (folder/'provenance.json').write_text(json.dumps(dict(revision=REV,files=FILES,license='Apache-2.0',activated=True,automatic_actions=False),indent=2))
-    print('Installed signed local ensemble. Research model; automatic response remains disabled.')
+    return activate(output,store,trust,kind)
 
 
 if __name__=='__main__':main()

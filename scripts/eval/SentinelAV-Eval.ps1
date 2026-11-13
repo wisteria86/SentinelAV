@@ -20,6 +20,9 @@ $Py = Join-Path $Repo '.venv\Scripts\python.exe'
 Set-Location $Repo
 $env:PYTHONPATH = "$Repo\src;$Repo"
 $env:PYTHONUNBUFFERED = '1'
+# Keep every temporary file on the work drive; some tests otherwise fall back to C:, which sits below their 20 GB reserve.
+New-Item -ItemType Directory -Force "$Work\tmp" | Out-Null
+$env:TEMP = "$Work\tmp"; $env:TMP = "$Work\tmp"
 New-Item -ItemType Directory -Force "$Work\runs" | Out-Null
 $Log = "$Work\runs\$Step-$(Get-Date -Format yyyyMMdd-HHmmss).log"
 function Say($text) { $line = "[$(Get-Date -Format 'MM-dd HH:mm')] $text"; Write-Host $line -ForegroundColor Cyan; Add-Content $Log $line }
@@ -32,6 +35,11 @@ function Run([string[]]$arguments) {
 function Freeze { $f = "$Work\freeze.json"; if (Test-Path $f) { Get-Content $f -Raw | ConvertFrom-Json } else { $null } }
 function Sandbox-Profile([string]$profile, [string]$snapshot) {
     $env:SENTINELAV_EVAL_SNAPSHOT = $snapshot
+    # Only one Windows Sandbox can run; the EMBER fine-tune work holds this lock while it uses it.
+    while ((Test-Path "$Work\finetune\SANDBOX-IN-USE.txt") -or ((wsb.exe list --raw | ConvertFrom-Json).WindowsSandboxEnvironments.Count -gt 0)) { Say 'waiting: another Sandbox is running'; Start-Sleep 120 }
+    # Old guest kits and evaluation packages pile up and trip the 80 GB work quota.
+    Get-ChildItem "$Work\lab\windows-sandbox" -Directory -Filter 'kit-*' -EA SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem "$Work\builds\evaluation-packages" -EA SilentlyContinue | Sort-Object LastWriteTime | Select-Object -SkipLast 1 | Remove-Item -Recurse -Force
     $first = Run @('-m','tools.evaluation.critical_harness','--profile',$profile,'--headless')
     for ($i = 1; $i -le 60; $i++) {
         $run = Get-ChildItem "$Repo\logs" -Directory | Sort-Object Name | Where-Object { (Get-Content "$($_.FullName)\report.md" -TotalCount 3 -ErrorAction SilentlyContinue) -match "\($profile\)" } | Select-Object -Last 1

@@ -15,7 +15,7 @@ import uuid
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from PySide6.QtCore import QLockFile
 
-KINDS={'model','reputation','policy'}
+KINDS={'model','confirm_model','reputation','policy'}
 LIMIT=16*1024*1024
 
 
@@ -47,7 +47,7 @@ def verify(envelope,trust,kind,now=None):
     if not isinstance(payload,dict): raise ValueError('Artifact payload must be a JSON object')
     if hashlib.sha256(canonical(payload)).hexdigest()!=manifest['payload_sha256']: raise ValueError('Artifact digest mismatch')
     Ed25519PublicKey.from_public_bytes(bytes.fromhex(public)).verify(base64.b64decode(envelope['signature'],validate=True),canonical(manifest))
-    if kind=='model':
+    if kind in ('model','confirm_model'):
         from sentinelav.detection.classifier import validate_model
         validate_model(payload)
     elif kind=='reputation':

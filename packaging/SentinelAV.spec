@@ -25,8 +25,12 @@ if model_index.exists():
     sys.path.insert(0,str(root/'src'))
     from sentinelav.updates.artifacts import active
     active(resources/'analysis-data',resources/'trusted-update-keys.json','model')
-    model_name=json.loads(model_index.read_text())['model']['file']
-    analysis_datas += [(str(model_index),'analysis-data'),(str(model_index.parent/model_name),'analysis-data')]
+    index=json.loads(model_index.read_text())
+    analysis_datas += [(str(model_index),'analysis-data'),(str(model_index.parent/index['model']['file']),'analysis-data')]
+    # The confirmation model must ship with the primary model, or every primary conviction would stand unchecked.
+    if 'confirm_model' in index:
+        active(resources/'analysis-data',resources/'trusted-update-keys.json','confirm_model')
+        analysis_datas.append((str(model_index.parent/index['confirm_model']['file']),'analysis-data'))
 for name in ('malconv2-state.npz','malconv2.json'):
     if (resources/'analysis-data'/name).exists():analysis_datas.append((str(resources/'analysis-data'/name),'analysis-data'))
 for dependency in ('speakeasy','thrember','lightgbm','py7zr','rarfile','pyzipper','oletools','olefile'):
@@ -108,3 +112,11 @@ if capa:
     target=Path(DISTPATH)/'SentinelAV'/'capa'
     shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
     shutil.copy2(capa,target/'capa.exe')
+# 7-Zip (Igor Pavlov, LGPL-2.1 with the unRAR restriction) opens RAR archives for inspection.
+from sentinelav.detection.archive_formats import seven_zip_tool
+seven=seven_zip_tool()
+if seven:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'7zip'
+    shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
+    for name in ('7z.exe','7z.dll'):shutil.copy2(Path(seven).with_name(name),target/name)

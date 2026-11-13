@@ -56,7 +56,8 @@ def describe(scan):
                 confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:48],
                 arms={name: [value['score'], value['verdict']] for name, value in (assessment.get('arms') or {}).items()},
                 codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]],
-                model_scores=assessment.get('model_scores') or {})
+                model_scores=assessment.get('model_scores') or {},
+                notes=[str(error).rsplit(': ', 1)[-1][:100] for error in (scan.get('errors') or [])[:2]])
 
 
 def read_member(archive, info, password):

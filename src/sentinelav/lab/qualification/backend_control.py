@@ -31,7 +31,7 @@ def run(command,timeout,cancelled,log=None):
                 except subprocess.TimeoutExpired:
                     if cancelled() or time.monotonic()-began>timeout:
                         process.terminate();raise InterruptedError('Control operation cancelled or timed out')
-        if process.returncode:raise RuntimeError('Control operation failed with exit '+str(process.returncode))
+        if process.returncode:raise RuntimeError('Control operation failed with exit '+str(process.returncode)+': '+(raw or b'').decode('utf-8','replace').strip()[-400:])
         if len(raw)>1024*1024:raise ValueError('Control output too large')
         return raw.decode('utf-8-sig',errors='replace')
     finally:

@@ -59,7 +59,7 @@ def _model_items(decision):
     model=coverage.get('model',{})
     value=model.get('model_score')
     if isinstance(value,(int,float)):
-        if value>=CONVICT_SCORES.get(model.get('file_type'),.99):
+        if value>=CONVICT_SCORES.get(model.get('file_type'),.99) and model.get('confirmed') is not False:
             items.append(indicator('learned_pe_model','ml',70,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
         elif value>=ELEVATED_SCORE:
             items.append(indicator('learned_pe_model_elevated','ml',40,f'A machine-learning model gives an elevated score of {value:.1%}, below its conviction threshold.','ml'))

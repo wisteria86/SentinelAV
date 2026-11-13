@@ -171,9 +171,11 @@ BATCH_BYTES = 384 * 1024**2
 def cases(name, definitions=None):
     manifest = json.loads((corpus_root(name, create=False) / 'manifest.json').read_text(encoding='utf-8'))
     password = base64.b64encode(PASSWORD).decode()
+    # Development only: re-scan just the file types a fix touched. The full dev and holdout runs never set this.
+    skipped = {t.strip().lower() for t in os.environ.get('SENTINELAV_EVAL_SKIP_TYPES', '').split(',') if t.strip()}
     entries = [dict(path=f"bazaar/{name}/{item['family']}/{item['sha256']}.zip", blob=item['blob'], bytes=item['bytes'],
         family=item['family'], split=name, sha256=item['sha256'], password_b64=password) for item in manifest['entries']
-        if windows_target(item.get('file_type'))]
+        if windows_target(item.get('file_type')) and str(item.get('file_type')).lower() not in skipped]
     batches, current = [], []
     for entry in entries:
         if current and (len(current) >= BATCH_SIZE or sum(row['bytes'] for row in current) + entry['bytes'] > BATCH_BYTES):
