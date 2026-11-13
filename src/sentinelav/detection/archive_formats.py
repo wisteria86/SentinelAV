@@ -1,10 +1,11 @@
-# Purpose: In-memory member readers for archive formats. Nothing is extracted to disk or run.
+# Purpose: Member readers for archive formats. Members stay in memory, except cabinets, which 7-Zip reads from a short-lived temp copy. Nothing is run.
 # Works with: detection.archive_inspection
 # Used by: detection.archive_inspection
 
-"""In-memory member readers for archive formats. Nothing is extracted to disk or run."""
+"""Member readers for archive formats. Members stay in memory, except cabinets, which 7-Zip reads from a short-lived temp copy. Nothing is run."""
 import bz2
 import io
+from pathlib import Path
 import lzma
 import shutil
 import tarfile
@@ -120,11 +121,27 @@ def seven_zip_members(data):
     raise RuntimeError('7z archive could not be opened: '+type(last).__name__)
 
 
+def seven_zip_tool():
+    """7z.exe from SENTINELAV_7ZIP, a `7zip` folder beside the application, then the work drive's tool area."""
+    import os
+    from pathlib import Path
+    from sentinelav.paths import PROJECT_ROOT
+    for path in (os.environ.get('SENTINELAV_7ZIP'),PROJECT_ROOT/'7zip'/'7z.exe',
+                 Path(os.environ.get('SENTINELAV_WORK_ROOT','F:/SentinelAV-Work'))/'tools'/'7zip'/'7z.exe'):
+        if path and Path(path).is_file():return str(path)
+    return None
+
+
 def rar_members(data):
-    if not (shutil.which('unrar') or shutil.which('unrar.exe')):
-        raise RuntimeError('RAR members were not inspected: no unrar tool is installed')
     try:import rarfile
     except ImportError:raise RuntimeError('RAR support unavailable: install rarfile') from None
+    # rarfile reads headers itself; 7-Zip (which reads RAR) only decompresses members.
+    tool=seven_zip_tool()
+    if tool:
+        rarfile.SEVENZIP_TOOL=tool
+        rarfile.tool_setup(unrar=False,unar=False,bsdtar=False,sevenzip=True,sevenzip2=False,force=True)
+    elif not (shutil.which('unrar') or shutil.which('unrar.exe')):
+        raise RuntimeError('RAR members were not inspected: no unrar tool is installed')
     archive=rarfile.RarFile(io.BytesIO(data))
     result=[]
     for info in archive.infolist():
@@ -141,5 +158,86 @@ def rar_members(data):
     return result
 
 
-READERS={'zip':zip_members,'apk':zip_members,'jar':zip_members,'tar':tar_members,'gzip':_stream(_gzip_engine,'gzip-content'),
+CAB_LIMIT=256*1024*1024
+MSI_CLSID='000C1084-0000-0000-C000-000000000046'
+MSI_CHARS='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._'
+
+
+def msi_name(name):
+    """Windows Installer packs two name characters into one code point; tables start with U+4840."""
+    out=[]
+    for ch in name:
+        code=ord(ch)
+        if 0x3800<=code<0x4800:code-=0x3800;out+=[MSI_CHARS[code&0x3f],MSI_CHARS[(code>>6)&0x3f]]
+        elif 0x4800<=code<0x4840:out.append(MSI_CHARS[code-0x4800])
+        elif code==0x4840:out.append('!')
+        else:out.append(ch)
+    return ''.join(out)
+
+
+def msi_strings(package):
+    """The string pool, one string per line. Strings are stored back to back, so a rule must not read across two of them."""
+    streams={msi_name(path[0]):path for path in package.listdir(streams=True,storages=False) if len(path)==1}
+    pool,raw=(package.openstream(streams[name]).read(64*1024*1024) for name in ('!_StringPool','!_StringData'))
+    words=[int.from_bytes(pool[k:k+2],'little') for k in range(0,len(pool)-1,2)]
+    lines,offset,i=[],0,1
+    while i*2+1<len(words) and offset<=len(raw):
+        if words[i*2]==0 and words[i*2+1]==0:i+=1;continue
+        if words[i*2]==0:
+            if i*2+3>=len(words):break
+            size=(words[i*2+3]<<16)+words[i*2+2];i+=2  # strings over 64 KB keep the high word in the next entry
+        else:size=words[i*2];i+=1
+        lines.append(raw[offset:offset+size].replace(b'\n',b' ').replace(b'\r',b' '));offset+=size
+    return b'\n'.join(lines)
+
+
+def msi_members(data):
+    """Streams of a Windows Installer package: embedded cabinets and Binary-table programs and scripts.
+    Custom-action command lines live in the string pool, which is offered as one text member."""
+    import olefile
+    package=olefile.OleFileIO(io.BytesIO(data))
+    result=[]
+    for path in package.listdir(streams=True,storages=False):
+        name=msi_name('/'.join(path))
+        # Signature and summary streams and database tables hold no code.
+        if '/\x05' in '/'+name or '/!' in '/'+name:continue
+        def read(limit,item=path):
+            with package.openstream(item) as stream:return stream.read(limit+1)
+        result.append(Member(name,package.get_size(path),read))
+    try:strings=msi_strings(package)
+    except (OSError,ValueError,KeyError):strings=b''
+    # A script suffix lets the script rules read custom-action commands.
+    if strings:result.append(Member('msi-strings.cmd',len(strings),lambda limit:strings[:limit+1]))
+    return result
+
+
+def cab_members(data):
+    tool=seven_zip_tool()
+    if not tool:raise RuntimeError('Cabinet members were not inspected: 7-Zip is not available')
+    import subprocess,tempfile
+    # 7-Zip needs a seekable file for cabinets; the copy lives only for this call, in the temp folder.
+    with tempfile.TemporaryDirectory(prefix='sav-cab-') as folder:
+        path=Path(folder)/'package.cab';path.write_bytes(data)
+        listing=subprocess.run([tool,'l','-slt','-ba',str(path)],capture_output=True,timeout=60,creationflags=0x08000000).stdout.decode('utf-8','replace')
+        entries=[]
+        for block in listing.replace(chr(13),'').split(chr(10)*2):
+            fields=dict(line.split(' = ',1) for line in block.splitlines() if ' = ' in line)
+            if fields.get('Path') and fields.get('Folder')!='+' and 'D' not in fields.get('Attributes','').split('_')[0]:
+                entries.append((fields['Path'],int(fields.get('Size') or 0)))
+        total=sum(size for _,size in entries)
+        # One pass writes every member to stdout in listing order; the declared sizes cut it apart.
+        # Read at most the declared total plus one byte, so a cabinet that lies about its sizes cannot expand without bound.
+        if total>CAB_LIMIT:raise RuntimeError('Cabinet expansion limit: declares '+str(total)+' bytes')
+        process=subprocess.Popen([tool,'e','-so',str(path)],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,creationflags=0x08000000)
+        try:output=process.stdout.read(total+1)
+        finally:
+            process.kill();process.wait(10)
+        if len(output)!=total:raise RuntimeError('Cabinet members do not match their declared sizes')
+    result,offset=[],0
+    for name,size in entries:
+        result.append(Member(name,size,lambda limit,start=offset,size=size:output[start:start+min(size,limit+1)]));offset+=size
+    return result
+
+
+READERS={'msi':msi_members,'cab':cab_members,'zip':zip_members,'apk':zip_members,'jar':zip_members,'tar':tar_members,'gzip':_stream(_gzip_engine,'gzip-content'),
     'bzip2':_stream(_bz2_engine,'bzip2-content'),'xz':_stream(_xz_engine,'xz-content'),'7z':seven_zip_members,'rar':rar_members}

@@ -19,12 +19,39 @@ ANDROID_CODE=(
     ('device_admin_abuse','persistence',18,'Trojan','Requests device-administrator control or locks the device.',('devicepolicymanager','locknow','resetpassword')),
     ('native_exploit_names','injection',32,'Exploit','Names a known Android root exploit technique.',('rageagainstthecage','exploid','zergrush','gingerbreak','psneuter')),
 )
+# Terms starting with '=' must equal a class-file constant (a class, method or field name); others are substrings of any constant.
 JAVA_CODE=(
-    ('runtime_exec','injection',20,'Trojan','Launches operating-system commands.',('java/lang/runtime','getruntime'),('exec',)),
-    ('remote_class_loading','download',24,'Downloader','Loads classes from a URL at runtime.',('urlclassloader','defineclass'),('java/net/url','openstream','openconnection')),
-    ('sandbox_escape_terms','exploit',32,'Exploit','Manipulates the Java security manager, as sandbox exploits do.',('setsecuritymanager','accesscontroller'),('protectiondomain','allpermission')),
-    ('remote_control_terms','remote_control',24,'Backdoor','Combines sockets with screen or key capture.',('java/net/socket',),('java/awt/robot','createscreencapture')),
+    ('runtime_exec','injection',20,'Trojan','Launches operating-system commands.',('=java/lang/runtime',),('=exec',)),
+    ('remote_class_loading','download',24,'Downloader','Loads classes from a URL at runtime.',('=java/net/urlclassloader',),('http://','https://')),
+    ('sandbox_escape_terms','exploit',32,'Exploit','Manipulates the Java security manager, as sandbox exploits do.',('=setsecuritymanager',),('=java/security/allpermission',)),
+    ('remote_control_terms','remote_control',24,'Backdoor','Combines sockets with screen or key capture.',('=java/net/socket',),('=java/awt/robot','=createscreencapture')),
+    # Loaders that keep their real classes encrypted in a resource and define them after decrypting.
+    ('encrypted_class_loader','evasion',25,'Trojan','Decrypts bundled data and defines classes from it at runtime.',('=defineclass',),('=javax/crypto/cipher',)),
+    ('chat_webhook_exfiltration','credentials',25,'Stealer','Posts data to a chat webhook or bot API, a common way stealers send loot.',('/api/webhooks/','api.telegram.org/bot'),('login data','local state','leveldb','cookies','wallet','screenshot','user.home','getenv')),
 )
+
+
+CONSTANT_SIZES={7:2,8:2,16:2,19:2,20:2,15:3,3:4,4:4,9:4,10:4,11:4,12:4,17:4,18:4,5:8,6:8}
+
+
+def constants(code):
+    """UTF-8 constants of one class file (names, descriptors, string literals), lowercased; empty for non-class data."""
+    found=set()
+    if code[:4]!=b'\xca\xfe\xba\xbe' or len(code)<10:return found
+    count,offset,index=int.from_bytes(code[8:10],'big'),10,1
+    while index<count and offset<len(code):
+        tag=code[offset]
+        if tag==1:
+            size=int.from_bytes(code[offset+1:offset+3],'big')
+            found.add(code[offset+3:offset+3+size].decode('utf-8','replace').casefold());offset+=3+size
+        elif tag in CONSTANT_SIZES:offset+=1+CONSTANT_SIZES[tag];index+=tag in (5,6)  # long and double take two slots
+        else:break
+        index+=1
+    return found
+
+
+def _has(term,names,text):
+    return term[1:] in names if term.startswith('=') else term in text
 
 
 def _members(data):
@@ -65,9 +92,21 @@ def android_indicators(data,kind):
 def java_indicators(data,kind):
     if kind=='jar':_,code=_members(data)
     else:code=[bytes(data)]
-    text='\n'.join(extract(item,4*1024*1024) for item in code[:256])
+    names=set().union(*(constants(item) for item in code[:256]))
+    text='\n'.join(sorted(names))
     found=[]
+    if kind=='jar':
+        # Obfuscators rename classes to one or two letters; paired with command launching this is a loader, not a library.
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
+            classes=[n.rsplit('/',1)[-1][:-6] for n in archive.namelist()[:4096] if n.endswith('.class')]
+        short=sum(len(name)<=2 for name in classes)
+        if len(classes)>=10 and short>=0.6*len(classes):
+            found.append(indicator('obfuscated_class_names','evasion',15,'Most classes have one- or two-letter names, as obfuscators produce.',category='Trojan',evidence=f'{short} of {len(classes)} classes'))
+    if kind=='jar':
+        # The archive is compressed, so the generic string rules read the class files' constants instead.
+        from sentinelav.detection.indicators.strings import indicators as string_indicators
+        found.extend(string_indicators(b'\n'.join(code[:256])[:16*1024*1024],'class'))
     for code_name,group,weight,category,explanation,first,second in JAVA_CODE:
-        hit=[t for t in first if t in text];other=[t for t in second if t in text]
+        hit=[t.lstrip('=') for t in first if _has(t,names,text)];other=[t.lstrip('=') for t in second if _has(t,names,text)]
         if hit and other:found.append(indicator(code_name,group,weight,explanation,category=category,evidence=', '.join(hit+other)[:160]))
     return found

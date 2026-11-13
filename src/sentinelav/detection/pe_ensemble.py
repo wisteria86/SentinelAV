@@ -23,6 +23,7 @@ def validate(model):
         if hashlib.sha256(text.encode()).hexdigest()!=member.get('model_sha256'):raise ValueError('Ensemble member digest mismatch')
         if member.get('feature_count')!=model.get('feature_count'):raise ValueError('Ensemble feature dimensions differ')
     if total>16*1024*1024:raise ValueError('Ensemble budget exceeded')
+    if 'confirm_threshold' in model and (type(model['confirm_threshold']) not in (int,float) or not 0<model['confirm_threshold']<1):raise ValueError('Invalid confirmation threshold')
     value=model.get('review_threshold')
     if type(value) not in (int,float) or not math.isfinite(value) or not 0<value<=1:raise ValueError('Invalid ensemble threshold')
     for kind,value in model.get('review_thresholds',{}).items():
@@ -63,7 +64,7 @@ def predict_vector(model,vector,kind):
         algorithm='Routed gradient-boosted specialists with logit pooling')
 
 
-def predict(model,data):
+def predict(model,data,confirm=None):
     import pefile
     validate(model)
     image=pefile.PE(data=bytes(data),fast_load=True)
@@ -71,4 +72,10 @@ def predict(model,data):
         directories=image.OPTIONAL_HEADER.DATA_DIRECTORY
         kind='Dot_Net' if len(directories)>14 and directories[14].VirtualAddress else 'Win64' if image.OPTIONAL_HEADER.Magic==0x20b else 'Win32'
     finally:image.close()
-    return predict_vector(model,features(data),kind)
+    vector=features(data);output=predict_vector(model,vector,kind)
+    if confirm and output['review']:
+        # A second, independently retrained model must agree; otherwise the file is shown for review, not convicted.
+        second=predict_vector(confirm,vector,kind)['model_score']
+        output.update(confirm_score=second,confirmed=second>=confirm.get('confirm_threshold',.5))
+        if not output['confirmed']:output['classification']='Suspicious - review (not confirmed by second model)'
+    return output

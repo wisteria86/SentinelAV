@@ -6,7 +6,7 @@
 from sentinelav.detection.indicators import boot,documents,dos,mobile,pe,scripts,strings,unix
 
 SCRIPT_KINDS={'powershell','vbscript','javascript','batch','shell','python','perl','php','ruby','lua','html'}
-STRING_SCAN_KINDS={'boot','pe','dos_mz','elf','macho','dex','apk','jar','class','com','lnk','data'}
+STRING_SCAN_KINDS={'boot','pe','dos_mz','elf','macho','dex','apk','class','com','lnk','data'}
 
 
 def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=None):

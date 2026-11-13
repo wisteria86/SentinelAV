@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 from sentinelav.detection.definition_paths import binaries, database_dir, definitions_dir  # noqa: E402
 from sentinelav.workspace import Workspace  # noqa: E402
+from sentinelav.paths import RESOURCE_ROOT  # noqa: E402
 
 
 def sha256(path):
@@ -60,6 +61,12 @@ def main():
         folder = pack.folder
         compiled = sorted(folder.glob(f"compiled-{pack.manifest['sha256'][:16]}.yarc"))
         plan += [(path, Path('definitions') / pack.name / path.name) for path in [folder / 'pack.json', folder / pack.manifest['file'], *compiled]]
+    # The learned models live outside git, so the freeze records exactly which ones were active.
+    models = RESOURCE_ROOT / 'analysis-data'
+    if (models / 'active.json').is_file():
+        index = json.loads((models / 'active.json').read_text(encoding='utf-8'))
+        plan += [(models / 'active.json', Path('models/active.json'))]
+        plan += [(models / entry['file'], Path('models') / entry['file']) for entry in index.values()]
     blocklist = definitions_dir('cert-blocklist') / 'cscb.csv'
     if blocklist.is_file():
         plan.append((blocklist, Path('definitions/cert-blocklist/cscb.csv')))

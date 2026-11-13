@@ -225,7 +225,7 @@ class ScanFlowMixin:
             row.update(fields)
             if derived_authority is not None:row['automatic_response_eligible']=derived_authority
             self.add_finding(result,'detections',row)
-        top=assessed
+        top,arms=assessed,dict(assessed.get('arms') or {})
         for finding in nested:
             member=finding.pop('assessment') or {}
             label='!/'.join(finding['member_chain'])
@@ -238,10 +238,13 @@ class ScanFlowMixin:
                 self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,**{**member_fields,'automatic_response_eligible':False},
                     **{key:value for key,value in finding.items() if key!='reasons'},reasons=['Archive member: '+label+' — '+reason for reason in member.get('reasons',[])]))
             if member and member.get('score',0)>top.get('score',0):top=member
+            # Each evaluation arm keeps its own strongest object, so a hash on the container cannot hide what its members show.
+            for arm,value in (member.get('arms') or {}).items():
+                if arm not in arms or value['score']>arms[arm]['score']:arms[arm]=value
         if not rows:
             if assessed['verdict']=='Malicious':
                 self.add_finding(result,'detections',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
             elif assessed['verdict']=='Suspicious':
                 self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
         if capture_identity:
-            result['assessment']={**public_fields(top),'reasons':top.get('reasons',[]),'analyzed':assessed['analyzed'],'inert':assessed['inert'],'file_kind':assessed['file_kind']}
+            result['assessment']={**public_fields(top),'arms':arms,'reasons':top.get('reasons',[]),'analyzed':assessed['analyzed'],'inert':assessed['inert'],'file_kind':assessed['file_kind']}

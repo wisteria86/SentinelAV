@@ -15,16 +15,21 @@ from collections import deque
 SCRIPT_SUFFIXES={'.ps1','.psm1','.js','.jse','.vbs','.vbe','.hta','.bat','.cmd','.wsf'}
 
 
-def normalized_variants(data,suffix='',max_total=4*1024*1024):
-    if len(data)>2*1024*1024: return [],['Script normalization size limit']
+WINDOW=3*1024*1024
+
+
+def normalized_variants(data,suffix='',max_total=16*1024*1024):
+    omissions=[]
+    # Obfuscated droppers are often padded to megabytes; decode the head and tail instead of giving up.
+    if len(data)>WINDOW+1024*1024:
+        data=bytes(data[:WINDOW])+b'\n'+bytes(data[-1024*1024:]); omissions.append('Script normalized in part (head and tail)')
     queue=deque([(bytes(data),'original',0)])
     seen={hashlib.sha256(data).digest()}
     variants=[]
-    omissions=[]
     total=0
-    while queue and len(variants)<16:
+    while queue and len(variants)<32:
         raw,chain,depth=queue.popleft()
-        if depth>=3: continue
+        if depth>=4: continue
         candidates=[]
         if raw.startswith((b'\xff\xfe',b'\xfe\xff')) or raw[:256].count(b'\0')>len(raw[:256])//4:
             try: candidates.append((raw.decode('utf-16' if raw[:2] in (b'\xff\xfe',b'\xfe\xff') else 'utf-16le').encode('utf-8'),'utf16'))
@@ -45,7 +50,7 @@ def normalized_variants(data,suffix='',max_total=4*1024*1024):
         for payload,method in candidates:
             digest=hashlib.sha256(payload).digest()
             if digest in seen: continue
-            if len(variants)>=16 or total+len(payload)>max_total:
+            if len(variants)>=32 or total+len(payload)>max_total:
                 omissions.append('Normalization variant/byte budget reached')
                 continue
             seen.add(digest); total+=len(payload)
