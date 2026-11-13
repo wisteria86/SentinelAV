@@ -8,7 +8,7 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from sentinelav.detection.archive_inspection import inspect_archive
+from sentinelav.detection.archive_inspection import inspect_archive,vouched_members
 from sentinelav.detection.file_analysis import parse_object,public_fields
 from sentinelav.detection.file_types import classify
 from sentinelav.detection.threat_score import indicator
@@ -208,7 +208,7 @@ class ScanFlowMixin:
                 result['errors'].append(f'{path}: Advanced analysis omissions: '+ '; '.join(coverage)[:1200])
         nested,encrypted,bomb=[],[],False
         if self.options['archives']:
-            nested,omissions,archive_stats=inspect_archive(bytes(data),self.assess_member,cancelled)
+            nested,omissions,archive_stats=inspect_archive(bytes(data),self.assess_member,cancelled);nested=vouched_members(nested,resolved,data)
             result['archive_entries_seen']=result.get('archive_entries_seen',0)+archive_stats['entries']
             result['archive_bytes_expanded']=result.get('archive_bytes_expanded',0)+archive_stats['expanded']
             result['errors'].extend(f'{path}: {error}' for error in omissions if not any(limit in error for limit in STANDING_LIMITS))

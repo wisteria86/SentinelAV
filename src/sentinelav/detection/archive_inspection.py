@@ -128,3 +128,19 @@ def inspect_zip(data,analyze,cancelled=lambda:False,max_depth=2,max_entries=128,
     findings,omissions,state=inspect_archive(data,lambda payload,name:analyze(payload)[:3],cancelled,max_depth,max_entries,max_member,max_expanded,max_ratio,seconds)
     for finding in findings:finding.pop('assessment',None)
     return findings,omissions,state
+
+
+def vouched_members(nested,path,data):
+    """A validly signed Windows Installer package vouches for its members, as a signature does for an installed program:
+    heuristics on a member do not count, and a hash or signature hit on one asks for review instead of convicting."""
+    if not nested or not path or container_kind(data)!='msi':return nested
+    from sentinelav.detection.trust import signature_status
+    if signature_status(path)!='trusted':return nested
+    for finding in nested:
+        if finding['reasons']:
+            notes=[reason+' (inside a validly signed installer: needs review)' for reason in finding['reasons']]
+            finding['assessment']={**(finding.get('assessment') or {}),'verdict':'Suspicious','score':60,'confidence':'Low','reasons':notes,
+                'automatic_response_eligible':False,'arms':{'full':dict(score=60,verdict='Suspicious',confidence='Low')}}
+            finding['reasons']=[]
+        else:finding['assessment']=None
+    return nested
