@@ -50,5 +50,7 @@ try {
     $env:SENTINELAV_DEFINITIONS = $previousDefinitions
     $env:SENTINELAV_CLAMAV_DB = $previousClamDb
     $env:SENTINELAV_DECOY_HOME = $previousDecoyHome
+    # Registry decoys made under a test profile live in a throwaway key (monitoring.deception.registry_decoys).
+    Remove-Item -LiteralPath 'HKCU:\Software\SentinelAV-Test-Decoys' -Recurse -Force -ErrorAction SilentlyContinue
     Pop-Location
 }

@@ -42,6 +42,19 @@ Source: "{#PackageRoot}\_internal\signature-data\active.json"; DestDir: "{app}\_
 [Icons]
 Name: "{userprograms}\SentinelAV"; Filename: "{app}\SentinelAV.exe"
 Name: "{userdesktop}\SentinelAV"; Filename: "{app}\SentinelAV.exe"; Tasks: desktopicon
+[UninstallDelete]
+; Decoy-process links SentinelAV creates beside itself (monitoring.deception.processes).
+Type: files; Name: "{app}\mstsc.exe"
+Type: files; Name: "{app}\KeePass.exe"
+Type: files; Name: "{app}\firefox.exe"
+Type: files; Name: "{app}\vmtoolsd.exe"
+Type: files; Name: "{app}\VBoxService.exe"
+Type: files; Name: "{app}\procmon.exe"
+Type: files; Name: "{app}\x64dbg.exe"
+Type: files; Name: "{app}\ollydbg.exe"
+Type: files; Name: "{app}\Wireshark.exe"
+Type: files; Name: "{app}\svchost-backup.exe"
+
 [Run]
 Filename: "{app}\SentinelAV.exe"; Description: "Launch SentinelAV"; Flags: nowait postinstall skipifsilent
 [Code]

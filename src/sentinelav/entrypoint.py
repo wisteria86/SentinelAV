@@ -22,6 +22,10 @@ def prepare_self_test_dir(path):
 
 
 def main():
+    if '--decoy-role' in sys.argv:
+        # A decoy process (see monitoring.deception.processes) runs only its idle body, never the app.
+        from sentinelav.monitoring.deception.decoy_process import main as decoy_main
+        raise SystemExit(decoy_main())
     parser=argparse.ArgumentParser(description='SentinelAV malware detection, protection and removal')
     parser.add_argument('--startup',action='store_true')
     parser.add_argument('--scheduled-scan',action='store_true')
