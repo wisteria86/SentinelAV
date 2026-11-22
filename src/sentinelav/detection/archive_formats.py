@@ -12,6 +12,8 @@ import tarfile
 import zipfile
 import zlib
 
+from sentinelav.detection.archive_tool import CAB_LIMIT,cab_members,seven_zip_tool,tool_members  # noqa: F401 (re-exported)
+
 SHARING_PASSWORDS=(b'infected',b'malware',b'virus')
 EXECUTABLE_SUFFIXES=('.exe','.dll','.scr','.com','.pif','.bat','.cmd','.js','.jse','.vbs','.vbe','.ps1','.hta','.jar','.msi','.lnk','.cpl','.sys','.apk','.bin')
 
@@ -43,8 +45,14 @@ def open_zip(data):
     return pyzipper.AESZipFile(io.BytesIO(data))
 
 
+# Stored, Deflate, BZIP2, LZMA, and AES (99, opened by pyzipper); other methods (Deflate64, Implode, Reduce) go to 7-Zip.
+ZIP_METHODS={0,8,12,14,99}
+
+
 def zip_members(data):
     archive=open_zip(data)
+    if any(info.compress_type not in ZIP_METHODS for info in archive.infolist()):
+        yield from tool_members(data,'.zip');return
     for info in archive.infolist():
         if info.is_dir():continue
         mode=(info.external_attr>>16)&0xffff
@@ -118,18 +126,10 @@ def seven_zip_members(data):
             return [Member(item.filename,item.uncompressed,member_read(item.filename),item.compressed,False) for item in infos]
         except Exception as error:
             last=error
+    # py7zr lacks some filters (BCJ2, ARM64, Deflate64) and encrypted-header variants that 7-Zip itself reads.
+    try:return tool_members(data,'.7z')
+    except RuntimeError:pass
     raise RuntimeError('7z archive could not be opened: '+type(last).__name__)
-
-
-def seven_zip_tool():
-    """7z.exe from SENTINELAV_7ZIP, a `7zip` folder beside the application, then the work drive's tool area."""
-    import os
-    from pathlib import Path
-    from sentinelav.paths import PROJECT_ROOT
-    for path in (os.environ.get('SENTINELAV_7ZIP'),PROJECT_ROOT/'7zip'/'7z.exe',
-                 Path(os.environ.get('SENTINELAV_WORK_ROOT','F:/SentinelAV-Work'))/'tools'/'7zip'/'7z.exe'):
-        if path and Path(path).is_file():return str(path)
-    return None
 
 
 def rar_members(data):
@@ -158,7 +158,6 @@ def rar_members(data):
     return result
 
 
-CAB_LIMIT=256*1024*1024
 MSI_CLSID='000C1084-0000-0000-C000-000000000046'
 MSI_CHARS='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._'
 
@@ -208,34 +207,6 @@ def msi_members(data):
     except (OSError,ValueError,KeyError):strings=b''
     # A script suffix lets the script rules read custom-action commands.
     if strings:result.append(Member('msi-strings.cmd',len(strings),lambda limit:strings[:limit+1]))
-    return result
-
-
-def cab_members(data):
-    tool=seven_zip_tool()
-    if not tool:raise RuntimeError('Cabinet members were not inspected: 7-Zip is not available')
-    import subprocess,tempfile
-    # 7-Zip needs a seekable file for cabinets; the copy lives only for this call, in the temp folder.
-    with tempfile.TemporaryDirectory(prefix='sav-cab-') as folder:
-        path=Path(folder)/'package.cab';path.write_bytes(data)
-        listing=subprocess.run([tool,'l','-slt','-ba',str(path)],capture_output=True,timeout=60,creationflags=0x08000000).stdout.decode('utf-8','replace')
-        entries=[]
-        for block in listing.replace(chr(13),'').split(chr(10)*2):
-            fields=dict(line.split(' = ',1) for line in block.splitlines() if ' = ' in line)
-            if fields.get('Path') and fields.get('Folder')!='+' and 'D' not in fields.get('Attributes','').split('_')[0]:
-                entries.append((fields['Path'],int(fields.get('Size') or 0)))
-        total=sum(size for _,size in entries)
-        # One pass writes every member to stdout in listing order; the declared sizes cut it apart.
-        # Read at most the declared total plus one byte, so a cabinet that lies about its sizes cannot expand without bound.
-        if total>CAB_LIMIT:raise RuntimeError('Cabinet expansion limit: declares '+str(total)+' bytes')
-        process=subprocess.Popen([tool,'e','-so',str(path)],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,creationflags=0x08000000)
-        try:output=process.stdout.read(total+1)
-        finally:
-            process.kill();process.wait(10)
-        if len(output)!=total:raise RuntimeError('Cabinet members do not match their declared sizes')
-    result,offset=[],0
-    for name,size in entries:
-        result.append(Member(name,size,lambda limit,start=offset,size=size:output[start:start+min(size,limit+1)]));offset+=size
     return result
 
 

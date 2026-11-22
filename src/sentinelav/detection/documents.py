@@ -16,6 +16,8 @@ def macro_sources(data):
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 entries=archive.infolist()
+                # Jars, APKs and plain ZIPs are not Office files; their own readers apply their own limits.
+                if not any(e.filename.casefold().endswith('vbaproject.bin') for e in entries[:65536]):return [],[]
                 if len(entries)>1024 or sum(e.file_size for e in entries)>128*1024*1024 or any(e.file_size>32*1024*1024 or (e.file_size>1024*1024 and e.file_size>200*max(1,e.compress_size)) or e.flag_bits&1 for e in entries):
                     return [],['Office container exceeds macro-extraction limits']
                 office_zip=any(e.filename.casefold().endswith('vbaproject.bin') for e in entries)
