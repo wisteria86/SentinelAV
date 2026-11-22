@@ -38,7 +38,11 @@ def container_kind(data,name=''):
 def _is_msi(data):
     try:
         import olefile
-        return olefile.OleFileIO(io.BytesIO(bytes(data))).root.clsid==MSI_CLSID
+        from sentinelav.detection.archive_formats import msi_name
+        package=olefile.OleFileIO(io.BytesIO(bytes(data)))
+        # Installers, patches and transforms; some authoring tools leave the class ID blank, but every package has a string pool.
+        if str(package.root.clsid).upper() in (MSI_CLSID,MSI_CLSID.replace('1084','1086'),MSI_CLSID.replace('1084','1082')):return True
+        return any(msi_name(path[0])=='!_StringPool' for path in package.listdir(streams=True,storages=False) if len(path)==1)
     except Exception:return False
 
 
