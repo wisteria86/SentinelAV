@@ -13,7 +13,7 @@ import uuid
 import time
 
 GIB=1024**3
-AREAS={'datasets','models','builds','lab','evaluations','cache','licenses'}
+AREAS={'datasets','models','builds','lab','evaluations','cache','licenses','snapshots'}
 
 
 def unlinked(path):

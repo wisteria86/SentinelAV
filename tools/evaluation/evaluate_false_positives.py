@@ -93,7 +93,7 @@ def evaluate(chosen,budget):
     from sentinelav.detection.inspection import IsolatedScanner
     from sentinelav.detection.trust import signature_status
     from sentinelav.paths import RESOURCE_ROOT
-    scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',max_mb=64,options={},persistent=True)
+    scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',max_mb=64,options=dict(score_all=True),persistent=True)
     deadline=time.monotonic()+budget
     rows=[];omitted=Counter();times=[]
     try:
@@ -113,7 +113,8 @@ def evaluate(chosen,budget):
                 omitted['not assessed']+=1;continue
             signed=signature_status(path)=='trusted' if item['file_kind'] in ('pe','dos_mz') else None
             row=dict(path=str(path),product=product,root=root,kind=item['file_kind'],verdict=item['verdict'],score=item['score'],confidence=item['confidence'],
-                signed=signed,automatic=bool(item.get('automatic_response_eligible')),codes=[entry['code'] for entry in item.get('indicators',[])[:8]],arms=item.get('arms',{}))
+                signed=signed,automatic=bool(item.get('automatic_response_eligible')),codes=[entry['code'] for entry in item.get('indicators',[])[:8]],arms=item.get('arms',{}),
+                model_scores=item.get('model_scores',{}))
             rows.append(row)
     finally:
         scanner.close()
@@ -149,9 +150,15 @@ def main(argv=None):
     roots=[refuse_private(root) for root in (args.root or default_roots())]
     chosen,products=select(roots,args.split,args.per_product)
     print(f'{args.split}: {products} products, {len(chosen)} files selected',flush=True)
-    rows,omitted,times=evaluate(chosen,args.budget)
+    # Measure the product as shipped: ClamAV signatures are the layer most likely to flag clean software.
+    from sentinelav.detection.clamav_engine import ensure_service
+    service,problem=ensure_service()
+    print('ClamAV:',problem or 'running',flush=True)
+    try:rows,omitted,times=evaluate(chosen,args.budget)
+    finally:
+        if service:service.stop()
     summary=summarize(rows,omitted,times,products,args.split)
-    summary.update(created_utc=datetime.now(timezone.utc).isoformat(),roots=[str(root) for root in roots],ground_truth='Presumed benign installed software; not independently verified',files_executed=False)
+    summary.update(created_utc=datetime.now(timezone.utc).isoformat(),roots=[str(root) for root in roots],ground_truth='Presumed benign installed software; not independently verified',files_executed=False,clamav=problem or 'running')
     output=Workspace().run('evaluations','benign-'+args.split)
     (output/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     (output/'rows.json').write_text(json.dumps(rows),encoding='utf-8')

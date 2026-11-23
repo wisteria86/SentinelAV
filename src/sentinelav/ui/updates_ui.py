@@ -4,6 +4,7 @@
 
 """Definition maintenance in the existing Settings UI; file work stays off Qt UI."""
 from pathlib import Path
+import json
 import threading
 from PySide6.QtCore import QThread,Signal,QTimer
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QTabWidget,QFileDialog
@@ -22,12 +23,20 @@ class DefinitionWorker(QThread):
         self.cancelled=threading.Event()
 
     def run(self):
-        folder=self.root/'signature-data'
+        from sentinelav.detection.definition_paths import signature_data_dir
+        folder=signature_data_dir(self.root)
         try:
             if self.kind=='recent': result=import_recent(folder,self.path)
             elif self.kind=='signed': result=apply_signed(folder,self.path,self.root/'trusted-update-keys.json')
             elif self.kind=='corrections': result=apply_changes(folder,read_json(self.path,MAX_PAYLOAD),'Manual explicit corrections; not publisher-authenticated')
             elif self.kind=='rollback': result=rollback(folder)
+            elif self.kind=='clamav':
+                from sentinelav.detection.clamav_engine import ClamdService,definitions_summary,update_definitions
+                self.progress.emit('Downloading ClamAV signatures from the official mirror…')
+                update_definitions()
+                service=ClamdService()
+                if service.endpoint():service.reload()
+                result=dict(clamav=definitions_summary())
             elif self.kind=='full':
                 def report(count):
                     if self.cancelled.is_set(): raise InterruptedError('Import cancelled before activation')
@@ -37,6 +46,21 @@ class DefinitionWorker(QThread):
             self.completed.emit(result)
         except Exception as error:
             self.failed.emit(str(error))
+
+
+def layer_status():
+    """One line per extra signature layer, so missing ones are visible here rather than on every scan."""
+    from sentinelav.detection.clamav_engine import definitions_summary,read_endpoint
+    from sentinelav.detection.definition_paths import binaries,definitions_dir
+    clam=definitions_summary()
+    parts=['ClamAV: '+('not installed' if not binaries() else 'signatures missing' if clam['status']!='Present' else
+        ('running' if read_endpoint() else 'installed, service not running')+' · '+', '.join(f"{f['name']} {f['modified'][:10]}" for f in clam['files']))]
+    pack=definitions_dir('yara-forge')/'pack.json'
+    parts.append('YARA-Forge rules: '+(json.loads(pack.read_text(encoding='utf-8')).get('release','installed') if pack.is_file() else 'not installed'))
+    md5=definitions_dir('md5-feed')/'active.json'
+    parts.append('MD5 lists: '+(f"{json.loads(md5.read_text(encoding='utf-8'))['unique_md5']:,} hashes" if md5.is_file() else 'not installed'))
+    parts.append('Certificate blocklist: '+('installed' if (definitions_dir('cert-blocklist')/'cscb.csv').is_file() else 'not installed'))
+    return ' · '.join(parts)
 
 
 class UpdatesMixin:
@@ -51,7 +75,8 @@ class UpdatesMixin:
         layout.addWidget(self.definition_health)
         self.definition_buttons=[]
         for specs in [[('Import recent CSV…','recent'),('Import full CSV ZIP…','full')],
-                      [('Apply signed package…','signed'),('Apply reviewed corrections…','corrections'),('Roll Back Last Update','rollback')]]:
+                      [('Apply signed package…','signed'),('Apply reviewed corrections…','corrections'),('Roll Back Last Update','rollback')],
+                      [('Update ClamAV Signatures','clamav')]]:
             row=QHBoxLayout()
             for title,kind in specs:
                 self.definition_buttons.append(self.action(row,title,lambda checked=False,k=kind:self.begin_definition_update(k)))
@@ -69,12 +94,13 @@ class UpdatesMixin:
     def refresh_definition_health(self):
         from sentinelav.ui.application import ROOT
         try:
-            metadata=load_active(ROOT/'signature-data')
+            from sentinelav.detection.definition_paths import signature_data_dir
+            metadata=load_active(signature_data_dir(ROOT))
             state,hours=freshness(metadata)
             age=f'{hours:g} hours' if hours is not None else 'unknown'
             self.definition_health.setText(f"{metadata['unique_sha256']:,} full-feed hashes · {state} · import age: {age}\n"
                 f"Source: {metadata.get('source','Unknown')} · {metadata.get('update_method','Manual full export import')}\n"
-                'Signed publisher: '+('configured' if read_json(ROOT/'trusted-update-keys.json').get('keys') else 'not configured'))
+                'Signed publisher: '+('configured' if read_json(ROOT/'trusted-update-keys.json').get('keys') else 'not configured')+'\n'+layer_status())
         except Exception as error:
             self.definition_health.setText('Definition status unavailable: '+str(error))
 
@@ -83,7 +109,7 @@ class UpdatesMixin:
             self.definition_result.setText('Finish the current scan, response, lab, or settings operation first.')
             return
         path=None
-        if kind!='rollback':
+        if kind not in ('rollback','clamav'):
             filters={'recent':'CSV files (*.csv)','full':'ZIP archives (*.zip)','signed':'Signed update packages (*.zip)','corrections':'Reviewed corrections (*.json)'}
             path,_=QFileDialog.getOpenFileName(self,'Select definition update',filter=filters[kind])
             if not path: return
@@ -99,6 +125,10 @@ class UpdatesMixin:
 
     def definition_update_done(self,metadata):
         self.refresh_definition_health()
+        if 'clamav' in metadata:
+            files=', '.join(item['name'] for item in metadata['clamav']['files'])
+            self.definition_result.setText(f'ClamAV signatures updated ({files}). New scans use them.')
+            return
         self.definition_result.setText(f"Activated {metadata['unique_sha256']:,} full-feed hashes. New scans use this version; restart monitoring to reload. Prior snapshot retained for rollback.")
         try:
             import time

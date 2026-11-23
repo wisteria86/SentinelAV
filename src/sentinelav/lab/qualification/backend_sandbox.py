@@ -45,8 +45,12 @@ class Sandbox(GuestTransportMixin):
         if self.zoo_parameters is not None:
             from tempfile import TemporaryDirectory
             from .zoo_inventory import stage
+            from .bazaar_corpus import stage as bazaar_stage
+            definitions=self.zoo_parameters.get('definitions')
+            if definitions:command+=' -DefinitionsRoot '+quote(definitions)
             with TemporaryDirectory(dir=unlinked(self.work/'cache')) as temporary:
-                zoo=stage(self.work,self.zoo_parameters,Path(temporary))
+                if self.zoo_parameters.get('corpus'):zoo=bazaar_stage(self.zoo_parameters,Path(temporary))
+                else:zoo=stage(self.work,self.zoo_parameters,Path(temporary))
                 powershell(command+' -ZooInput '+quote(temporary),300,self.cancelled,self.attempt/'prepare.log')
         else:
             powershell(command,300,self.cancelled,self.attempt/'prepare.log')

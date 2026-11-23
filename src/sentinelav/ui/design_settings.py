@@ -52,7 +52,8 @@ class SettingsPageMixin:
         feed_label=QLabel(objectName='small')
         feed_label.setWordWrap(True)
         try:
-            feed_path=RESOURCE_ROOT/'signature-data'/'active.json'
+            from sentinelav.detection.definition_paths import signature_data_dir
+            feed_path=signature_data_dir(RESOURCE_ROOT)/'active.json'
             if feed_path.exists():
                 if feed_path.stat().st_size>16384: raise ValueError('Manifest exceeds size limit')
                 feed=json.loads(feed_path.read_text(encoding='utf-8'))

@@ -37,7 +37,7 @@ def escape(value):
 
 
 def render(store):
-    if store.manifest['profile'] in ('zoo-static','zoo-quick','zoo-dev','zoo-holdout'):
+    if store.manifest['profile'] in ('zoo-static','zoo-quick','zoo-dev','zoo-holdout','bazaar-dev','bazaar-holdout'):
         from .zoo_reporting import render as render_zoo
         return render_zoo(store)
     from pathlib import Path

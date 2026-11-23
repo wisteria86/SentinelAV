@@ -14,6 +14,9 @@ from sentinelav.detection.yara_rules import compile_rules,evidence
 from sentinelav.detection.archive_inspection import inspect_zip
 
 
+MIN_HASH_BYTES=1
+
+
 class DisabledSignatures:
     metadata=dict(status='Disabled',reason='Signature-free evaluation',count=0)
     def __len__(self):return 0
@@ -40,6 +43,23 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         if self.options['advanced']:
             from sentinelav.detection.advanced_pipeline import AdvancedPipeline
             self.advanced=AdvancedPipeline(self.options.get('analysis_store'),self.options)
+        self.packs=[]
+        if self.options['rule_packs']:
+            from sentinelav.detection.rule_packs import load_packs
+            self.packs,problems=load_packs()
+            self.warnings.extend(problems)
+        self.md5=None
+        if self.options['md5_feed']:
+            from sentinelav.detection.md5_feed import Md5Feed
+            try:self.md5=Md5Feed()
+            except FileNotFoundError:pass
+            except Exception as error:self.warnings.append('MD5 hash list unavailable: '+str(error)[:120])
+        self.clamav=None
+        if self.options['clamav']:
+            from sentinelav.detection.clamav_engine import environment_ready,read_endpoint
+            self.clamav=read_endpoint()
+            # Reported once per scan, never as a per-file error. Not installed at all is shown on the Updates page instead.
+            if not self.clamav and environment_ready():self.warnings.append('ClamAV signatures unavailable: the ClamAV service is not running')
 
     def analyze_bytes(self,data,sha=None):
         if self.options['signature_free']:return [],[],[]
@@ -48,8 +68,12 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         names=[]
         matches=[]
         errors=[]
-        label=self.signatures.get(sha)
+        # Hash lists include the empty file, so empty content never matches by hash.
+        label=self.signatures.get(sha) if len(data)>=MIN_HASH_BYTES else None
         if label is not None: names.append('SHA-256: '+label)
+        if self.md5 and len(data)>=MIN_HASH_BYTES:
+            listed=self.md5.get(hashlib.md5(data).hexdigest())
+            if listed and label is None:names.append(f'MD5: listed by {listed}')
         eicar=b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$'+b'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
         if eicar in data: names.append('EICAR test file (not malware)')
         if self.rules:
@@ -60,7 +84,31 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
                     if found.get('scope')!='generic':names.append('YARA: '+match.rule)
                     matches.append(found)
             except Exception as error: errors.append('YARA inspection failed: '+str(error))
+        for pack in self.packs:
+            try:
+                for item in pack.match(data):
+                    if item['kind']=='family':names.append('YARA-Forge: '+item['rule'])
+                    else:matches.append(item)
+            except Exception as error:errors.append(f'Rule pack {pack.name} inspection failed: '+str(error)[:120])
+        if self.clamav:self.clamav_check(data,names,matches,errors)
         return names,matches,errors
+
+    def clamav_check(self,data,names,matches,errors):
+        from sentinelav.detection.clamav_engine import STREAM_LIMIT,scan_bytes
+        if len(data)>STREAM_LIMIT:return
+        try:found=scan_bytes(self.clamav,data)
+        except OSError as error:
+            self.clamav=None
+            self.warnings.append('ClamAV stopped answering during this scan: '+str(error)[:120])
+            return
+        except Exception as error:
+            errors.append(str(error)[:160]);return
+        if not found:return
+        if found.startswith('Heuristics.') or found.startswith('PUA.'):
+            # ClamAV heuristics describe traits, not identities, so they add weight instead of deciding.
+            matches.append(dict(rule=found,code='clamav_heuristic',scope='generic',layer='clamav_heuristic',group='clamav_heuristic',
+                weight=40,category=found.split('.')[1] if '.' in found else 'Heuristic',description=f'ClamAV heuristic: {found}'))
+        else:names.append('ClamAV: '+found)
 
     def excluded(self, path):
         resolved = path.resolve()

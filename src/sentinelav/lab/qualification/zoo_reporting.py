@@ -108,8 +108,9 @@ def render(store):
                      reason=result['reason'] if result else 'Batch pending or interrupted')]
             for row in rows:
                 counts[row['outcome']] += row.get('inert_members', 1)
-                family = family_of(entry['path'])
-                ledger.append(dict(case_id=case['id'], archive=entry['path'], blob=entry['blob'], family=family, split=split_of(family), **row))
+                family = entry.get('family') or family_of(entry['path'])
+                ledger.append(dict(case_id=case['id'], archive=entry['path'], blob=entry['blob'], family=family,
+                    split=entry.get('split') or split_of(family), **row))
     summary = summarize(ledger, counts, results, cases)
     revision = cases[0]['parameters']['revision']
     profile = store.manifest['profile']

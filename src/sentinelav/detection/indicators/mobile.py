@@ -4,6 +4,7 @@
 
 """Static Android and Java indicators read in memory from bounded archive members."""
 import io
+import re
 import zipfile
 from sentinelav.detection.indicators.strings import extract
 from sentinelav.detection.threat_score import indicator
@@ -19,25 +20,63 @@ ANDROID_CODE=(
     ('device_admin_abuse','persistence',18,'Trojan','Requests device-administrator control or locks the device.',('devicepolicymanager','locknow','resetpassword')),
     ('native_exploit_names','injection',32,'Exploit','Names a known Android root exploit technique.',('rageagainstthecage','exploid','zergrush','gingerbreak','psneuter')),
 )
+# Terms starting with '=' must equal a class-file constant (a class, method or field name); others are substrings of any constant.
 JAVA_CODE=(
-    ('runtime_exec','injection',20,'Trojan','Launches operating-system commands.',('java/lang/runtime','getruntime'),('exec',)),
-    ('remote_class_loading','download',24,'Downloader','Loads classes from a URL at runtime.',('urlclassloader','defineclass'),('java/net/url','openstream','openconnection')),
-    ('sandbox_escape_terms','exploit',32,'Exploit','Manipulates the Java security manager, as sandbox exploits do.',('setsecuritymanager','accesscontroller'),('protectiondomain','allpermission')),
-    ('remote_control_terms','remote_control',24,'Backdoor','Combines sockets with screen or key capture.',('java/net/socket',),('java/awt/robot','createscreencapture')),
+    ('runtime_exec','injection',20,'Trojan','Launches operating-system commands.',('=java/lang/runtime',),('=exec',)),
+    ('remote_class_loading','download',24,'Downloader','Loads classes from a URL at runtime.',('=java/net/urlclassloader',),('http://','https://')),
+    ('sandbox_escape_terms','exploit',32,'Exploit','Manipulates the Java security manager, as sandbox exploits do.',('=setsecuritymanager',),('=java/security/allpermission',)),
+    ('remote_control_terms','remote_control',24,'Backdoor','Combines sockets with screen or key capture.',('=java/net/socket',),('=java/awt/robot','=createscreencapture')),
+    # Loaders that keep their real classes encrypted in a resource and define them after decrypting.
+    ('encrypted_class_loader','evasion',25,'Trojan','Decrypts bundled data and defines classes from it at runtime.',('=defineclass',),('=javax/crypto/cipher',)),
+    ('chat_webhook_exfiltration','credentials',25,'Stealer','Posts data to a chat webhook or bot API, a common way stealers send loot.',('/api/webhooks/','api.telegram.org/bot'),('login data','local state','leveldb','cookies','wallet','screenshot','user.home','getenv')),
+    # Game mods that read the signed-in player's access token and also open web connections: the shape of session stealers.
+    ('game_session_token_access','credentials',35,'Stealer','Reads the game account access token and can send data over the network.',
+     ('=net/minecraft/client/user','=net/minecraft/client/util/session','=net/minecraft/client/session/session','=net/minecraft/util/session','=net/minecraft/class_320','=func_148254_d','=func_111286_b','=method_1674'),
+     ('=java/net/httpurlconnection','=java/net/http/httpclient','=javax/net/ssl/httpsurlconnection','=okhttp3/okhttpclient','=java/net/socket')),
+    ('native_memory_injection','injection',35,'Injector','Calls Windows memory and thread functions through JNA, as Java shellcode loaders do.',
+     ('=com/sun/jna/native','=com/sun/jna/pointer','=com/sun/jna/platform/win32/kernel32'),('=virtualalloc','=virtualallocex','=writeprocessmemory','=createremotethread','=rtlmovememory')),
 )
+# Classes a game client or mod loader defines itself; a jar that contains them is the game or loader, not a mod.
+GAME_CORE=('net/minecraft/client/minecraft.class','net/minecraft/client/main/main.class','net/fabricmc/loader/impl/fabricloaderimpl.class')
+STRANGE_NAME=re.compile(r'^(?:[il1|]{5,}|[o0]{5,}|(?:con|aux|nul|prn|com\d|lpt\d))$|[^\x21-\x7e]',re.I)
+
+
+CONSTANT_SIZES={7:2,8:2,16:2,19:2,20:2,15:3,3:4,4:4,9:4,10:4,11:4,12:4,17:4,18:4,5:8,6:8}
+
+
+def constants(code):
+    """UTF-8 constants of one class file (names, descriptors, string literals), lowercased; empty for non-class data."""
+    found=set()
+    if code[:4]!=b'\xca\xfe\xba\xbe' or len(code)<10:return found
+    count,offset,index=int.from_bytes(code[8:10],'big'),10,1
+    while index<count and offset<len(code):
+        tag=code[offset]
+        if tag==1:
+            size=int.from_bytes(code[offset+1:offset+3],'big')
+            found.add(code[offset+3:offset+3+size].decode('utf-8','replace').casefold());offset+=3+size
+        elif tag in CONSTANT_SIZES:offset+=1+CONSTANT_SIZES[tag];index+=tag in (5,6)  # long and double take two slots
+        else:break
+        index+=1
+    return found
+
+
+def _has(term,names,text):
+    return term[1:] in names if term.startswith('=') else term in text
 
 
 def _members(data):
     """Bounded in-memory read of code members; nothing is extracted to disk."""
     result=[];manifest=b'';total=0
     with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
-        for item in archive.infolist()[:4096]:
+        for item in archive.infolist()[:16384]:
             name=item.filename.casefold()
             if item.flag_bits&1 or item.file_size>MEMBER_LIMIT or total+item.file_size>4*MEMBER_LIMIT:continue
             if name=='androidmanifest.xml' or name=='meta-inf/manifest.mf':
                 manifest=archive.read(item);total+=len(manifest)
-            elif name.endswith(('.dex','.class')):
-                content=archive.read(item);total+=len(content);result.append(content)
+            elif name.endswith(('.dex','.class','.class/')):
+                try:content=archive.read(item)
+                except (zipfile.BadZipFile,NotImplementedError,RuntimeError,ValueError):continue
+                total+=len(content);result.append(content)
     return manifest,result
 
 
@@ -65,9 +104,31 @@ def android_indicators(data,kind):
 def java_indicators(data,kind):
     if kind=='jar':_,code=_members(data)
     else:code=[bytes(data)]
-    text='\n'.join(extract(item,4*1024*1024) for item in code[:256])
-    found=[]
+    names=set().union(*(constants(item) for item in code))
+    text='\n'.join(sorted(names))
+    found=[];core=jna=False
+    if kind=='jar':
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
+            paths=[n for n in archive.namelist()[:16384] if n.endswith(('.class','.class/'))]
+        core=any(p.casefold() in GAME_CORE for p in paths)
+        jna=any(p.startswith('com/sun/jna/') for p in paths)  # JNA itself, not a program using it
+        classes=[n.rstrip('/').rsplit('/',1)[-1][:-6] for n in paths]
+        # Obfuscators rename classes to one or two letters, to look-alike I/l/1 strings, to Windows device names or to non-ASCII.
+        short=sum(len(name)<=2 or bool(STRANGE_NAME.search(name)) for name in classes)
+        if len(classes)>=10 and short>=0.6*len(classes):
+            found.append(indicator('obfuscated_class_names','evasion',15,'Most classes have one- or two-letter or look-alike names, as obfuscators produce.',category='Trojan',evidence=f'{short} of {len(classes)} classes'))
+        strange=sum(bool(STRANGE_NAME.search(name)) for name in classes)
+        if strange>=5 and strange>=0.3*len(classes):
+            found.append(indicator('hostile_class_names','evasion',25,'Many class names use look-alike characters, non-ASCII text or Windows device names to break analysis tools.',category='Trojan',evidence=f'{strange} of {len(classes)} classes'))
+        # A real class file starts with CAFEBABE; class entries that do not are encrypted and decrypted by a loader at run time.
+        hidden=sum(item[:4]!=b'\xca\xfe\xba\xbe' and not item.startswith(b'dex') for item in code)
+        if hidden>=3 and hidden>=0.2*max(1,len(code)):
+            found.append(indicator('encrypted_class_files','evasion',38,'Class entries are encrypted, so a loader must decrypt and define them at run time.',category='Trojan',evidence=f'{hidden} of {len(code)} class entries'))
+        # The archive is compressed, so the generic string rules read the class files' constants instead.
+        from sentinelav.detection.indicators.strings import indicators as string_indicators
+        found.extend(string_indicators(b'\n'.join(code)[:16*1024*1024],'class'))
     for code_name,group,weight,category,explanation,first,second in JAVA_CODE:
-        hit=[t for t in first if t in text];other=[t for t in second if t in text]
+        if code_name=='game_session_token_access' and core or code_name=='native_memory_injection' and jna:continue
+        hit=[t.lstrip('=') for t in first if _has(t,names,text)];other=[t.lstrip('=') for t in second if _has(t,names,text)]
         if hit and other:found.append(indicator(code_name,group,weight,explanation,category=category,evidence=', '.join(hit+other)[:160]))
     return found

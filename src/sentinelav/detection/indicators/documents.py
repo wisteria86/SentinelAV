@@ -106,4 +106,43 @@ def rtf_indicators(data):
         found.append(indicator('rtf_equation_object','exploit',40,'The RTF embeds an Equation Editor object, a long-exploited component.',category='Exploit'))
     if len(re.findall(rb'\\objdata',lowered))>=1 and re.search(rb'4d5a[0-9a-f]{100,}',compact):
         found.append(indicator('rtf_embedded_program','dropper',42,'The RTF carries a hex-encoded Windows program.',category='Dropper'))
+    remote=re.search(rb'\\\*\\template\s*(?:\{[^}]{0,64}\})?\s*(https?://|\\\\\\\\|file://)',lowered)
+    if remote:found.append(indicator('rtf_remote_template','download',40,'The RTF loads its template from the Internet or a network share, a way to fetch exploit content when opened.',category='Downloader',evidence=remote.group()[:80]))
+    found.extend(_rtf_objects(lowered,{item['code'] for item in found}))
+    return found
+
+
+TOKEN=re.compile(rb'\{|\}|\\[a-z]{1,32}-?\d{0,10} ?|\\.|[^{}\\]{1,65536}',re.S)
+OBJECT_CLASSES=(b'equation.3',b'equation.2',b'package',b'ole2link',b'htmlfile',b'scriptlet',b'word.document.8',b'excel.sheet.8',b'forms.')
+
+
+def _rtf_objects(lowered,already):
+    """Decode \\objdata hex after removing the control words, braces and junk that exploit kits put inside it."""
+    found=[];decoded=b''
+    for _,match in zip(range(16),re.finditer(rb'\\objdata',lowered)):
+        # Keep only text at the top level of the \objdata group; nested groups and control words are padding.
+        depth,parts=1,[]
+        for token in TOKEN.finditer(lowered,match.end(),match.end()+8*1024*1024):
+            value=token.group()
+            if value==b'{':depth+=1
+            elif value==b'}':
+                depth-=1
+                if depth==0:break
+            elif depth==1 and value[:1]!=b'\\':parts.append(value)
+        digits=re.sub(rb'[^0-9a-f]',b'',b''.join(parts))
+        decoded+=bytes.fromhex(digits[:len(digits)//2*2].decode('ascii'))[:4*1024*1024]
+    if not decoded:return found
+    view=decoded.lower()
+    if b'\xd0\xcf\x11\xe0' in view or b'equation' in view or b'ole2link' in view:
+        names=[name for name in OBJECT_CLASSES if name in view]
+        clsid=bytes.fromhex('0003000000000000c000000000000046')  # StdOleLink: loads content from a URL moniker
+        url=re.search(rb'h\x00t\x00t\x00p\x00s?\x00:\x00/\x00/\x00|https?://',decoded)
+        if (b'equation' in view or bytes.fromhex('02ce020000000000c000000000000046') in view) and 'rtf_equation_object' not in already:
+            found.append(indicator('rtf_equation_object','exploit',40,'The RTF embeds an Equation Editor object, a long-exploited component.',category='Exploit',evidence='decoded object data'))
+        if (clsid in decoded or b'ole2link' in view) and url:
+            found.append(indicator('rtf_url_moniker_object','exploit',40,'An embedded object loads content from a URL when the document opens, as CVE-2017-0199 exploits do.',category='Exploit'))
+        if b'package' in names and re.search(rb'\.(?:exe|scr|js|jse|vbs|vbe|hta|bat|cmd|ps1|lnk|wsf|cpl)\x00',view):
+            found.append(indicator('rtf_packaged_script_or_program','dropper',38,'An embedded package object carries a program or script file.',category='Dropper'))
+        if re.search(rb'this program (?:cannot|must) be run',view) and 'rtf_embedded_program' not in already:
+            found.append(indicator('rtf_embedded_program','dropper',42,'The RTF carries an encoded Windows program.',category='Dropper'))
     return found

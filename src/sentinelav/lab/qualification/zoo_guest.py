@@ -3,6 +3,7 @@
 
 import base64
 import hashlib
+import json
 from io import BytesIO
 from pathlib import Path
 import re
@@ -16,7 +17,7 @@ MAX_MEMBER = 64 * 1024**2
 MAX_MEMBERS = 256
 SAFE_SUFFIX = re.compile(r'\.[a-z0-9]{1,8}')
 # Generalized detection as it ships. Emulation stays off, so nothing from a sample ever runs, even virtually.
-SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False)
+SETTINGS = dict(signature_free=False, advanced=True, model=True, neural_gray=True, neural=False, emulation=False, amsi=False, reputation=False, clamav=True, score_all=True, capa=True, capa_memory=True)
 RESPONSE_CYCLES_PER_BATCH = 2
 REALTIME_CHECKS_PER_BATCH = 1
 
@@ -54,7 +55,26 @@ def describe(scan):
     return dict(kind=assessment.get('file_kind'), platform=assessment.get('platform'), score=assessment.get('score'),
                 confidence=assessment.get('confidence'), threat=str(assessment.get('threat_name', ''))[:48],
                 arms={name: [value['score'], value['verdict']] for name, value in (assessment.get('arms') or {}).items()},
-                codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]])
+                codes=[item['code'] for item in (assessment.get('indicators') or [])[:6]],
+                model_scores=assessment.get('model_scores') or {},
+                notes=[str(error).rsplit(': ', 1)[-1][:100] for error in (scan.get('errors') or [])[:2]])
+
+
+def read_member(archive, info, password):
+    """Try the sidecar password first, then the standard sharing passwords, and keep the one that works."""
+    from sentinelav.detection.archive_formats import SHARING_PASSWORDS
+    candidates = [password[0]] + [item for item in SHARING_PASSWORDS if item != password[0]]
+    error = None
+    for candidate in candidates:
+        try:
+            with archive.open(info, pwd=candidate) as stream:
+                raw = stream.read(MAX_MEMBER + 1)
+        except RuntimeError as failure:  # Wrong password
+            error = failure
+            continue
+        password[0] = candidate
+        return raw
+    raise error
 
 
 def scan_member(archive, info, password, root, scanner, state):
@@ -62,8 +82,7 @@ def scan_member(archive, info, password, root, scanner, state):
         return dict(outcome='inspection_failure', reason='Unencrypted member rejected')
     if info.file_size > MAX_MEMBER:
         return dict(outcome='inspection_failure', reason='Member exceeds 64 MiB scan budget')
-    with archive.open(info, pwd=password) as stream:
-        raw = stream.read(MAX_MEMBER + 1)
+    raw = read_member(archive, info, password)
     if len(raw) != info.file_size or len(raw) > MAX_MEMBER:
         raise ValueError('Archive member size mismatch')
     identity = hashlib.sha256(raw).hexdigest()
@@ -114,7 +133,7 @@ def inspect_archive(entry, root, scanner, state, key):
     if blob_identity(raw) != blob:
         raise ValueError('Archive Git identity mismatch')
     password = base64.b64decode(entry['password_b64'], validate=True) if entry.get('password_b64') else b'infected'
-    return inspect_members(raw, password, root, scanner, state)
+    return inspect_members(raw, [password], root, scanner, state)
 
 
 def inspect_members(raw, password, root, scanner, state):
@@ -168,6 +187,19 @@ def inspect_cached(entry, root, scanner, key, files, state):
     return [dict(member_index=0, member=spec['member'], **row)]
 
 
+SNAPSHOT = Path('C:/SentinelAV-Definitions')
+
+
+def use_snapshot():
+    """Point every definition lookup at the frozen, read-only snapshot mapped into the guest."""
+    if not (SNAPSHOT / 'snapshot.json').is_file():
+        return None
+    import os
+    os.environ.update(SENTINELAV_DEFINITIONS=str(SNAPSHOT / 'definitions'), SENTINELAV_CLAMAV_DB=str(SNAPSHOT / 'clamav-db'),
+        SENTINELAV_CLAMAV_HOME=str(SNAPSHOT / 'clamav'), SENTINELAV_CLAMAV_RUNTIME='C:/SentinelAV-Work/clamd')
+    return json.loads((SNAPSHOT / 'snapshot.json').read_text(encoding='utf-8'))['name']
+
+
 def execute(context, root):
     import json
     from cryptography.exceptions import InvalidTag
@@ -176,10 +208,13 @@ def execute(context, root):
     case = context['case']
     quick = case['id'] == 'zoo-quick'
     batch = case['parameters'] if quick else context['zoo_input']
-    if context['backend'] != 'sandbox' or batch['revision'] != REVISION:
+    if context['backend'] != 'sandbox' or not (batch['revision'] == REVISION or str(batch['revision']).startswith('bazaar:')):
         raise ValueError('Zoo scans require Windows Sandbox and the pinned revision')
     if not 1 <= len(batch['entries']) <= 64:
         raise ValueError('Invalid Zoo batch size')
+    snapshot = use_snapshot()
+    from sentinelav.detection.clamav_engine import ensure_service
+    clamd, clamd_problem = ensure_service()
     scanner = IsolatedScanner(RESOURCE_ROOT/'signatures.json', RESOURCE_ROOT/'rules', max_mb=64, options=dict(SETTINGS), persistent=True)
     state = dict(response=0, realtime=0, deadline=time.monotonic()+max(60, case['seconds']-120))
     groups = []
@@ -197,4 +232,7 @@ def execute(context, root):
             groups.append(dict(blob=entry['blob'], rows=rows))
     finally:
         scanner.close()
-    return dict(zoo_accounted=True, zoo_revision=REVISION, zoo_groups=groups, sample_execution=False)
+        if clamd:
+            clamd.stop()
+    return dict(zoo_accounted=True, zoo_revision=batch['revision'], zoo_groups=groups, sample_execution=False,
+        definitions_snapshot=snapshot, clamav='running' if clamd else (clamd_problem or 'disabled')[:120])

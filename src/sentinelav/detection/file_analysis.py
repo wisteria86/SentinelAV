@@ -12,15 +12,16 @@ from pathlib import Path
 from sentinelav.detection.file_formats import pe_metadata,static_analysis
 from sentinelav.detection.file_types import classify
 from sentinelav.detection.indicators import collect
-from sentinelav.detection.threat_score import arm_scores,automatic_eligible,indicator,score
+from sentinelav.detection.threat_score import MALICIOUS,SUSPICIOUS,arm_scores,automatic_eligible,indicator,score
 
 # Windows can sign scripts and installers as well as programs, directly or through a catalog.
 SIGNABLE_KINDS={'pe','data','ole','powershell','vbscript','javascript','batch','html'}
-GRAY_LOW=15
-# 0 of 591 programs from the calibration products reached 0.5, so these bands sit well above ordinary software.
+# EMBER2024's own Dec-2024 test week: 0.98 flags 85.7% of malware at 0.08% false alarms (0.99 for .NET, 0.12%),
+# 0.9 flags 92.6% at 0.32%. Only the first convicts alone; the others need agreeing evidence. 0 of 3,700 local programs reached 0.85.
+CONVICT_SCORES={'Win32':.98,'Win64':.98,'Dot_Net':.99}
 ELEVATED_SCORE=.9
 NOTABLE_SCORE=.7
-GRAY_HIGH=70
+GRAY_LOW,GRAY_HIGH=15,70
 TRUST_CHECK_FROM=25
 MEMBER_MODEL_BYTES=64*1024*1024
 PARENT_MODEL_BYTES=256*1024*1024
@@ -28,7 +29,9 @@ PARENT_MODEL_MEMBERS=200
 MAX_FINDINGS=2000
 OVERSIZE_HASH_LIMIT=4*1024**3
 OVERSIZE_SAMPLE=32*1024*1024
-FIELDS=('score','verdict','confidence','threat_name','trusted_signature','indicators','groups','arms','file_kind','platform','automatic_response_eligible')
+FIELDS=('score','verdict','confidence','threat_name','trusted_signature','indicators','groups','arms','file_kind','platform','automatic_response_eligible','model_scores')
+# Program folders are where legitimate tools sit that were uploaded to hash services as parts of malware bundles.
+INSTALL_MARKERS=('/program files/','/program files (x86)/','/windows/')
 
 
 def signature_items(names,matches):
@@ -37,13 +40,17 @@ def signature_items(names,matches):
     for name in names:
         if name.startswith('SHA-256: '):items.append(indicator('hash_match','identity',100,name,'hash'))
         elif name.startswith('YARA: '):items.append(indicator('family_rule','identity',100,name,'family_yara'))
+        elif name.startswith('YARA-Forge: '):items.append(indicator('third_party_family_rule','identity',100,name,'pack_family'))
         elif name.startswith('EICAR'):items.append(indicator('eicar_test_file','identity',100,name,'test_marker'))
         elif name.startswith('AMSI: '):items.append(indicator('amsi_block','identity',100,name,'amsi'))
+        elif name.startswith('MD5: '):items.append(indicator('md5_match','identity',100,name,'hash_md5'))
+        elif name.startswith('ClamAV: '):items.append(indicator('clamav_signature','identity',100,name,'clamav_signature'))
         else:items.append(indicator('derived_signature','identity',100,name,'derived_signature'))
         items[-1]['threat']='EICAR-Test-File' if name.startswith('EICAR') else name.split(': ',1)[-1][:80]
     for match in matches:
         if match.get('scope')=='generic':
-            items.append(indicator('yara_'+match['rule'],match.get('group','generic_yara'),match.get('weight',15),match.get('description') or match['rule'],'generic_yara',match.get('category','')))
+            items.append(indicator(match.get('code','yara_'+match['rule']),match.get('group','generic_yara'),match.get('weight',15),
+                match.get('description') or match['rule'],match.get('layer','generic_yara'),match.get('category','')))
     return items
 
 
@@ -52,13 +59,12 @@ def _model_items(decision):
     model=coverage.get('model',{})
     value=model.get('model_score')
     if isinstance(value,(int,float)):
-        if model.get('review'):
-            weight=55 if value>=.999 else 45
-            items.append(indicator('learned_pe_model','ml',weight,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
+        if value>=CONVICT_SCORES.get(model.get('file_type'),.99) and model.get('confirmed') is not False:
+            items.append(indicator('learned_pe_model','ml',70,f'A machine-learning model trained on PE features rates this file {value:.1%} likely malicious.','ml'))
         elif value>=ELEVATED_SCORE:
-            items.append(indicator('learned_pe_model_elevated','ml',35,f'A machine-learning model gives an elevated score of {value:.1%}, below its alert threshold.','ml'))
+            items.append(indicator('learned_pe_model_elevated','ml',40,f'A machine-learning model gives an elevated score of {value:.1%}, below its conviction threshold.','ml'))
         elif value>=NOTABLE_SCORE:
-            items.append(indicator('learned_pe_model_notable','ml',20,f'A machine-learning model gives a notable score of {value:.1%}. This is weak evidence on its own.','ml'))
+            items.append(indicator('learned_pe_model_notable','ml',25,f'A machine-learning model gives a notable score of {value:.1%}. This is weak evidence on its own.','ml'))
     return items
 
 
@@ -77,6 +83,17 @@ def _decision_items(decision):
         elif source=='reputation':
             items.append(indicator('signed_reputation','reputation',40,fact['description'],'reputation'))
     return items
+
+
+def _installed_hash_support(items):
+    """A hash-list match alone on an installed program asks a person instead of convicting it."""
+    result=[]
+    for item in items:
+        listed=item['layer']=='hash_md5' or (item['layer']=='hash' and 'Hash database' in item['explanation'])
+        result.append(dict(item,layer='hash_installed',group='hash_list',weight=60,
+            explanation=item['explanation']+' (installed program: hash lists include legitimate tools bundled with malware, so this needs review)')
+            if listed else item)
+    return result
 
 
 def neural_item(data):
@@ -110,7 +127,7 @@ def parse_object(data,file_type):
 
 
 def public_fields(assessment):
-    return {key:assessment[key] for key in FIELDS}
+    return {key:assessment.get(key) for key in FIELDS}
 
 
 class FileAnalysisMixin:
@@ -134,30 +151,47 @@ class FileAnalysisMixin:
         items.extend(collect(data,file_type,metadata,analysis,malformed,omissions))
         if decision:items.extend(_decision_items(decision))
         items.extend(extra)
+        listed=None
+        if file_type['kind']=='pe':
+            from sentinelav.detection.cert_blocklist import blocklisted
+            try:listed=blocklisted(data)
+            except Exception as error:omissions.append('Certificate blocklist check failed: '+str(error)[:120])
+            if listed:items.append(indicator('blocklisted_certificate','certificate',60,
+                f"Signed with a certificate abuse.ch lists as used to sign malware ({listed['subject']}; {listed['reason']}).",'cert_reputation','SignedMalware'))
         platform=file_type['platform']
         if file_type['kind']=='pe' and metadata.get('machine')=='0x8664':platform='Win64'
+        if path and any(marker in str(path).replace(chr(92),'/').casefold() for marker in INSTALL_MARKERS):items=_installed_hash_support(items)
         current=score(items,platform,partial=partial)
-        if (self.options.get('neural_gray') and not self.options.get('neural') and file_type['kind']=='pe'
-                and GRAY_LOW<=current['score']<GRAY_HIGH):
+        model_scores={}
+        model=(decision or {}).get('coverage',{}).get('model',{}).get('model_score')
+        if isinstance(model,(int,float)):model_scores['pe_features']=round(float(model),5)
+        gray=GRAY_LOW<=current['score']<GRAY_HIGH
+        # score_all records the raw-byte model on every program for calibration; only gray-zone results add evidence.
+        if (self.options.get('neural_gray') or self.options.get('score_all')) and not self.options.get('neural') and file_type['kind']=='pe' and (gray or self.options.get('score_all')):
             try:
-                found,_=neural_item(data)
-                if found:items.append(found)
+                found,output=neural_item(data)
+                model_scores['raw_bytes']=round(float(output['model_score']),5)
+                if found and gray and self.options.get('neural_gray'):items.append(found)
             except Exception as error:omissions.append('Neural inference unavailable: '+str(error)[:160])
-        if self.options.get('neural') and decision:
-            neural=decision.get('coverage',{}).get('neural',{})
-            if neural.get('review'):items.append(indicator('learned_byte_model','ml',30,f"A raw-byte neural network rates this file {neural['model_score']:.1%} likely malicious.",'ml'))
-        if path:
-            context=mark_of_the_web(path)
-            if context:items.append(context)
+        neural=(decision or {}).get('coverage',{}).get('neural',{}) if self.options.get('neural') else {}
+        if neural.get('review'):items.append(indicator('learned_byte_model','ml',30,f"A raw-byte neural network rates this file {neural['model_score']:.1%} likely malicious.",'ml'))
+        context=mark_of_the_web(path) if path else None
+        if context:items.append(context)
         current=score(items,platform,partial=partial)
+        # capa is slow, so it only weighs in on Windows programs already Suspicious but not yet Malicious.
+        if self.options.get('capa') and file_type['kind']=='pe' and SUSPICIOUS<=current['score']<MALICIOUS:
+            from sentinelav.detection.capa_engine import capability_items
+            if (found:=capability_items(path,data,self.options.get('capa_memory'),omissions)):items.extend(found);current=score(items,platform,partial=partial)
         trusted=False
-        if path and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
+        # A blocklisted certificate never earns the trusted-signature discount.
+        if path and not listed and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
             from sentinelav.detection.trust import signature_status
             trusted=signature_status(path)=='trusted'
             if trusted:current=score(items,platform,trusted=True,partial=partial)
         current.update(arms=arm_scores(items,platform,trusted,partial),file_kind=file_type['kind'],platform=platform,
             analyzed=file_type['analyzed'],inert=file_type['inert'],omissions=omissions)
         current['automatic_response_eligible']=automatic_eligible(current)
+        current['model_scores']=model_scores
         return current
 
     def assess_member(self,payload,name):
@@ -208,7 +242,7 @@ class FileAnalysisMixin:
         from sentinelav.detection.indicators import strings
         items=signature_items(names,matches)+strings.indicators(sample,kind['kind'])
         assessed=score(items,kind['platform'],partial=True)
-        assessed.update(arms={},file_kind=kind['kind'],platform=kind['platform'])
+        assessed.update(arms={},file_kind=kind['kind'],platform=kind['platform'],model_scores={})
         assessed['automatic_response_eligible']=automatic_eligible(assessed) and bool(names)
         if assessed['verdict']=='Clean':return
         target='detections' if assessed['verdict']=='Malicious' else 'suspicious'

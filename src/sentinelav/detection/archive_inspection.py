@@ -8,10 +8,11 @@ Limits are cumulative across the whole outer file. Reaching one is reported as a
 omission, and an extreme expansion ratio is recorded as decompression-bomb evidence.
 """
 import hashlib
+import io
 from pathlib import PurePosixPath
 import time
 
-from sentinelav.detection.archive_formats import EXECUTABLE_SUFFIXES,READERS
+from sentinelav.detection.archive_formats import EXECUTABLE_SUFFIXES,MSI_CLSID,READERS
 from sentinelav.detection.file_types import classify
 
 MAX_DEPTH=4
@@ -20,7 +21,7 @@ MAX_MEMBER=64*1024*1024
 MAX_EXPANDED=512*1024*1024
 MAX_RATIO=200
 SECONDS=60
-CONTAINER_KINDS={'zip','tar','gzip','bzip2','xz','7z','rar'}
+CONTAINER_KINDS={'zip','tar','gzip','bzip2','xz','7z','rar','cab'}
 
 
 def container_kind(data,name=''):
@@ -28,9 +29,21 @@ def container_kind(data,name=''):
     if not head:return None
     kind=classify(data,PurePosixPath(name).suffix.lower() if name else '')['kind']
     if kind in CONTAINER_KINDS:return kind
+    if kind=='ole' and _is_msi(data):return 'msi'
     # Self-extractors and appended archives keep a ZIP end record after other content.
     if head[:2]!=b'MZ' and bytes(data).find(b'PK\x05\x06',max(0,len(data)-65558))>=0 and kind not in ('apk','jar','ooxml'):return 'zip'
     return None
+
+
+def _is_msi(data):
+    try:
+        import olefile
+        from sentinelav.detection.archive_formats import msi_name
+        package=olefile.OleFileIO(io.BytesIO(bytes(data)))
+        # Installers, patches and transforms; some authoring tools leave the class ID blank, but every package has a string pool.
+        if str(package.root.clsid).upper() in (MSI_CLSID,MSI_CLSID.replace('1084','1086'),MSI_CLSID.replace('1084','1082')):return True
+        return any(msi_name(path[0])=='!_StringPool' for path in package.listdir(streams=True,storages=False) if len(path)==1)
+    except Exception:return False
 
 
 def _unsafe(name):
@@ -119,3 +132,19 @@ def inspect_zip(data,analyze,cancelled=lambda:False,max_depth=2,max_entries=128,
     findings,omissions,state=inspect_archive(data,lambda payload,name:analyze(payload)[:3],cancelled,max_depth,max_entries,max_member,max_expanded,max_ratio,seconds)
     for finding in findings:finding.pop('assessment',None)
     return findings,omissions,state
+
+
+def vouched_members(nested,path,data):
+    """A validly signed Windows Installer package vouches for its members, as a signature does for an installed program:
+    heuristics on a member do not count, and a hash or signature hit on one asks for review instead of convicting."""
+    if not nested or not path or container_kind(data)!='msi':return nested
+    from sentinelav.detection.trust import signature_status
+    if signature_status(path)!='trusted':return nested
+    for finding in nested:
+        if finding['reasons']:
+            notes=[reason+' (inside a validly signed installer: needs review)' for reason in finding['reasons']]
+            finding['assessment']={**(finding.get('assessment') or {}),'verdict':'Suspicious','score':60,'confidence':'Low','reasons':notes,
+                'automatic_response_eligible':False,'arms':{'full':dict(score=60,verdict='Suspicious',confidence='Low')}}
+            finding['reasons']=[]
+        else:finding['assessment']=None
+    return nested

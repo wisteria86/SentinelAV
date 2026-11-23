@@ -8,7 +8,7 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from sentinelav.detection.archive_inspection import inspect_archive
+from sentinelav.detection.archive_inspection import inspect_archive,vouched_members
 from sentinelav.detection.file_analysis import parse_object,public_fields
 from sentinelav.detection.file_types import classify
 from sentinelav.detection.threat_score import indicator
@@ -208,7 +208,7 @@ class ScanFlowMixin:
                 result['errors'].append(f'{path}: Advanced analysis omissions: '+ '; '.join(coverage)[:1200])
         nested,encrypted,bomb=[],[],False
         if self.options['archives']:
-            nested,omissions,archive_stats=inspect_archive(bytes(data),self.assess_member,cancelled)
+            nested,omissions,archive_stats=inspect_archive(bytes(data),self.assess_member,cancelled);nested=vouched_members(nested,resolved,data)
             result['archive_entries_seen']=result.get('archive_entries_seen',0)+archive_stats['entries']
             result['archive_bytes_expanded']=result.get('archive_bytes_expanded',0)+archive_stats['expanded']
             result['errors'].extend(f'{path}: {error}' for error in omissions if not any(limit in error for limit in STANDING_LIMITS))
@@ -225,7 +225,7 @@ class ScanFlowMixin:
             row.update(fields)
             if derived_authority is not None:row['automatic_response_eligible']=derived_authority
             self.add_finding(result,'detections',row)
-        top=assessed
+        top,arms=assessed,dict(assessed.get('arms') or {})
         for finding in nested:
             member=finding.pop('assessment') or {}
             label='!/'.join(finding['member_chain'])
@@ -238,10 +238,13 @@ class ScanFlowMixin:
                 self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,**{**member_fields,'automatic_response_eligible':False},
                     **{key:value for key,value in finding.items() if key!='reasons'},reasons=['Archive member: '+label+' — '+reason for reason in member.get('reasons',[])]))
             if member and member.get('score',0)>top.get('score',0):top=member
+            # Each evaluation arm keeps its own strongest object, so a hash on the container cannot hide what its members show.
+            for arm,value in (member.get('arms') or {}).items():
+                if arm not in arms or value['score']>arms[arm]['score']:arms[arm]=value
         if not rows:
             if assessed['verdict']=='Malicious':
                 self.add_finding(result,'detections',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
             elif assessed['verdict']=='Suspicious':
                 self.add_finding(result,'suspicious',dict(path=str(resolved),sha256=sha,reasons=assessed['reasons'],yara_matches=[m for m in yara_matches if m.get('scope')=='generic'],detection_scope='heuristic',**fields))
         if capture_identity:
-            result['assessment']={**public_fields(top),'reasons':top.get('reasons',[]),'analyzed':assessed['analyzed'],'inert':assessed['inert'],'file_kind':assessed['file_kind']}
+            result['assessment']={**public_fields(top),'arms':arms,'reasons':top.get('reasons',[]),'analyzed':assessed['analyzed'],'inert':assessed['inert'],'file_kind':assessed['file_kind']}

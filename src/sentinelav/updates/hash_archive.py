@@ -190,7 +190,8 @@ def main():
     parser.add_argument('archive',type=Path)
     parser.add_argument('--activate',action='store_true')
     args=parser.parse_args()
-    metadata=import_archive(args.archive,RESOURCE_ROOT/'signature-data',args.activate,
+    from sentinelav.detection.definition_paths import signature_data_dir
+    metadata=import_archive(args.archive,signature_data_dir(RESOURCE_ROOT),args.activate,
                             lambda n:print(f'Validated {n:,} rows...',flush=True))
     print(json.dumps(metadata,indent=2))
     print('Activated for new source-app scans.' if args.activate else 'Candidate only; not activated.')

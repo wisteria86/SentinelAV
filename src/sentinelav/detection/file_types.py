@@ -11,7 +11,7 @@ SCRIPT_BY_SUFFIX={'.ps1':'powershell','.psm1':'powershell','.psd1':'powershell',
     '.sh':'shell','.bash':'shell','.py':'python','.pl':'perl','.php':'php','.rb':'ruby','.lua':'lua'}
 ARCHIVE_MAGIC=((b'7z\xbc\xaf\x27\x1c','7z'),(b'Rar!\x1a\x07','rar'),(b'\x1f\x8b','gzip'),(b'BZh','bzip2'),
     (b'\xfd7zXZ\x00','xz'),(b'MSCF','cab'))
-ANALYZED={'pe','dos_mz','com','elf','macho','dex','apk','jar','class','ole','ooxml','pdf','rtf','html','lnk',
+ANALYZED={'data','pyc','boot','pe','dos_mz','com','elf','macho','dex','apk','jar','class','ole','ooxml','pdf','rtf','html','lnk',
     'powershell','vbscript','javascript','batch','shell','python','perl','php','ruby','lua',
     'zip','tar','gzip','bzip2','xz','7z','rar'}
 # Non-executable content cannot carry static behavior, so "no analyzer" is not a coverage gap for it.
@@ -89,12 +89,16 @@ def classify(data,suffix=''):
         kind=_zip_kind(data)
         platform={'apk':'Android','jar':'Java','ooxml':'Office'}.get(kind,'Generic')
     elif len(data)>262 and bytes(data[257:262])==b'ustar':kind='tar'
+    # Compiled Python: a two-byte version number, then CR LF.
+    elif len(data)>16 and bytes(data[2:4])==b'\r\n' and (suffix=='.pyc' or 2900<=int.from_bytes(data[:2],'little')<=3700):kind,platform='pyc','Python'
     else:
         for magic,name in ARCHIVE_MAGIC:
             if head.startswith(magic):kind=name;break
         if kind=='data' and head.startswith(MEDIA_MAGIC):kind='media'
         if kind=='data' and head.startswith(METADATA_MAGIC):kind='metadata'
         if kind=='data' and suffix in ('.exe','.dll','.scr','.sys'):kind='data'
+        # Floppy and disk images begin with a boot sector that ends in the 55 AA signature.
+        if kind=='data' and len(data)>=512 and bytes(data[510:512])==b'\x55\xaa' and not _looks_textual(head):kind,platform='boot','DOS'
         if kind=='data' and _is_com(data,suffix):kind,platform='com','DOS'
         if kind=='data' and _looks_textual(head):
             kind=_text_kind(data,suffix)

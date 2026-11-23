@@ -44,6 +44,7 @@ class AdvancedPipeline:
                 if kind=='model' and not (folder/'active.json').exists():folder=RESOURCE_ROOT/'analysis-data'
                 payload,manifest=active(folder,self.trust,kind)
                 self.assets[kind]=(payload,manifest)
+                if kind=='model':self._load_confirm(folder)
             except (OSError,ValueError,KeyError,TypeError,InvalidSignature) as error:
                 self.omissions.append(kind+' unavailable: '+str(error)[:160])
         self.reputation=None
@@ -52,6 +53,14 @@ class AdvancedPipeline:
             try: self.reputation=ReputationIndex(*self.assets['reputation'])
             except (ValueError,KeyError,TypeError) as error: self.omissions.append('Invalid reputation index: '+str(error)[:160])
         self._asset_stamp=self._stamp()
+
+    def _load_confirm(self,folder):
+        # Optional second model that must agree before the primary model's conviction stands.
+        try:
+            from sentinelav.updates.artifacts import bounded_json
+            if 'confirm_model' in bounded_json(folder/'active.json',65536):self.assets['confirm_model']=active(folder,self.trust,'confirm_model')
+        except (OSError,ValueError,KeyError,TypeError,InvalidSignature) as error:
+            self.omissions.append('confirm_model unavailable: '+str(error)[:160])
 
     def inspect(self,data,path,sha,analysis,format_info,analyze,cancelled,emulation=False):
         if self._stamp()!=self._asset_stamp: self._reload_assets()
@@ -112,7 +121,7 @@ class AdvancedPipeline:
                 if time.time()>=manifest['expires']: raise ValueError('Model has expired')
                 if model.get('algorithm')=='lightgbm-pe-ensemble-v1':
                     from sentinelav.detection.pe_ensemble import predict as predict_ensemble
-                    output=predict_ensemble(model,data)
+                    output=predict_ensemble(model,data,(self.assets.get('confirm_model') or (None,))[0])
                 elif model.get('algorithm')=='lightgbm-pe-v1':
                     from sentinelav.detection.pe_classifier import predict as predict_pe
                     output=predict_pe(model,data)

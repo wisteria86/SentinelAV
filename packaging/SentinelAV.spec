@@ -8,6 +8,7 @@ import os
 import json
 import re
 import importlib.util
+import sys
 from PyInstaller.utils.hooks import collect_dynamic_libs,collect_submodules,collect_data_files,copy_metadata
 os.environ['PATH']=os.pathsep.join(p for p in os.environ.get('PATH','').split(os.pathsep) if 'codex-runtimes' not in p.lower())
 root=Path(SPECPATH).parent
@@ -24,8 +25,12 @@ if model_index.exists():
     sys.path.insert(0,str(root/'src'))
     from sentinelav.updates.artifacts import active
     active(resources/'analysis-data',resources/'trusted-update-keys.json','model')
-    model_name=json.loads(model_index.read_text())['model']['file']
-    analysis_datas += [(str(model_index),'analysis-data'),(str(model_index.parent/model_name),'analysis-data')]
+    index=json.loads(model_index.read_text())
+    analysis_datas += [(str(model_index),'analysis-data'),(str(model_index.parent/index['model']['file']),'analysis-data')]
+    # The confirmation model must ship with the primary model, or every primary conviction would stand unchecked.
+    if 'confirm_model' in index:
+        active(resources/'analysis-data',resources/'trusted-update-keys.json','confirm_model')
+        analysis_datas.append((str(model_index.parent/index['confirm_model']['file']),'analysis-data'))
 for name in ('malconv2-state.npz','malconv2.json'):
     if (resources/'analysis-data'/name).exists():analysis_datas.append((str(resources/'analysis-data'/name),'analysis-data'))
 for dependency in ('speakeasy','thrember','lightgbm','py7zr','rarfile','pyzipper','oletools','olefile'):
@@ -47,7 +52,9 @@ if (native_runtime/'emulator-build.json').exists():
     native_datas=[(str(native_runtime/'emulator-build.json'),'.')]+[
         (str(native_runtime/name),'licenses/unicorn') for name in
         ('COPYING','COPYING.LGPL2','COPYING_GLIB','unicorn-corresponding-source.zip')]
-feed_manifest=resources/'signature-data'/'active.json'
+sys.path.insert(0,str(root/'src'))
+from sentinelav.detection.definition_paths import binaries as clamav_binaries,signature_data_dir
+feed_manifest=signature_data_dir(resources)/'active.json'
 if feed_manifest.exists():
     if feed_manifest.stat().st_size>16384:
         raise ValueError('Signature manifest exceeds size limit')
@@ -89,3 +96,27 @@ exe=EXE(pyz,a.scripts,[],exclude_binaries=True,name='SentinelAV',debug=False,
         bootloader_ignore_signals=False,strip=False,upx=False,console=os.getenv('SENTINEL_CONSOLE')=='1',
         icon=str(resources/'assets/sentinelav.ico'))
 coll=COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='SentinelAV')
+# ClamAV is a separate GPL program run as its own process. Its runtime (no debug symbols) ships beside the app;
+# signatures are downloaded by freshclam after installation.
+clamav=clamav_binaries()
+if clamav:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'clamav'
+    shutil.rmtree(target,ignore_errors=True)
+    shutil.copytree(clamav['home'],target,ignore=shutil.ignore_patterns('*.pdb','*.lib','UserManual','conf_examples'))
+# capa (Mandiant, Apache-2.0) is a standalone program that SentinelAV runs on undecided Windows programs.
+from sentinelav.detection.capa_engine import locate as capa_locate
+capa=capa_locate()
+if capa:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'capa'
+    shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
+    shutil.copy2(capa,target/'capa.exe')
+# 7-Zip (Igor Pavlov, LGPL-2.1 with the unRAR restriction) opens RAR archives for inspection.
+from sentinelav.detection.archive_formats import seven_zip_tool
+seven=seven_zip_tool()
+if seven:
+    import shutil
+    target=Path(DISTPATH)/'SentinelAV'/'7zip'
+    shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
+    for name in ('7z.exe','7z.dll'):shutil.copy2(Path(seven).with_name(name),target/name)

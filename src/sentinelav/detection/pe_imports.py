@@ -57,7 +57,7 @@ def _inspect_imports(data, metadata,progress):
         if stop<0: raise ValueError('Unterminated or oversized import name')
         value=bytes(data[start:stop])
         name_bytes+=len(value)
-        if name_bytes>64*1024: raise ValueError('Import name budget exceeded')
+        if name_bytes>256*1024: raise ValueError('Import name budget exceeded')
         if not value or any(v<32 or v>126 for v in value): raise ValueError('Invalid import name')
         return value.decode('ascii')
 

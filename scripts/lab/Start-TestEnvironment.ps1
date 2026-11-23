@@ -39,7 +39,12 @@ foreach ($name in @('Networking','vGPU','ClipboardRedirection','AudioInput','Vid
 }
 if ($config.Configuration.ProtectedClient -cne 'Enable' -or $config.Configuration.MemoryInMB -ne '4096') { throw 'Sandbox protection/resource settings changed' }
 $folders = @($config.Configuration.MappedFolders.MappedFolder)
-if ($folders.Count -ne 1 -or $folders[0].HostFolder -ne $state.input -or $folders[0].SandboxFolder -ne 'C:\SentinelAV-Input' -or $folders[0].ReadOnly -cne 'true') { throw 'Unexpected folder sharing' }
+if ($folders[0].HostFolder -ne $state.input -or $folders[0].SandboxFolder -ne 'C:\SentinelAV-Input' -or $folders[0].ReadOnly -cne 'true') { throw 'Unexpected folder sharing' }
+# The only other share allowed is the recorded, read-only definitions snapshot.
+if ($folders.Count -eq 2) {
+    if (-not $state.definitions -or $folders[1].HostFolder -ne $state.definitions -or $folders[1].SandboxFolder -ne 'C:\SentinelAV-Definitions' -or $folders[1].ReadOnly -cne 'true') { throw 'Unexpected folder sharing' }
+    if ((Get-FileHash -LiteralPath (Join-Path $state.definitions 'snapshot.json') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $state.definitions_snapshot_sha256) { throw 'Definitions snapshot changed after staging' }
+} elseif ($folders.Count -ne 1) { throw 'Unexpected folder sharing' }
 Write-Output 'PASS: pinned configuration has no networking/clipboard/device sharing; one read-only test-input folder.'
 Write-Output 'This validates requested configuration only; actual guest checks are still required.'
 if ($CheckOnly) { return }

@@ -34,7 +34,8 @@ def heuristic(group,weight,category=''):return indicator(group+'_trait',group,we
 
 class ScoringTests(unittest.TestCase):
     def test_one_group_cannot_reach_malicious_however_many_traits_it_has(self):
-        for group in ('packing','structure','injection','download','ml'):
+        # The learned-model group is the one deliberate exception; see test_model_evidence.
+        for group in ('packing','structure','injection','download'):
             result=score([heuristic(group,40) for _ in range(9)])
             self.assertLess(result['score'],70,group)
 

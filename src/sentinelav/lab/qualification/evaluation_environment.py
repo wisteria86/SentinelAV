@@ -97,7 +97,8 @@ def build(project,work,identity,cancelled,progress,folder):
 
 def resource_identity(project):
     root=project/'resources';paths=list((root/'analysis-data').glob('*.json'))+list((root/'analysis-data').glob('*.npz'))
-    active=root/'signature-data/active.json'
+    from sentinelav.detection.definition_paths import signature_data_dir
+    active=signature_data_dir(root)/'active.json'
     if active.exists():
         import re
         data=json.loads(active.read_text(encoding='utf-8-sig'));name=data.get('database','')
@@ -108,7 +109,9 @@ def resource_identity(project):
         unlinked(p);h=hashlib.sha256()
         with p.open('rb') as f:
             while chunk:=f.read(1024*1024):h.update(chunk)
-        result[p.relative_to(root).as_posix()]=h.hexdigest()
+        # The hash database may live in the definitions area rather than under resources.
+        key=p.relative_to(root).as_posix() if p.is_relative_to(root) else 'signature-data/'+p.name
+        result[key]=h.hexdigest()
     return result
 
 

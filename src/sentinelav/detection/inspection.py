@@ -67,7 +67,8 @@ class IsolatedScanner:
     def start(self):
         if getattr(sys,'frozen',False): command=[sys.executable,'--inspection-worker']
         else: command=[str(Path(sys.executable).with_name('python.exe') if os.name=='nt' else Path(sys.executable)),str((PROJECT_ROOT/'app.py')),'--inspection-worker']
-        environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE')}
+        environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE',
+            'SENTINELAV_WORK_ROOT','SENTINELAV_CLAMAV_HOME','SENTINELAV_CLAMAV_DB','SENTINELAV_DEFINITIONS','SENTINELAV_CLAMAV_RUNTIME')}
         environment['PYTHONIOENCODING']='utf-8'
         environment['QT_QPA_PLATFORM']='offscreen'
         # Native model loaders can initialize OpenMP/BLAS pools before predict's
@@ -83,7 +84,9 @@ class IsolatedScanner:
         try:
             from sentinelav.platform.engine_policy import inspection_options
             effective=inspection_options(self.config.get('options') or {})
-            self.job=WindowsJob(self.process,memory=1536*1024*1024 if any(effective.get(k) for k in ('emulation','model','neural','neural_gray')) else 768*1024*1024)
+            # capa runs as one extra child process with its own memory needs, so its worker gets room for it.
+            memory=1536*1024*1024 if any(effective.get(k) for k in ('emulation','model','neural','neural_gray')) else 768*1024*1024
+            self.job=WindowsJob(self.process,memory=memory+(2*1024**3 if effective.get('capa') else 0),process_limit=3 if effective.get('capa') else 2)
             process=self.process
             messages=self.messages
             errors=[]

@@ -46,6 +46,9 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
         config.update(inspection_options=self.store.get('inspection_options',{}),event_processes=self.store.get('event_processes',True),
                       auto_response=policy_for(self.store.get('auto_response',None),folders),data_dir=str(self.store.path.parent),artifact_updates=self.store.get('artifact_updates',{}),
                       watch_app_changes=self.store.get('watch_app_changes',False),tracked_settings=self.store.get('tracked_settings',[]))
+        if hasattr(self,'honeypot_config'):
+            config.update(self.honeypot_config())
+            config['exclusions']=self.store.get('exclusions',[]) + [str(self.store.path.parent)]
         if self.store.get('kernel_collector',''): config['kernel_collector']=self.store.get('kernel_collector','')
         for key, value in [('watch_folders', folders),('watch_processes',config['processes']),('watch_sysmon',config['sysmon']),('watch_behavior',config['behavior']),('watch_network',config['network'])]:
             self.store.set(key,value)

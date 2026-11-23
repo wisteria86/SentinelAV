@@ -1,12 +1,12 @@
 # Purpose: Route bytes to per-format static indicator modules. Nothing here executes content.
-# Works with: detection.threat_score, detection.indicators.pe, strings, scripts, documents, unix, mobile, dos
+# Works with: detection.threat_score, detection.indicators.pe, strings, scripts, documents, unix, mobile, dos, boot
 # Used by: detection.file_analysis
 
 """Route bytes to per-format static indicator modules. Nothing here executes content."""
-from sentinelav.detection.indicators import documents,dos,mobile,pe,scripts,strings,unix
+from sentinelav.detection.indicators import boot,documents,dos,mobile,payloads,pe,scripts,strings,unix
 
 SCRIPT_KINDS={'powershell','vbscript','javascript','batch','shell','python','perl','php','ruby','lua','html'}
-STRING_SCAN_KINDS={'pe','dos_mz','elf','macho','dex','apk','jar','class','com','lnk','data'}
+STRING_SCAN_KINDS={'boot','pe','dos_mz','elf','macho','dex','apk','class','com','lnk','data'}
 
 
 def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=None):
@@ -17,6 +17,7 @@ def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=No
     runners=[]
     if kind=='pe':runners.append(lambda:pe.indicators(data,metadata,analysis,malformed))
     elif kind in ('dos_mz','com'):runners.append(lambda:dos.indicators(data,kind))
+    elif kind=='boot':runners.append(lambda:boot.indicators(data))
     elif kind=='elf':runners.append(lambda:unix.elf_indicators(data))
     elif kind=='macho':runners.append(lambda:unix.macho_indicators(data))
     elif kind in ('apk','dex'):runners.append(lambda:mobile.android_indicators(data,kind))
@@ -25,6 +26,9 @@ def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=No
     elif kind=='pdf':runners.append(lambda:documents.pdf_indicators(data))
     elif kind=='rtf':runners.append(lambda:documents.rtf_indicators(data))
     elif kind=='lnk':runners.append(lambda:strings.shortcut_indicators(data))
+    elif kind=='data':runners.append(lambda:payloads.data_indicators(data))
+    # Compiled Python keeps names and string constants readable.
+    elif kind=='pyc':runners.append(lambda:payloads.pyc_indicators(data))
     if kind in SCRIPT_KINDS:runners.append(lambda:scripts.indicators(data,kind,omissions))
     if kind in STRING_SCAN_KINDS:runners.append(lambda:strings.indicators(data,kind))
     for run in runners:
