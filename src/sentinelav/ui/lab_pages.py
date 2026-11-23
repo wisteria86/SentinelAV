@@ -13,7 +13,7 @@ class LabPagesMixin:
     def lab_page(self):
         layout=self.page('Malware Lab','Run harmless local simulations or explicitly controlled offline guest jobs.')
         badge=QLabel('SAFE SIMULATIONS · SEPARATE OFFLINE GUEST JOBS')
-        badge.setStyleSheet('color:#995319;font-weight:600;background:#f9e8cf;border-radius:5px;padding:9px;')
+        badge.setStyleSheet('color:#995319;font-weight:600;background:#f9e8cf;border-radius:8px;padding:9px 12px;')
         layout.addWidget(badge)
         self.lab_tabs=QTabWidget()
         self.lab_tabs.setMinimumHeight(350)
