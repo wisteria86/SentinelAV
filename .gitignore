@@ -24,3 +24,4 @@ __pycache__/
 *.sqlite-*
 *.db
 *.db-*
+demo-kit/
