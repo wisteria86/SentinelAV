@@ -5,7 +5,7 @@ Microsoft Defender or commercial antivirus; see [how it detects threats and its 
 
 Repository: [wisteria86/SentinelAV](https://github.com/wisteria86/SentinelAV).
 
-Start here: [module interaction diagrams](map.md).
+Start here: [final deliverables](docs/deliverables/) (how to run, architecture, security analysis).
 For the folder layout, see [project structure](docs/PROJECT-STRUCTURE.md).
 First-party code files are at most 250 lines and start with purpose/collaborator
 comments. Run `.\.venv\Scripts\python.exe tools/maintenance/check_structure.py`
@@ -14,8 +14,6 @@ Browse the [documentation index](docs/README.md) for the other guides.
 Read the [evaluation report](docs/EVALUATION-2026-11-09.md) for measured detection and false-positive rates.
 See the [proposal audit](docs/PROPOSAL-AUDIT.md) for the current requirement map,
 validation evidence, and remaining effectiveness limits.
-The historical [first-iteration contract](docs/FIRST-ITERATION.md) records earlier
-user paths, dependencies and supported limits.
 For capabilities and unfinished protections, read [defense status](docs/DEFENSE-IMPLEMENTATION.md).
 
 ## Run

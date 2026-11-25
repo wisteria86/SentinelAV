@@ -1,6 +1,6 @@
 # Project map
 
-Follow [map.md](../map.md) for runtime interactions and module import diagrams.
+See the [architecture document](deliverables/SentinelAV-Architecture.pdf) for runtime interactions and diagrams.
 First-party code files are limited to 250 lines. Each starts with purpose and
 collaborator comments; `test.ps1` enforces the size/header check.
 

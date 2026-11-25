@@ -1,5 +1,5 @@
 # Purpose: Run one stage of the 90% detection evaluation by hand, log it fully, then print the status report.
-# Works with: tools/evaluation/*, docs/RUNBOOK-90.md
+# Works with: tools/evaluation/*, docs/deliverables/RUNNING.md
 <#
 Usage (from the repository folder, in PowerShell):
   .\scripts\eval\SentinelAV-Eval.ps1 -Step tests      # unit tests and guards (~2 min)

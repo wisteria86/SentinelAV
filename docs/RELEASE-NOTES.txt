@@ -79,8 +79,7 @@ dynamic Unicorn packaging, collector settings forwarding, process-tree ordering,
 Windows PowerShell reset environment, guest readiness and compact settings layout.
 Frozen core self-test and a harmless offline guest execution/disposal cycle passed.
 Packaged Unicorn emulation remains unavailable under CFG and is explicitly partial;
-mitigations were not disabled. No real malware, host deployment or efficacy claim.
-See VALIDATION-2026-11-03.md. The old installer remains unchanged.
+mitigations were not disabled. No real malware, host deployment or efficacy claim. The old installer remains unchanged.
 
 Historical unvalidated source implementation (2026-11-03)
 
@@ -92,7 +91,7 @@ and prepare/start/runtime/reset guest controller paths. Old guest kits are rejec
 before execution; failed disposal blocks reuse. Documentation now distinguishes
 source controller dependencies from unsupported or unimplemented protection.
 No tests, builds, installs, scans or specimen executions were performed. Earlier
-passing test counts and existing installers do not apply. See FIRST-ITERATION.md.
+passing test counts and existing installers do not apply.
 
 Continuation adds a bounded Win32 API emulator with ordinary/delay import
 dispatch, modeled TLS callback execution, virtual OS effects, modified page/file
@@ -100,7 +99,7 @@ inspection, RTF/HTML extraction, attributed DNS reputation, recurring signed-dat
 updates with UI configuration, native collector build/staging scripts, and a
 managed host audit-policy lifecycle. None of this continuation was executed,
 compiled, tested or deployed. Full Windows semantics and enforcement remain
-incomplete. See CODE-IMPLEMENTATION-STATUS.md for exact boundaries.
+incomplete.
 
 User requested implementation without execution/testing. Adds shared evidence
 decisions, bounded content/Office analysis, supervised JSON classifier code,
@@ -110,8 +109,7 @@ collector source and integration, explicit process-tree response, ConfigCI audit
 export and guest deployment scripts, and shared service policy/UI wiring.
 No tests, builds, scans, training, installers or sample jobs were run. New analysis
 is experimental/opt-in; no models, feeds or trust keys were activated. Existing
-installers are unchanged. See CODE-IMPLEMENTATION-STATUS.md for substantial limits
-and code still required; this is not a completed production antivirus.
+installers are unchanged. This is not a completed production antivirus.
 
 Unreleased source update - PE capabilities and Sysmon sequences (2026-11-03)
 
@@ -133,7 +131,7 @@ inspections now display a degraded monitoring state. 123 unit tests and all ten
 Qt integration checks passed, including real owned-worker restart, quarantine,
 restore and overwrite refusal. A fresh 500-file System32 run found no signature
 detections or inspection errors (18.4954 seconds). Previous real-sample misses
-remain misses; no broader malware efficacy claim. See PROTECTION-AUDIT.md.
+remain misses; no broader malware efficacy claim.
 Existing installer and frozen lab bundles are unchanged.
 
 Unreleased source/lab update - reviewed Zeus coverage

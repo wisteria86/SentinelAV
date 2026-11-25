@@ -213,7 +213,7 @@ See `HARDENING.md` for the scoped review and regression evidence. Startup and sc
 
 ## Phase 7 milestone: setup checks and safe local simulations
 
-The original safe-lab milestone adds Overview, Test Queue, Live Activity and Results. The current source also has a separately confirmed Offline Guest Job path and real source-controller prepare/start actions; see [First iteration](FIRST-ITERATION.md). No guest readiness is assumed from a static badge. These newer paths remain unexecuted and unvalidated.
+The original safe-lab milestone adds Overview, Test Queue, Live Activity and Results. The current source also has a separately confirmed Offline Guest Job path and real source-controller prepare/start actions. No guest readiness is assumed from a static badge. These newer paths remain unexecuted and unvalidated.
 
 Choose allowlisted profiles under Test Queue, then **Run Selected Safe Tests**:
 

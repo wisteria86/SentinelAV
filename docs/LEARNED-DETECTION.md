@@ -74,7 +74,7 @@ signature. Training overlap with old public Zoo specimens is unknown, so a
 future signature-free Zoo result must not be marketed as guaranteed hash-unseen
 or training-unseen performance.
 
-The [2026-11-04 selected Zoo evaluation](SIGNATURE-FREE-ZOO-2026-11-04.md)
+The 2026-11-04 selected Zoo evaluation
 now measures the installed models on eight cached specimens. Six Windows files
 crossed a threshold on complete model analysis; one additional Windows file
 warned on a neural prefix. Nine eligible controls had no learned-model warnings,
