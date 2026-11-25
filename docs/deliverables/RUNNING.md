@@ -35,7 +35,7 @@ items are kept out of Git and are optional for a first run:
 | Item | How to get it | Without it |
 | --- | --- | --- |
 | ClamAV engine and database | `scripts\Install-AnalysisDependencies.ps1`, then **Updates → Update definitions** in the app | ClamAV layer reports "unavailable"; other layers still work |
-| Full hash feeds (MalwareBazaar, VirusShare) | `.\scripts\Download-Hashes.ps1` (see `docs/HASH-IMPORT.md`) | Only the small built-in hash list is used |
+| Full hash feeds (MalwareBazaar, VirusShare) | `.\scripts\Download-Hashes.ps1` (tools in `tools/feeds`) | Only the small built-in hash list is used |
 | Learned models (EMBER2024) | `tools\feeds\install_finetuned_models.py` with the trained model files | Model layer reports "unavailable" |
 
 ## 3. Start the desktop app

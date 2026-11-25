@@ -1,6 +1,6 @@
 # Purpose: Prove the real watcher, scan workers, vault and policy work together on harmless files.
 # Works with: monitoring.monitoring, response.auto_response, response.response, data.storage
-# Used by: the CLI and docs/TEST-ENVIRONMENT.md
+# Used by: the CLI and docs/deliverables/RUNNING.md
 
 """Prove the real watcher, scan workers, vault and policy work together on harmless files.
 

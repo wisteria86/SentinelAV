@@ -1,6 +1,6 @@
 # Purpose: Check the proposal's remaining items end to end on harmless fixtures, with nothing mocked.
 # Works with: monitoring.monitoring, monitoring.behavior, response.response, platform.runtime, data.reporting
-# Used by: the CLI and docs/TEST-ENVIRONMENT.md
+# Used by: the CLI and docs/deliverables/RUNNING.md
 
 """Check the proposal's remaining items end to end on harmless fixtures, with nothing mocked.
 

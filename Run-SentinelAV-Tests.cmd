@@ -7,7 +7,7 @@ setlocal
 cd /d "%~dp0"
 set "PYTHONPATH=%~dp0src;%~dp0"
 if not exist ".venv\Scripts\python.exe" (
-  echo SentinelAV's Python environment is missing. See docs\CRITICAL-EVALUATION.md.
+  echo SentinelAV's Python environment is missing. See docs\deliverables\RUNNING.md.
   pause
   exit /b 1
 )

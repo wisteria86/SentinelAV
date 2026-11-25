@@ -1,25 +1,20 @@
 # SentinelAV
 
 Windows malware detection, protection and removal, version 0.17.0. It is not a replacement for
-Microsoft Defender or commercial antivirus; see [how it detects threats and its limits](docs/DETECTION.md).
+Microsoft Defender or commercial antivirus; see the [security analysis](docs/deliverables/SentinelAV-Security-Analysis.pdf) for measured results and limits.
 
 Repository: [wisteria86/SentinelAV](https://github.com/wisteria86/SentinelAV).
 
 Start here: [final deliverables](docs/deliverables/) (how to run, architecture, security analysis).
-For the folder layout, see [project structure](docs/PROJECT-STRUCTURE.md).
+For the design and folder layout, see the [architecture document](docs/deliverables/SentinelAV-Architecture.pdf).
 First-party code files are at most 250 lines and start with purpose/collaborator
 comments. Run `.\.venv\Scripts\python.exe tools/maintenance/check_structure.py`
 to check those conventions; `test.ps1` also runs the check.
-Browse the [documentation index](docs/README.md) for the other guides.
-Read the [evaluation report](docs/EVALUATION-2026-11-09.md) for measured detection and false-positive rates.
-See the [proposal audit](docs/PROPOSAL-AUDIT.md) for the current requirement map,
-validation evidence, and remaining effectiveness limits.
-For capabilities and unfinished protections, read [defense status](docs/DEFENSE-IMPLEMENTATION.md).
 
 ## Run
 
 For critical product evaluation, double-click **Run-SentinelAV-Tests.cmd**.
-Read the [evaluation guide](docs/CRITICAL-EVALUATION.md) for corpus approval,
+See [how to run SentinelAV](docs/deliverables/RUNNING.md) for evaluation steps,
 guest telemetry, dedicated VM enrollment, blocked qualification and report limits.
 Reports are written under `logs`; heavy lab material remains on F:.
 
@@ -47,7 +42,7 @@ The repository includes source, reviewed YARA rules/licenses, and the small
 hash overlay. Full downloaded feeds/databases, build tools, installers, local
 reports, original reference attachments, and signing certificates/private keys
 are local-only and excluded from Git. Import a full feed separately using
-[the hash-import guide](docs/HASH-IMPORT.md). Local feed-count/build-validation
+the hash-import tools in `tools/feeds`. Local feed-count/build-validation
 records describe this development machine, not a fresh clone.
 
 ## Folder guide
@@ -90,14 +85,12 @@ The packaged app is in `F:\SentinelAV-Work\builds\dist\SentinelAV\`. Installers 
 `.\scripts\Download-Hashes.ps1`, or use
 `.\.venv\Scripts\python.exe -m tools.feeds.download_hashes --help`.
 
-See [the detailed feature guide](docs/FEATURES.md),
-[hash imports](docs/HASH-IMPORT.md), and
-[release notes](docs/RELEASE-NOTES.txt).
+See the [release notes](docs/RELEASE-NOTES.txt) for version history.
 
-Native AMSI development: [implementation and test commands](docs/AMSI-PROVIDER.md). The provider remains unregistered.
+Native AMSI development: build with `scripts/build-amsi.ps1`. The provider remains unregistered.
 
 Guest-only AMSI/service integration, reset, removal and rollback results:
-[validation guide](docs/GUEST-AMSI-VALIDATION.md). Host deployment remains inactive.
+the guest-only scripts in `scripts/lab`. Host deployment remains inactive.
 ## Evaluating against theZoo
 
 All of this runs in a fresh, offline Windows Sandbox for each batch. Samples are never
