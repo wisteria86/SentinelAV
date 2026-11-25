@@ -50,6 +50,15 @@ class ArtifactTests(unittest.TestCase):
         tampered=copy.deepcopy(envelope); tampered['manifest']['revision']=2
         with self.assertRaises(InvalidSignature): verify(tampered,trust,'model')
 
+    def test_models_may_be_permanent_but_feeds_may_not(self):
+        key=Ed25519PrivateKey.generate(); trust=dict(keys={'fixture':public_hex(key)})
+        def permanent(payload,kind):
+            manifest=dict(kind=kind,key_id='fixture',revision=1,issued=int(time.time())-10,expires=None,payload_sha256=hashlib.sha256(canonical(payload)).hexdigest())
+            return dict(schema=1,manifest=manifest,payload=payload,signature=base64.b64encode(key.sign(canonical(manifest))).decode())
+        envelope=permanent(minimal_model(),'model')
+        self.assertEqual(verify(envelope,trust,'model',now=time.time()+50*365*86400),minimal_model())
+        with self.assertRaises(ValueError): verify(permanent(dict(schema=1,entries=[]),'reputation'),trust,'reputation')
+
     def test_signed_invalid_model_does_not_replace_active_revision(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp); key=Ed25519PrivateKey.generate()

@@ -118,7 +118,7 @@ class AdvancedPipeline:
             from sentinelav.detection.classifier import predict
             try:
                 model,manifest=self.assets['model']
-                if time.time()>=manifest['expires']: raise ValueError('Model has expired')
+                if manifest['expires'] is not None and time.time()>=manifest['expires']: raise ValueError('Model has expired')
                 if model.get('algorithm')=='lightgbm-pe-ensemble-v1':
                     from sentinelav.detection.pe_ensemble import predict as predict_ensemble
                     output=predict_ensemble(model,data,(self.assets.get('confirm_model') or (None,))[0])

@@ -67,7 +67,8 @@ def sign_and_activate(model,kind,folder):
     public=key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw).hex()
     trust=RESOURCE_ROOT/'trusted-update-keys.json';update_pin(trust,'sentinelav-local-research',public)
     store=RESOURCE_ROOT/'analysis-data';revision=int(time.time())
-    manifest=dict(kind=kind,key_id='sentinelav-local-research',revision=revision,issued=revision-1,expires=revision+90*86400,
+    # No end date: the model stays usable until a newer signed model replaces it.
+    manifest=dict(kind=kind,key_id='sentinelav-local-research',revision=revision,issued=revision-1,expires=None,
         payload_sha256=hashlib.sha256(canonical(model)).hexdigest())
     envelope=dict(schema=1,manifest=manifest,payload=model,signature=base64.b64encode(key.sign(canonical(manifest))).decode())
     output=folder/(kind+'-'+str(revision)+'.json')

@@ -39,7 +39,12 @@ def verify(envelope,trust,kind,now=None):
     if type(manifest['revision']) is not int or manifest['revision']<1: raise ValueError('Invalid revision')
     if not isinstance(manifest['key_id'],str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',manifest['key_id']): raise ValueError('Invalid publisher ID')
     now=time.time() if now is None else now
-    if any(type(manifest[k]) is not int for k in ('issued','expires')) or not manifest['issued']<=now<manifest['expires']:
+    # Models may be signed without an end date (expires null): a trained model does not go stale on a schedule.
+    # Feeds and policies keep an end date, because stale threat intelligence should stop counting.
+    permanent=manifest['expires'] is None and kind in ('model','confirm_model')
+    if type(manifest['issued']) is not int or not (permanent or type(manifest['expires']) is int):
+        raise ValueError('Artifact outside validity interval')
+    if not manifest['issued']<=now or not (permanent or now<manifest['expires']):
         raise ValueError('Artifact outside validity interval')
     public=trust.get('keys',{}).get(manifest['key_id'])
     if not isinstance(public,str) or not re.fullmatch('[0-9a-fA-F]{64}',public): raise ValueError('Publisher key is not pinned')

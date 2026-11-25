@@ -56,7 +56,10 @@ try {
         if (-not (Test-Path -LiteralPath $uninstallKey)) { throw 'Fixture registration missing' }
     }
     $smokeData = Join-Path $testRoot 'self-test-data'
-    $process = Start-Process -FilePath (Join-Path $installRoot 'SentinelAV.exe') -ArgumentList @('--self-test','--data-dir',('"' + $smokeData + '"')) -WindowStyle Hidden -PassThru -Wait
+    # -Wait would also wait for the ClamAV daemon the self-test starts, which keeps running; wait for SentinelAV only.
+    $process = Start-Process -FilePath (Join-Path $installRoot 'SentinelAV.exe') -ArgumentList @('--self-test','--data-dir',('"' + $smokeData + '"')) -WindowStyle Hidden -PassThru
+    $process.WaitForExit()
+    Get-CimInstance Win32_Process -Filter "Name='clamd.exe'" | Where-Object { $_.ExecutablePath -like ($installRoot + '\*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
     if ($process.ExitCode -ne 0) { throw 'Installed self-test failed' }
     $smoke = Get-Content -LiteralPath (Join-Path $smokeData 'self-test.json') -Raw | ConvertFrom-Json
     if ($smoke.status -ne 'PASS' -or $smoke.scan.yara.research_rules -lt 1) { throw 'Installed rules or self-test did not pass' }
