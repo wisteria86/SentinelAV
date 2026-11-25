@@ -3,3 +3,5 @@
 # Preserve exact bytes: managed rule catalogs pin source-file SHA-256 values.
 resources/rules/** -text whitespace=-trailing-space
 demo/samples/* binary
+models/finetuned/** binary
+resources/analysis-data/* binary

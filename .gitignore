@@ -6,7 +6,11 @@ __pycache__/
 /logs/
 /data/
 /resources/signature-data/
-/resources/analysis-data/
+/resources/analysis-data/*
+# The active fine-tuned EMBER model and its confirmation model ship with the repository.
+!/resources/analysis-data/active.json
+!/resources/analysis-data/model-ece789a5d8804e46b4a738c936ba0187.json
+!/resources/analysis-data/confirm_model-4ddc54fc7f684450aaae07f6ec9c4c2e.json
 /tools/vendor/
 /native/telemetry/obj/
 /native/telemetry/bin/

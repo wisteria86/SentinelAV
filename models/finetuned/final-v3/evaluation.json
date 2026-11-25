@@ -1,0 +1,1065 @@
+{
+ "run": "final-v3",
+ "cutoffs": {
+  "original": {
+   "Win32": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 389,
+    "highest_clean": 0.839972
+   },
+   "Win64": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 1305,
+    "highest_clean": 0.865367
+   },
+   "Dot_Net": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 1021,
+    "highest_clean": 0.834472
+   }
+  },
+  "finetuned": {
+   "Win32": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 389,
+    "highest_clean": 0.669121
+   },
+   "Win64": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 1305,
+    "highest_clean": 0.83906
+   },
+   "Dot_Net": {
+    "cutoff": 0.98,
+    "calibrate_threshold_files": 1021,
+    "highest_clean": 0.637758
+   }
+  }
+ },
+ "clean_report": {
+  "original": {
+   "files": 4603,
+   "files_not_in_training": 4575,
+   "at_or_above": {
+    "0.5": 15,
+    "0.7": 12,
+    "0.9": 3,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "at_or_above_unseen_only": {
+    "0.5": 15,
+    "0.7": 12,
+    "0.9": 3,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "rate_at_0_9": 0.000651748859439496,
+   "at_proposed_cutoffs": 0,
+   "max": 0.9291427989238497,
+   "by_kind": {
+    "Win32": {
+     "n": 309,
+     "0.5": 0.012944983818770227,
+     "0.7": 0.012944983818770227,
+     "0.9": 0.006472491909385114,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    },
+    "Win64": {
+     "n": 3698,
+     "0.5": 0.002163331530557058,
+     "0.7": 0.0016224986479177934,
+     "0.9": 0.00027041644131963225,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    },
+    "Dot_Net": {
+     "n": 596,
+     "0.5": 0.0050335570469798654,
+     "0.7": 0.003355704697986577,
+     "0.9": 0.0,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    }
+   },
+   "top20": [
+    {
+     "score": 0.92914,
+     "kind": "Win32",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\setuptools\\cli.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.92676,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\@BIOS\\ChangeLogoWin64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.92357,
+     "kind": "Win32",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\setuptools\\gui-32.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.88311,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\PreRun.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.78904,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\UTHardwareMonitorCmd\\yccV2.dll",
+     "in_training": false
+    },
+    {
+     "score": 0.77046,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\libexec\\getprocaddr64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.76998,
+     "kind": "Win32",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\libexec\\getprocaddr32.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.76755,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\AdjustService.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.75481,
+     "kind": "Win64",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\setuptools\\cli-64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.72896,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\bin\\ldh.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.71357,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\bin\\cygwin-console-helper.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.7023,
+     "kind": "Win64",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\comfy_kitchen\\backends\\cuda\\_C.abi3.pyd",
+     "in_training": false
+    },
+    {
+     "score": 0.66213,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\RPMExec.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.63383,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\HTTP_LIB.dll",
+     "in_training": false
+    },
+    {
+     "score": 0.61684,
+     "kind": "Win64",
+     "product": "wextract.exe",
+     "path": "C:\\WINDOWS\\System32\\wextract.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.49189,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\Sources\\RPMRestoreCpl.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.46392,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\SetupReDriver.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.46287,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\AtiTool\\tools_driver\\remtool64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.4495,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\AtiTool\\tools_driver\\remtool.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.44751,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\SIV\\KTmd.exe",
+     "in_training": false
+    }
+   ]
+  },
+  "finetuned": {
+   "files": 4603,
+   "files_not_in_training": 4575,
+   "at_or_above": {
+    "0.5": 9,
+    "0.7": 3,
+    "0.9": 0,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "at_or_above_unseen_only": {
+    "0.5": 9,
+    "0.7": 3,
+    "0.9": 0,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "rate_at_0_9": 0.0,
+   "at_proposed_cutoffs": 0,
+   "max": 0.7581663778183105,
+   "by_kind": {
+    "Win32": {
+     "n": 309,
+     "0.5": 0.009708737864077669,
+     "0.7": 0.006472491909385114,
+     "0.9": 0.0,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    },
+    "Win64": {
+     "n": 3698,
+     "0.5": 0.001081665765278529,
+     "0.7": 0.0,
+     "0.9": 0.0,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    },
+    "Dot_Net": {
+     "n": 596,
+     "0.5": 0.003355704697986577,
+     "0.7": 0.0016778523489932886,
+     "0.9": 0.0,
+     "0.95": 0.0,
+     "0.98": 0.0,
+     "0.99": 0.0
+    }
+   },
+   "top20": [
+    {
+     "score": 0.75817,
+     "kind": "Win32",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\setuptools\\cli.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.7551,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\PreRun.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.73772,
+     "kind": "Win32",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\setuptools\\gui-32.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.67381,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\@BIOS\\ChangeLogoWin64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.64265,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\UTHardwareMonitorCmd\\yccV2.dll",
+     "in_training": false
+    },
+    {
+     "score": 0.61921,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\libexec\\getprocaddr64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.55488,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\AdjustService.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.51096,
+     "kind": "Win64",
+     "product": "wextract.exe",
+     "path": "C:\\WINDOWS\\System32\\wextract.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.50852,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\bin\\cygwin-console-helper.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.48092,
+     "kind": "Win32",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\libexec\\getprocaddr32.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.47993,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\AppCenter\\HTTP_LIB.dll",
+     "in_training": false
+    },
+    {
+     "score": 0.47531,
+     "kind": "Win64",
+     "product": "git",
+     "path": "C:\\Program Files\\Git\\usr\\bin\\ldh.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.34795,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\RPMExec.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.32653,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\RPMMgr.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.29589,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\Sources\\RPMRestoreCpl.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.28061,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\AtiTool\\tools_driver\\remtool64.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.27163,
+     "kind": "Win32",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\AtiTool\\tools_driver\\remtool.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.26683,
+     "kind": "Win64",
+     "product": "comfyui",
+     "path": "F:\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\.venv\\Lib\\site-packages\\comfy_kitchen\\backends\\cuda\\_C.abi3.pyd",
+     "in_training": false
+    },
+    {
+     "score": 0.2562,
+     "kind": "Win64",
+     "product": "gigabyte",
+     "path": "C:\\Program Files\\Gigabyte\\Smart Backup\\SetupReDriver.exe",
+     "in_training": false
+    },
+    {
+     "score": 0.24641,
+     "kind": "Dot_Net",
+     "product": "gigabyte",
+     "path": "C:\\Program Files (x86)\\Gigabyte\\RGBFusion\\Uninstall.exe",
+     "in_training": false
+    }
+   ]
+  }
+ },
+ "clean_calibrate_threshold_part": {
+  "original": {
+   "files": 2715,
+   "at_or_above": {
+    "0.5": 10,
+    "0.7": 5,
+    "0.9": 0,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "max": 0.8653665605039511
+  },
+  "finetuned": {
+   "files": 2715,
+   "at_or_above": {
+    "0.5": 6,
+    "0.7": 1,
+    "0.9": 0,
+    "0.95": 0,
+    "0.98": 0,
+    "0.99": 0
+   },
+   "max": 0.8390603282496113
+  }
+ },
+ "winget_heldout": {
+  "original": {
+   "files": 725,
+   "packages": 379,
+   "at_or_above": {
+    "0.5": 189,
+    "0.7": 154,
+    "0.9": 92,
+    "0.95": 68,
+    "0.98": 36,
+    "0.99": 29
+   },
+   "rate": {
+    "0.5": 0.26068965517241377,
+    "0.7": 0.21241379310344827,
+    "0.9": 0.12689655172413794,
+    "0.95": 0.09379310344827586,
+    "0.98": 0.0496551724137931,
+    "0.99": 0.04
+   },
+   "at_proposed_cutoffs": 36,
+   "by_kind": {
+    "Win32": {
+     "n": 223,
+     "0.5": 0.42152466367713004,
+     "0.7": 0.3452914798206278,
+     "0.9": 0.2242152466367713,
+     "0.95": 0.13901345291479822,
+     "0.98": 0.026905829596412557,
+     "0.99": 0.008968609865470852
+    },
+    "Win64": {
+     "n": 394,
+     "0.5": 0.21065989847715735,
+     "0.7": 0.1700507614213198,
+     "0.9": 0.09137055837563451,
+     "0.95": 0.07868020304568528,
+     "0.98": 0.06598984771573604,
+     "0.99": 0.0583756345177665
+    },
+    "Dot_Net": {
+     "n": 108,
+     "0.5": 0.1111111111111111,
+     "0.7": 0.09259259259259259,
+     "0.9": 0.05555555555555555,
+     "0.95": 0.05555555555555555,
+     "0.98": 0.037037037037037035,
+     "0.99": 0.037037037037037035
+    }
+   }
+  },
+  "finetuned": {
+   "files": 725,
+   "packages": 379,
+   "at_or_above": {
+    "0.5": 49,
+    "0.7": 32,
+    "0.9": 24,
+    "0.95": 20,
+    "0.98": 17,
+    "0.99": 14
+   },
+   "rate": {
+    "0.5": 0.06758620689655172,
+    "0.7": 0.044137931034482755,
+    "0.9": 0.03310344827586207,
+    "0.95": 0.027586206896551724,
+    "0.98": 0.023448275862068966,
+    "0.99": 0.019310344827586208
+   },
+   "at_proposed_cutoffs": 17,
+   "by_kind": {
+    "Win32": {
+     "n": 223,
+     "0.5": 0.05829596412556054,
+     "0.7": 0.017937219730941704,
+     "0.9": 0.008968609865470852,
+     "0.95": 0.008968609865470852,
+     "0.98": 0.004484304932735426,
+     "0.99": 0.004484304932735426
+    },
+    "Win64": {
+     "n": 394,
+     "0.5": 0.06598984771573604,
+     "0.7": 0.050761421319796954,
+     "0.9": 0.04060913705583756,
+     "0.95": 0.03553299492385787,
+     "0.98": 0.030456852791878174,
+     "0.99": 0.025380710659898477
+    },
+    "Dot_Net": {
+     "n": 108,
+     "0.5": 0.09259259259259259,
+     "0.7": 0.07407407407407407,
+     "0.9": 0.05555555555555555,
+     "0.95": 0.037037037037037035,
+     "0.98": 0.037037037037037035,
+     "0.99": 0.027777777777777776
+    }
+   }
+  }
+ },
+ "dev": {
+  "original": {
+   "samples": 458,
+   "pe_rows": 458,
+   "rates": {
+    "0.5": 0.9170305676855895,
+    "0.7": 0.8842794759825328,
+    "0.9": 0.8144104803493449,
+    "0.95": 0.7641921397379913,
+    "0.98": 0.6244541484716157,
+    "0.99": 0.5502183406113537
+   },
+   "at_proposed_cutoffs": 0.6244541484716157,
+   "by_kind": {
+    "Win32": {
+     "n": 119,
+     "0.5": 0.8487394957983193,
+     "0.7": 0.773109243697479,
+     "0.9": 0.7058823529411765,
+     "0.95": 0.6722689075630253,
+     "0.98": 0.4369747899159664,
+     "0.99": 0.3277310924369748
+    },
+    "Win64": {
+     "n": 221,
+     "0.5": 0.9230769230769231,
+     "0.7": 0.8959276018099548,
+     "0.9": 0.7873303167420814,
+     "0.95": 0.7104072398190046,
+     "0.98": 0.5565610859728507,
+     "0.99": 0.4660633484162896
+    },
+    "Dot_Net": {
+     "n": 118,
+     "0.5": 0.9745762711864406,
+     "0.7": 0.9745762711864406,
+     "0.9": 0.9745762711864406,
+     "0.95": 0.9576271186440678,
+     "0.98": 0.940677966101695,
+     "0.99": 0.9322033898305084
+    }
+   },
+   "families_below_0_98": [
+    [
+     "wailsloader",
+     8,
+     8
+    ],
+    [
+     "adware.offercore",
+     8,
+     8
+    ],
+    [
+     "valleyrat",
+     7,
+     9
+    ],
+    [
+     "coinminer",
+     7,
+     9
+    ],
+    [
+     "remusstealer",
+     7,
+     8
+    ],
+    [
+     "gcleaner",
+     6,
+     7
+    ],
+    [
+     "vidar",
+     6,
+     8
+    ],
+    [
+     "unlabeled-exe",
+     6,
+     8
+    ],
+    [
+     "connectwise",
+     5,
+     7
+    ],
+    [
+     "phorpiex",
+     5,
+     6
+    ],
+    [
+     "aokigaharastealer",
+     5,
+     8
+    ],
+    [
+     "unlabeled-dll",
+     5,
+     7
+    ],
+    [
+     "overlordrat",
+     4,
+     5
+    ],
+    [
+     "lummastealer",
+     4,
+     5
+    ],
+    [
+     "snappyclient",
+     4,
+     4
+    ],
+    [
+     "cloudhaze",
+     4,
+     4
+    ],
+    [
+     "wardenstealer",
+     3,
+     12
+    ],
+    [
+     "wannacry",
+     3,
+     7
+    ],
+    [
+     "mmtwstealer",
+     3,
+     6
+    ],
+    [
+     "stealc",
+     3,
+     12
+    ],
+    [
+     "lunexloader",
+     3,
+     6
+    ],
+    [
+     "inc",
+     3,
+     4
+    ],
+    [
+     "fleetdeck",
+     3,
+     3
+    ],
+    [
+     "desktopstreamrat",
+     2,
+     4
+    ],
+    [
+     "mopsstealer",
+     2,
+     3
+    ]
+   ]
+  },
+  "finetuned": {
+   "samples": 458,
+   "pe_rows": 458,
+   "rates": {
+    "0.5": 0.9279475982532751,
+    "0.7": 0.9039301310043668,
+    "0.9": 0.8602620087336245,
+    "0.95": 0.7947598253275109,
+    "0.98": 0.7008733624454149,
+    "0.99": 0.6048034934497817
+   },
+   "at_proposed_cutoffs": 0.7008733624454149,
+   "by_kind": {
+    "Win32": {
+     "n": 119,
+     "0.5": 0.865546218487395,
+     "0.7": 0.8067226890756303,
+     "0.9": 0.7310924369747899,
+     "0.95": 0.6638655462184874,
+     "0.98": 0.5294117647058824,
+     "0.99": 0.42016806722689076
+    },
+    "Win64": {
+     "n": 221,
+     "0.5": 0.9366515837104072,
+     "0.7": 0.918552036199095,
+     "0.9": 0.8687782805429864,
+     "0.95": 0.7782805429864253,
+     "0.98": 0.669683257918552,
+     "0.99": 0.5384615384615384
+    },
+    "Dot_Net": {
+     "n": 118,
+     "0.5": 0.9745762711864406,
+     "0.7": 0.9745762711864406,
+     "0.9": 0.9745762711864406,
+     "0.95": 0.9576271186440678,
+     "0.98": 0.9322033898305084,
+     "0.99": 0.9152542372881356
+    }
+   },
+   "families_below_0_98": [
+    [
+     "wailsloader",
+     8,
+     8
+    ],
+    [
+     "adware.offercore",
+     8,
+     8
+    ],
+    [
+     "valleyrat",
+     7,
+     9
+    ],
+    [
+     "gcleaner",
+     6,
+     7
+    ],
+    [
+     "unlabeled-dll",
+     6,
+     7
+    ],
+    [
+     "connectwise",
+     5,
+     7
+    ],
+    [
+     "stealc",
+     5,
+     12
+    ],
+    [
+     "overlordrat",
+     5,
+     5
+    ],
+    [
+     "nikrat",
+     4,
+     7
+    ],
+    [
+     "remusstealer",
+     3,
+     8
+    ],
+    [
+     "fleetdeck",
+     3,
+     3
+    ],
+    [
+     "lummastealer",
+     3,
+     5
+    ],
+    [
+     "snappyclient",
+     3,
+     4
+    ],
+    [
+     "cloudhaze",
+     3,
+     4
+    ],
+    [
+     "golstastealer",
+     3,
+     3
+    ],
+    [
+     "desktopstreamrat",
+     2,
+     4
+    ],
+    [
+     "rustystealer",
+     2,
+     9
+    ],
+    [
+     "serorat",
+     2,
+     2
+    ],
+    [
+     "aokigaharastealer",
+     2,
+     8
+    ],
+    [
+     "unlabeled-exe",
+     2,
+     8
+    ],
+    [
+     "umbrarat",
+     2,
+     2
+    ],
+    [
+     "sloppyrat",
+     2,
+     2
+    ],
+    [
+     "netsupport",
+     2,
+     3
+    ],
+    [
+     "inc",
+     2,
+     4
+    ],
+    [
+     "masslogger",
+     2,
+     3
+    ]
+   ]
+  }
+ },
+ "bazaar_train_val": {
+  "original": {
+   "rows": 183,
+   "rates": {
+    "0.5": 0.907103825136612,
+    "0.7": 0.8907103825136612,
+    "0.9": 0.8469945355191257,
+    "0.95": 0.819672131147541,
+    "0.98": 0.726775956284153,
+    "0.99": 0.5956284153005464
+   }
+  },
+  "finetuned": {
+   "rows": 183,
+   "rates": {
+    "0.5": 0.9398907103825137,
+    "0.7": 0.9344262295081968,
+    "0.9": 0.8852459016393442,
+    "0.95": 0.8579234972677595,
+    "0.98": 0.7704918032786885,
+    "0.99": 0.7158469945355191
+   }
+  }
+ },
+ "ember_test_week": {
+  "original": {
+   "Win32": {
+    "malicious": 30000,
+    "benign": 30000,
+    "auc": 0.997356648888889,
+    "detection": {
+     "0.5": 0.9682666666666667,
+     "0.7": 0.9505333333333333,
+     "0.9": 0.8986666666666666,
+     "0.95": 0.8628666666666667,
+     "0.98": 0.8134666666666667,
+     "0.99": 0.7739333333333334
+    },
+    "false_alarm": {
+     "0.5": 0.0208,
+     "0.7": 0.009933333333333334,
+     "0.9": 0.002266666666666667,
+     "0.95": 0.0012666666666666666,
+     "0.98": 0.00046666666666666666,
+     "0.99": 6.666666666666667e-05
+    },
+    "detection_at_cutoff": 0.8134666666666667,
+    "false_alarm_at_cutoff": 0.00046666666666666666
+   },
+   "Win64": {
+    "malicious": 10000,
+    "benign": 10000,
+    "auc": 0.99840052,
+    "detection": {
+     "0.5": 0.9794,
+     "0.7": 0.9692,
+     "0.9": 0.9444,
+     "0.95": 0.9256,
+     "0.98": 0.89,
+     "0.99": 0.8596
+    },
+    "false_alarm": {
+     "0.5": 0.0136,
+     "0.7": 0.0084,
+     "0.9": 0.0028,
+     "0.95": 0.002,
+     "0.98": 0.0008,
+     "0.99": 0.0004
+    },
+    "detection_at_cutoff": 0.89,
+    "false_alarm_at_cutoff": 0.0008
+   },
+   "Dot_Net": {
+    "malicious": 5000,
+    "benign": 5000,
+    "auc": 0.99888864,
+    "detection": {
+     "0.5": 0.9856,
+     "0.7": 0.9736,
+     "0.9": 0.9476,
+     "0.95": 0.9216,
+     "0.98": 0.88,
+     "0.99": 0.834
+    },
+    "false_alarm": {
+     "0.5": 0.0152,
+     "0.7": 0.0104,
+     "0.9": 0.0064,
+     "0.95": 0.004,
+     "0.98": 0.0016,
+     "0.99": 0.0012
+    },
+    "detection_at_cutoff": 0.88,
+    "false_alarm_at_cutoff": 0.0016
+   }
+  },
+  "finetuned": {
+   "Win32": {
+    "malicious": 30000,
+    "benign": 30000,
+    "auc": 0.9968112666666666,
+    "detection": {
+     "0.5": 0.9457333333333333,
+     "0.7": 0.9208666666666666,
+     "0.9": 0.871,
+     "0.95": 0.8403333333333334,
+     "0.98": 0.7912666666666667,
+     "0.99": 0.7512
+    },
+    "false_alarm": {
+     "0.5": 0.015333333333333332,
+     "0.7": 0.007333333333333333,
+     "0.9": 0.0018666666666666666,
+     "0.95": 0.0010666666666666667,
+     "0.98": 0.00013333333333333334,
+     "0.99": 0.0
+    },
+    "detection_at_cutoff": 0.7912666666666667,
+    "false_alarm_at_cutoff": 0.00013333333333333334
+   },
+   "Win64": {
+    "malicious": 10000,
+    "benign": 10000,
+    "auc": 0.9982934400000001,
+    "detection": {
+     "0.5": 0.965,
+     "0.7": 0.9524,
+     "0.9": 0.9186,
+     "0.95": 0.8904,
+     "0.98": 0.834,
+     "0.99": 0.7764
+    },
+    "false_alarm": {
+     "0.5": 0.0078,
+     "0.7": 0.0034,
+     "0.9": 0.0012,
+     "0.95": 0.0008,
+     "0.98": 0.0002,
+     "0.99": 0.0
+    },
+    "detection_at_cutoff": 0.834,
+    "false_alarm_at_cutoff": 0.0002
+   },
+   "Dot_Net": {
+    "malicious": 5000,
+    "benign": 5000,
+    "auc": 0.99882672,
+    "detection": {
+     "0.5": 0.9796,
+     "0.7": 0.9664,
+     "0.9": 0.9316,
+     "0.95": 0.904,
+     "0.98": 0.8548,
+     "0.99": 0.8056
+    },
+    "false_alarm": {
+     "0.5": 0.01,
+     "0.7": 0.008,
+     "0.9": 0.0052,
+     "0.95": 0.0032,
+     "0.98": 0.0016,
+     "0.99": 0.0012
+    },
+    "detection_at_cutoff": 0.8548,
+    "false_alarm_at_cutoff": 0.0016
+   }
+  }
+ }
+}
