@@ -79,7 +79,11 @@ class MonitorLoopMixin:
                 self.behavior = BehaviorEngine(self.emit,self.config.get('canaries',[]),self.config.get('network_indicators',[]))
             from sentinelav.monitoring.honeypots import HoneypotWatcher,NetworkHoneypot
             self.honeypots=HoneypotWatcher(self.config['honeypots'],self.emit,self.behavior) if self.config.get('honeypots') else None
-            self.network_honeypot=NetworkHoneypot(self.emit,self.config['network_honeypot']) if self.config.get('network_honeypot') else None
+            from sentinelav.monitoring.deception.breadcrumbs import TarpitHoneypot
+            self.network_honeypot=(TarpitHoneypot if self.config.get('tarpit') else NetworkHoneypot)(self.emit,self.config['network_honeypot']) if self.config.get('network_honeypot') else None
+            if self.config.get('deception'):
+                from sentinelav.monitoring.deception import DeceptionRuntime
+                self.deception=DeceptionRuntime(self.config['deception'],self.emit,self.behavior,self.config.get('data_dir') or '.');self.deception.start()
             if self.network_honeypot:
                 bound=self.network_honeypot.start()
                 self.event('Network honeypot listening',f'Ports {bound}; ports already in use were left alone: {self.network_honeypot.skipped}','Honeypot')
@@ -213,6 +217,7 @@ class MonitorLoopMixin:
                         self.event('Monitoring backlog', f'{lost} file events dropped; run an on-demand scan to cover omissions.', 'Filesystem', 'Warning')
                     next_status = now + 2
                     if self.honeypots:self.honeypots.poll()
+                    if getattr(self,'deception',None):self.deception.poll()
                 if not item:
                     self.stop.wait(.1)
         finally:
@@ -222,7 +227,7 @@ class MonitorLoopMixin:
                 self.artifact_updater=None
             owned=[('app changes',self.change_monitor),('kernel collector',self.kernel_reader),('automatic responder',self.responder),
                    ('process events',locals().get('process_reader')),('scanner',locals().get('scanner')),
-                   ('network honeypot',getattr(self,'network_honeypot',None))]
+                   ('network honeypot',getattr(self,'network_honeypot',None)),('deception',getattr(self,'deception',None))]
             for name,resource in owned:
                 if resource is None: continue
                 try: resource.close()

@@ -1,0 +1,15 @@
+{
+  "note": "Infection markers that specific malware checks before running and then stays away. Each entry is from published research, not from any sample collection used for evaluation. A marker only stops the family that checks it; it is not protection on its own.",
+  "markers": [
+    {"family": "WannaCry", "type": "mutex", "name": "Global\\MsWinZonesCacheCounterMutexA0",
+     "effect": "The encryptor checks this mutex and exits without encrypting when it exists.",
+     "sources": ["https://blog.didierstevens.com/2017/05/14/quickpost-wannacrys-mutex-is-mswinzonescachecountermutexa0-digit-zero-at-the-end/",
+                 "https://logrhythm.com/blog/a-technical-analysis-of-wannacry-ransomware/"]},
+    {"family": "WannaCry", "type": "mutex", "name": "Global\\MsWinZonesCacheCounterMutexA",
+     "effect": "Name reported without the trailing zero in other analyses; held as well because sources differ.",
+     "sources": ["https://www.sophos.com/en-us/research/wcry-ransomware-analysis"]},
+    {"family": "NotPetya", "type": "file", "paths": ["%SystemRoot%\\perfc", "%SystemRoot%\\perfc.dat", "%SystemRoot%\\perfc.dll"], "admin": true,
+     "effect": "The 2017 outbreak sample stopped when a read-only file with its own name already existed in the Windows folder.",
+     "sources": ["https://www.bleepingcomputer.com/news/security/vaccine-not-killswitch-found-for-petya-notpetya-ransomware-outbreak/"]}
+  ]
+}

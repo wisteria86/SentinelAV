@@ -117,9 +117,10 @@ from sentinelav.ui.yara_ui import YaraMixin
 from sentinelav.ui.defense_ui import DefenseMixin
 from sentinelav.ui.app_changes_ui import AppChangesMixin
 from sentinelav.ui.honeypot_ui import HoneypotMixin
+from sentinelav.ui.deception_ui import DeceptionMixin
 
 
-class Window(HoneypotMixin,AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,FinalizationMixin, ResponseMixin, ProtectionMixin, DesignMixin, BaseWindow):
+class Window(DeceptionMixin,HoneypotMixin,AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,FinalizationMixin, ResponseMixin, ProtectionMixin, DesignMixin, BaseWindow):
     def __init__(self, data_dir=None, protect_by_default=False):
         self.protection_worker = None
         self.monitor_state = 'Off'
