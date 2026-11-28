@@ -10,6 +10,7 @@ archive is ever stored on the host. Only the offline guest opens them.
 Selection is by first-seen date: a holdout uses only samples first seen after
 the code and definitions were frozen.
 """
+
 from dataclasses import asdict
 import base64
 import csv
@@ -30,11 +31,11 @@ PER_FAMILY = 20
 
 
 def auth_key():
-    """Return the abuse.ch API key from the environment (or the user's saved environment on Windows).
-    """
+    """Return the abuse.ch API key from the environment (or the user's saved environment on Windows)."""
     value = os.environ.get('ABUSECH_AUTH_KEY')
     if not value and os.name == 'nt':
         import winreg
+
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment') as key:
                 value = winreg.QueryValueEx(key, 'ABUSECH_AUTH_KEY')[0]
@@ -48,6 +49,7 @@ def auth_key():
 def corpus_root(name, create=True):
     """Return the folder of a named corpus inside the managed datasets area."""
     from sentinelav.workspace import Workspace
+
     if not name.isidentifier():
         raise ValueError('Corpus names are simple identifiers')
     root = Workspace().area('datasets') / 'bazaar' / name
@@ -59,6 +61,7 @@ def corpus_root(name, create=True):
 def corpus_key(root):
     """A per-corpus AES key, protected by DPAPI for this Windows account."""
     from sentinelav.response.response_files import dpapi
+
     path = root / 'key.dpapi'
     if path.is_file():
         return dpapi(path.read_bytes(), decrypt=True)
@@ -68,7 +71,9 @@ def corpus_key(root):
 
 
 # SentinelAV protects Windows, so evaluations leave out formats that only run on other systems.
-NON_WINDOWS_TYPES = frozenset({'elf', 'macho', 'apk', 'dex', 'dmg', 'sh', 'zsh', 'bash', 'php', 'pl'})
+NON_WINDOWS_TYPES = frozenset(
+    {'elf', 'macho', 'apk', 'dex', 'dmg', 'sh', 'zsh', 'bash', 'php', 'pl'}
+)
 
 
 def windows_target(file_type):
@@ -79,7 +84,11 @@ def windows_target(file_type):
 def family_of(row):
     """Return a sample's malware family name, or 'unlabeled-<type>' if it has none."""
     signature = (row.get('signature') or '').strip()
-    return signature.casefold() if signature and signature.casefold() != 'n/a' else 'unlabeled-' + (row.get('file_type_guess') or 'unknown')
+    return (
+        signature.casefold()
+        if signature and signature.casefold() != 'n/a'
+        else 'unlabeled-' + (row.get('file_type_guess') or 'unknown')
+    )
 
 
 def candidates(full_zip, start, end):
@@ -89,7 +98,9 @@ def candidates(full_zip, start, end):
         for line in io.TextIOWrapper(raw, encoding='utf-8-sig', errors='replace'):
             if line.lstrip().startswith('#'):
                 if 'sha256_hash' in line:
-                    header = [item.strip().strip('"') for item in line.lstrip().lstrip('#').split(',')]
+                    header = [
+                        item.strip().strip('"') for item in line.lstrip().lstrip('#').split(',')
+                    ]
                 continue
             if header is None:
                 continue
@@ -126,8 +137,12 @@ def _download(sha256, key):
     from urllib.error import HTTPError, URLError
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
-    request = Request(API, data=urlencode(dict(query='get_file', sha256_hash=sha256)).encode(),
-        headers={'Auth-Key': key, 'User-Agent': 'sentinelav-research'})
+
+    request = Request(
+        API,
+        data=urlencode(dict(query='get_file', sha256_hash=sha256)).encode(),
+        headers={'Auth-Key': key, 'User-Agent': 'sentinelav-research'},
+    )
     try:
         with urlopen(request, timeout=120) as response:
             content = response.read(MAX_ARCHIVE + 1)
@@ -144,12 +159,25 @@ def build(name, full_zip, start, end, count, seed, delay=1.0, progress=print):
     """Download and seal a corpus. Resumable: samples already sealed are kept."""
     root = corpus_root(name)
     manifest_path = root / 'manifest.json'
-    manifest = json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.is_file() else dict(
-        schema=1, name=name, window=[start, end], seed=seed, created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), entries=[], skipped=[])
+    manifest = (
+        json.loads(manifest_path.read_text(encoding='utf-8'))
+        if manifest_path.is_file()
+        else dict(
+            schema=1,
+            name=name,
+            window=[start, end],
+            seed=seed,
+            created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            entries=[],
+            skipped=[],
+        )
+    )
     if manifest['window'] != [start, end] or manifest['seed'] != seed:
         raise ValueError('An existing corpus with this name used a different window or seed')
     chosen = select(candidates(full_zip, start, end), count, seed)
-    done = {entry['sha256'] for entry in manifest['entries']} | {entry['sha256'] for entry in manifest['skipped']}
+    done = {entry['sha256'] for entry in manifest['entries']} | {
+        entry['sha256'] for entry in manifest['skipped']
+    }
     key, secret = corpus_key(root), auth_key()
     for index, row in enumerate(chosen, 1):
         sha = row['sha256_hash']
@@ -161,11 +189,21 @@ def build(name, full_zip, start, end, count, seed, delay=1.0, progress=print):
         else:
             blob = blob_identity(data)
             (root / (blob + '.sealed')).write_bytes(seal(data, key, blob))
-            manifest['entries'].append(dict(sha256=sha, blob=blob, bytes=len(data), family=family_of(row),
-                file_type=row.get('file_type_guess', ''), first_seen=row['first_seen_utc']))
+            manifest['entries'].append(
+                dict(
+                    sha256=sha,
+                    blob=blob,
+                    bytes=len(data),
+                    family=family_of(row),
+                    file_type=row.get('file_type_guess', ''),
+                    first_seen=row['first_seen_utc'],
+                )
+            )
         if index % 10 == 0 or index == len(chosen):
             manifest_path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
-            progress(f'{index}/{len(chosen)} processed; {len(manifest["entries"])} sealed, {len(manifest["skipped"])} skipped')
+            progress(
+                f'{index}/{len(chosen)} processed; {len(manifest["entries"])} sealed, {len(manifest["skipped"])} skipped'
+            )
         time.sleep(delay)
     manifest_path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
     return manifest
@@ -176,29 +214,62 @@ def build(name, full_zip, start, end, count, seed, delay=1.0, progress=print):
 BATCH_SIZE = 64  # Prepare-TestEnvironment.ps1 stages at most 64 sealed archives per guest
 BATCH_BYTES = 384 * 1024**2
 
+
 def cases(name, definitions=None):
     """Split a sealed corpus into evaluation cases of at most 64 samples (and 384 MB) each, one Sandbox
     guest per case.
     """
-    manifest = json.loads((corpus_root(name, create=False) / 'manifest.json').read_text(encoding='utf-8'))
+    manifest = json.loads(
+        (corpus_root(name, create=False) / 'manifest.json').read_text(encoding='utf-8')
+    )
     password = base64.b64encode(PASSWORD).decode()
     # Development only: re-scan just the file types a fix touched. The full dev and holdout runs never set this.
-    skipped = {t.strip().lower() for t in os.environ.get('SENTINELAV_EVAL_SKIP_TYPES', '').split(',') if t.strip()}
-    entries = [dict(path=f"bazaar/{name}/{item['family']}/{item['sha256']}.zip", blob=item['blob'], bytes=item['bytes'],
-        family=item['family'], split=name, sha256=item['sha256'], password_b64=password) for item in manifest['entries']
-        if windows_target(item.get('file_type')) and str(item.get('file_type')).lower() not in skipped]
+    skipped = {
+        t.strip().lower()
+        for t in os.environ.get('SENTINELAV_EVAL_SKIP_TYPES', '').split(',')
+        if t.strip()
+    }
+    entries = [
+        dict(
+            path=f"bazaar/{name}/{item['family']}/{item['sha256']}.zip",
+            blob=item['blob'],
+            bytes=item['bytes'],
+            family=item['family'],
+            split=name,
+            sha256=item['sha256'],
+            password_b64=password,
+        )
+        for item in manifest['entries']
+        if windows_target(item.get('file_type'))
+        and str(item.get('file_type')).lower() not in skipped
+    ]
     batches, current = [], []
     for entry in entries:
-        if current and (len(current) >= BATCH_SIZE or sum(row['bytes'] for row in current) + entry['bytes'] > BATCH_BYTES):
+        if current and (
+            len(current) >= BATCH_SIZE
+            or sum(row['bytes'] for row in current) + entry['bytes'] > BATCH_BYTES
+        ):
             batches.append(current)
             current = []
         current.append(entry)
     if current:
         batches.append(current)
     extra = dict(definitions=str(definitions)) if definitions else {}
-    return [asdict(CaseDefinition(f'bazaar-{name}-{index:04}', 'raw_detection', 'sandbox', 'zoo_static', mode='normal',
-        seconds=BATCH_SECONDS, parameters=dict(revision='bazaar:' + name, corpus=name, entries=batch, **extra),
-        expected=dict(zoo_accounted=True))) for index, batch in enumerate(batches)]
+    return [
+        asdict(
+            CaseDefinition(
+                f'bazaar-{name}-{index:04}',
+                'raw_detection',
+                'sandbox',
+                'zoo_static',
+                mode='normal',
+                seconds=BATCH_SECONDS,
+                parameters=dict(revision='bazaar:' + name, corpus=name, entries=batch, **extra),
+                expected=dict(zoo_accounted=True),
+            )
+        )
+        for index, batch in enumerate(batches)
+    ]
 
 
 def profile_cases(profile, cases_so_far):
@@ -229,7 +300,13 @@ def stage(parameters, output):
             data = unseal((root / (item['blob'] + '.sealed')).read_bytes(), key, item['blob'])
             if blob_identity(data) != item['blob'] or len(data) != item['bytes']:
                 raise ValueError('Sample identity mismatch')
-            (Path(output) / (item['blob'] + '.sealed')).write_bytes(seal(data, transfer, item['blob']))
+            (Path(output) / (item['blob'] + '.sealed')).write_bytes(
+                seal(data, transfer, item['blob'])
+            )
         except (OSError, ValueError) as error:
             item['stage_error'] = type(error).__name__
-    return dict(revision=parameters['revision'], entries=staged, transfer_key=base64.b64encode(transfer).decode())
+    return dict(
+        revision=parameters['revision'],
+        entries=staged,
+        transfer_key=base64.b64encode(transfer).decode(),
+    )

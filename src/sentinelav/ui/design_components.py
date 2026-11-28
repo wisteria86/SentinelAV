@@ -3,6 +3,7 @@
 # Used by: ui.design, ui.design_dashboard, ui.design_reports, ui.design_scan
 
 """Reference-inspired desktop components; all icons are resolution-independent SVGs."""
+
 from sentinelav.paths import RESOURCE_ROOT
 from PySide6.QtCore import Qt, QByteArray, QRectF
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import QWidget, QLabel, QSizePolicy
 
 class InactiveSwitch(QWidget):
     """Draw the unavailable switch without relying on a font glyph."""
+
     def __init__(self):
         """Create the switch in its 'off' state with a fixed size and tooltip."""
         super().__init__()
@@ -34,6 +36,7 @@ class InactiveSwitch(QWidget):
 
 class PathLabel(QLabel):
     """Keep long paths from changing the size of the scan card."""
+
     def __init__(self, text='', **kwargs):
         """Create the label; long text is shortened with an ellipsis in the middle."""
         super().__init__('', **kwargs)
@@ -47,7 +50,9 @@ class PathLabel(QLabel):
         """Show the text, shortened to fit, with the full text as a tooltip."""
         self.full_text = text
         self.setToolTip(text)
-        super().setText(self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideMiddle, max(0, self.width())))
+        super().setText(
+            self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideMiddle, max(0, self.width()))
+        )
 
     def resizeEvent(self, event):
         """Re-shorten the text whenever the label changes size."""
@@ -58,33 +63,42 @@ class PathLabel(QLabel):
 def configure_app(app):
     """Apply the app-wide look: Fusion style, Segoe UI fonts and the SentinelAV stylesheet."""
     from PySide6.QtGui import QFontDatabase
+
     app.setStyle('Fusion')
     for name in ['segoeui.ttf', 'segoeuib.ttf', 'seguisb.ttf']:
         QFontDatabase.addApplicationFont('C:/Windows/Fonts/' + name)
     app.setStyleSheet(STYLE)
 
+
 PATHS = {
- 'lab': '<path d="M9 2h6M10 2v7L4 19q-1 3 2 3h12q3 0 2-3L14 9V2M7 15h10"/>',
- 'shield': '<path d="M12 2 21 6v6c0 6-9 10-9 10S3 18 3 12V6Z"/><path d="m8 12 3 3 5-6"/>',
- 'home': '<path d="m3 11 9-8 9 8M5 10v11h5v-7h4v7h5V10"/>',
- 'scan': '<circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/>',
- 'box': '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M2 3h20v4H2zM10 12h4"/>',
- 'report': '<path d="M5 2h10l4 4v16H5zM14 2v6h5M8 12h8M8 16h8"/>',
- 'settings': '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2v3l1 3-3 3-3-1h-3l-2 2-4-2v-3l-2-3-2-1V9l3-1 2-3z"/><circle cx="12" cy="12" r="3"/>',
- 'bars': '<path d="M4 21V13M9 21V7M14 21V2M19 21V10"/>',
- 'folder': '<path d="M2 6h8l2 3h10v12H2zM2 6V3h8l2 3h9v3"/>',
- 'play': '<path d="m8 3 13 9L8 21Z"/>',
- 'network': '<circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20M4 6h16M4 18h16"/>',
- 'lock': '<rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v3"/>',
+    'lab': '<path d="M9 2h6M10 2v7L4 19q-1 3 2 3h12q3 0 2-3L14 9V2M7 15h10"/>',
+    'shield': '<path d="M12 2 21 6v6c0 6-9 10-9 10S3 18 3 12V6Z"/><path d="m8 12 3 3 5-6"/>',
+    'home': '<path d="m3 11 9-8 9 8M5 10v11h5v-7h4v7h5V10"/>',
+    'scan': '<circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/>',
+    'box': '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M2 3h20v4H2zM10 12h4"/>',
+    'report': '<path d="M5 2h10l4 4v16H5zM14 2v6h5M8 12h8M8 16h8"/>',
+    'settings': '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2v3l1 3-3 3-3-1h-3l-2 2-4-2v-3l-2-3-2-1V9l3-1 2-3z"/><circle cx="12" cy="12" r="3"/>',
+    'bars': '<path d="M4 21V13M9 21V7M14 21V2M19 21V10"/>',
+    'folder': '<path d="M2 6h8l2 3h10v12H2zM2 6V3h8l2 3h9v3"/>',
+    'play': '<path d="m8 3 13 9L8 21Z"/>',
+    'network': '<circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20M4 6h16M4 18h16"/>',
+    'lock': '<rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v3"/>',
 }
+
 
 def pixmap(name, color='#ed7b23', size=24, filled=False):
     """Draw one of the built-in line icons (see PATHS) as a crisp, high-resolution image."""
     body = PATHS.get(name, PATHS['shield'])
     if filled and name == 'shield':
-        body = '<path fill="'+color+'" stroke="'+color+'" d="M12 2 21 6v6c0 6-9 10-9 10S3 18 3 12V6Z"/><path stroke="white" d="m8 12 3 3 5-6"/>'
+        body = (
+            '<path fill="'
+            + color
+            + '" stroke="'
+            + color
+            + '" d="M12 2 21 6v6c0 6-9 10-9 10S3 18 3 12V6Z"/><path stroke="white" d="m8 12 3 3 5-6"/>'
+        )
     svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{body}</svg>'
-    result = QPixmap(size*2, size*2)
+    result = QPixmap(size * 2, size * 2)
     result.fill(Qt.GlobalColor.transparent)
     painter = QPainter(result)
     QSvgRenderer(QByteArray(svg.encode())).render(painter)
@@ -92,9 +106,11 @@ def pixmap(name, color='#ed7b23', size=24, filled=False):
     result.setDevicePixelRatio(2)
     return result
 
+
 def icon(name, color='#ed7b23'):
     """Return a built-in icon as a QIcon, for buttons."""
     return QIcon(pixmap(name, color))
+
 
 def art(name, size=24, color='#ed7b23', filled=False):
     """Return a built-in icon as a fixed-size QLabel, for placing in layouts."""
@@ -103,6 +119,7 @@ def art(name, size=24, color='#ed7b23', filled=False):
     label.setFixedSize(size, size)
     label.setStyleSheet('background:transparent;border:0;')
     return label
+
 
 STYLE = '''
 QWidget {font-family:'Segoe UI';font-size:13px;color:#2a1f16;background:#fbf3e7;}
@@ -180,5 +197,13 @@ QMenu::item {padding:6px 18px;border-radius:5px;}
 QMenu::item:selected {background:#fde1bf;color:#21170e;}
 QMessageBox, QDialog {background:#fbf3e7;}
 '''
-STYLE += 'QCheckBox::indicator:checked {image:url("' + (RESOURCE_ROOT/'assets/check.svg').as_posix() + '");}'
-STYLE += 'QComboBox::down-arrow {image:url("' + (RESOURCE_ROOT/'assets/chevron.svg').as_posix() + '");width:10px;height:6px;}'
+STYLE += (
+    'QCheckBox::indicator:checked {image:url("'
+    + (RESOURCE_ROOT / 'assets/check.svg').as_posix()
+    + '");}'
+)
+STYLE += (
+    'QComboBox::down-arrow {image:url("'
+    + (RESOURCE_ROOT / 'assets/chevron.svg').as_posix()
+    + '");width:10px;height:6px;}'
+)

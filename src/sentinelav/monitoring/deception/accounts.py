@@ -10,6 +10,7 @@ in memory, shows up in the Windows Security log. The share exposes only a folder
 of decoy files, read-only. Both need administrator rights, and both are removed
 only if they still carry SentinelAV's marker.
 """
+
 import secrets
 
 from sentinelav.monitoring.deception.common import event
@@ -17,7 +18,12 @@ from sentinelav.monitoring.deception.common import event
 REMARK = 'SentinelAV decoy - do not use'
 ACCOUNT = 'backup_admin'
 SHARE = 'Backups'
-LOGON_EVENTS = (4625, 4648, 4771, 4776)  # failed logon, explicit credentials, Kerberos pre-auth failure, NTLM validation
+LOGON_EVENTS = (
+    4625,
+    4648,
+    4771,
+    4776,
+)  # failed logon, explicit credentials, Kerberos pre-auth failure, NTLM validation
 
 
 def create_account(name=ACCOUNT):
@@ -26,9 +32,23 @@ def create_account(name=ACCOUNT):
     """
     import win32net
     import win32netcon
-    flags = win32netcon.UF_ACCOUNTDISABLE | win32netcon.UF_SCRIPT | win32netcon.UF_DONT_EXPIRE_PASSWD
-    win32net.NetUserAdd(None, 1, dict(name=name, password=secrets.token_urlsafe(32) + 'Aa1!', priv=win32netcon.USER_PRIV_USER,
-        flags=flags, comment=REMARK, home_dir=None, script_path=None))
+
+    flags = (
+        win32netcon.UF_ACCOUNTDISABLE | win32netcon.UF_SCRIPT | win32netcon.UF_DONT_EXPIRE_PASSWD
+    )
+    win32net.NetUserAdd(
+        None,
+        1,
+        dict(
+            name=name,
+            password=secrets.token_urlsafe(32) + 'Aa1!',
+            priv=win32netcon.USER_PRIV_USER,
+            flags=flags,
+            comment=REMARK,
+            home_dir=None,
+            script_path=None,
+        ),
+    )
     return name
 
 
@@ -37,6 +57,7 @@ def remove_account(name=ACCOUNT):
     removed.
     """
     import win32net
+
     try:
         if win32net.NetUserGetInfo(None, name, 1).get('comment') == REMARK:
             win32net.NetUserDel(None, name)
@@ -52,15 +73,28 @@ def create_share(folder, name=SHARE):
     """
     import win32net
     import win32netcon
-    win32net.NetShareAdd(None, 2, dict(netname=name, type=win32netcon.STYPE_DISKTREE, remark=REMARK, permissions=win32netcon.ACCESS_READ,
-        max_uses=-1, current_uses=0, path=str(folder), passwd=None))
+
+    win32net.NetShareAdd(
+        None,
+        2,
+        dict(
+            netname=name,
+            type=win32netcon.STYPE_DISKTREE,
+            remark=REMARK,
+            permissions=win32netcon.ACCESS_READ,
+            max_uses=-1,
+            current_uses=0,
+            path=str(folder),
+            passwd=None,
+        ),
+    )
     return name
 
 
 def remove_share(name=SHARE):
-    """Remove the decoy share, but only if it still carries our remark. Returns True if it was removed.
-    """
+    """Remove the decoy share, but only if it still carries our remark. Returns True if it was removed."""
     import win32net
+
     try:
         if win32net.NetShareGetInfo(None, name, 2).get('remark') == REMARK:
             win32net.NetShareDel(None, name)
@@ -75,7 +109,11 @@ class LogonWatcher:
 
     def __init__(self, emit, names, query=None):
         """Watch for logon events that name any of `names`. query can be replaced in tests."""
-        self.emit, self.names, self.query = emit, {name.casefold() for name in names}, query or self._query
+        self.emit, self.names, self.query = (
+            emit,
+            {name.casefold() for name in names},
+            query or self._query,
+        )
         self.last, self.available = None, True
 
     def _query(self, after):
@@ -83,9 +121,18 @@ class LogonWatcher:
         64 newer than `after`.
         """
         import win32evtlog
+
         ids = ' or '.join(f'EventID={number}' for number in LOGON_EVENTS)
-        xpath = f'*[System[({ids})' + (f' and EventRecordID>{after}' if after is not None else '') + ']]'
-        flags = win32evtlog.EvtQueryChannelPath | (win32evtlog.EvtQueryForwardDirection if after is not None else win32evtlog.EvtQueryReverseDirection)
+        xpath = (
+            f'*[System[({ids})'
+            + (f' and EventRecordID>{after}' if after is not None else '')
+            + ']]'
+        )
+        flags = win32evtlog.EvtQueryChannelPath | (
+            win32evtlog.EvtQueryForwardDirection
+            if after is not None
+            else win32evtlog.EvtQueryReverseDirection
+        )
         handle = win32evtlog.EvtQuery('Security', flags, xpath)
         rows = []
         for item in win32evtlog.EvtNext(handle, 64 if after is not None else 1):
@@ -102,12 +149,19 @@ class LogonWatcher:
         if not self.available:
             return []
         import re
+
         try:
             rows = self.query(self.last)
         except Exception as error:
             self.available = False
-            self.emit(event('Decoy logon watch unavailable', f'The Security log could not be read ({str(error)[:120]}). '
-                'Run SentinelAV as administrator to watch for use of the decoy accounts.', level='Warning'))
+            self.emit(
+                event(
+                    'Decoy logon watch unavailable',
+                    f'The Security log could not be read ({str(error)[:120]}). '
+                    'Run SentinelAV as administrator to watch for use of the decoy accounts.',
+                    level='Warning',
+                )
+            )
             return []
         first_read, found = self.last is None, []
         for xml in rows:
@@ -115,16 +169,29 @@ class LogonWatcher:
             if record:
                 self.last = max(self.last or 0, int(record.group(1)))
         if first_read:
-            self.last = self.last or 0  # The first read only finds where the log ends; older events are history.
+            self.last = (
+                self.last or 0
+            )  # The first read only finds where the log ends; older events are history.
             return []
         for xml in rows:
-            names = {value.casefold() for value in re.findall(r"<Data Name='Target(?:User)?Name'>([^<]*)</Data>", xml)}
+            names = {
+                value.casefold()
+                for value in re.findall(r"<Data Name='Target(?:User)?Name'>([^<]*)</Data>", xml)
+            }
             hit = names & self.names
             if hit:
                 number = re.search(r'<EventID>(\d+)</EventID>', xml).group(1)
-                source = re.search(r"<Data Name='(?:IpAddress|Workstation|WorkstationName)'>([^<]*)</Data>", xml)
-                found.append(event('Decoy account used', f'A logon attempt (event {number}) used the decoy account {sorted(hit)[0]}'
-                    f" from {source.group(1) if source else 'an unknown source'}. Nothing legitimate knows this account, so its "
-                    'details were stolen or guessed.', event_id=int(number)))
+                source = re.search(
+                    r"<Data Name='(?:IpAddress|Workstation|WorkstationName)'>([^<]*)</Data>", xml
+                )
+                found.append(
+                    event(
+                        'Decoy account used',
+                        f'A logon attempt (event {number}) used the decoy account {sorted(hit)[0]}'
+                        f" from {source.group(1) if source else 'an unknown source'}. Nothing legitimate knows this account, so its "
+                        'details were stolen or guessed.',
+                        event_id=int(number),
+                    )
+                )
                 self.emit(found[-1])
         return found

@@ -6,13 +6,24 @@ from sentinelav.paths import RESOURCE_ROOT
 import json
 from pathlib import Path
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QVBoxLayout, QPushButton, QFrame, QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QSizePolicy
+from PySide6.QtWidgets import (
+    QVBoxLayout,
+    QPushButton,
+    QFrame,
+    QFileDialog,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QMessageBox,
+    QSizePolicy,
+)
 
 ROOT = RESOURCE_ROOT
 
 
 class WindowWidgetsMixin:
     """Small widget helpers shared by every page."""
+
     def card(self, layout):
         """Add a rounded 'card' frame to a layout and return the layout inside it."""
         frame = QFrame(objectName='card')
@@ -38,7 +49,9 @@ class WindowWidgetsMixin:
         table = QTableWidget(0, len(headings))
         table.setHorizontalHeaderLabels(headings)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        table.horizontalHeader().setDefaultAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         table.verticalHeader().setDefaultSectionSize(36)
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -52,7 +65,14 @@ class WindowWidgetsMixin:
         """Give spare width to the columns that hold long text, and size short values to their content."""
         header = table.horizontalHeader()
         for column in range(table.columnCount()):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch if column in wide else QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(
+                column,
+                (
+                    QHeaderView.ResizeMode.Stretch
+                    if column in wide
+                    else QHeaderView.ResizeMode.ResizeToContents
+                ),
+            )
 
     def fill(self, table, rows):
         """Replace a table's contents with the given rows, adding tooltips for long values."""
@@ -74,7 +94,9 @@ class WindowWidgetsMixin:
 
     def export(self):
         """Save the scan history as a JSON file."""
-        path, _ = QFileDialog.getSaveFileName(self, 'Export report', 'sentinelav-report.json', 'JSON (*.json)')
+        path, _ = QFileDialog.getSaveFileName(
+            self, 'Export report', 'sentinelav-report.json', 'JSON (*.json)'
+        )
         if path:
             try:
                 Path(path).write_text(json.dumps(self.store.history(), indent=2), encoding='utf-8')

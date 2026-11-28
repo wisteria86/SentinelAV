@@ -3,66 +3,96 @@
 # Used by: response.remediation, response.remediation_backend
 
 """Stored, expiring, evidence-linked cleanup and conflict-checked manual recovery."""
+
 import ctypes
 import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from sentinelav.data.contracts import fingerprint
 
+
 def command_paths(command):
     """Parse only; never invoke a shell or interpret expressions."""
-    if not isinstance(command,str) or len(command)>32768:return []
-    if os.name=='nt':
-        count=ctypes.c_int();shell=ctypes.WinDLL('shell32',use_last_error=True)
-        shell.CommandLineToArgvW.argtypes=[ctypes.c_wchar_p,ctypes.POINTER(ctypes.c_int)]
-        shell.CommandLineToArgvW.restype=ctypes.POINTER(ctypes.c_wchar_p)
-        argv=shell.CommandLineToArgvW(command,ctypes.byref(count))
-        if not argv:return []
-        try:parts=[argv[i] for i in range(min(count.value,128))]
+    if not isinstance(command, str) or len(command) > 32768:
+        return []
+    if os.name == 'nt':
+        count = ctypes.c_int()
+        shell = ctypes.WinDLL('shell32', use_last_error=True)
+        shell.CommandLineToArgvW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_int)]
+        shell.CommandLineToArgvW.restype = ctypes.POINTER(ctypes.c_wchar_p)
+        argv = shell.CommandLineToArgvW(command, ctypes.byref(count))
+        if not argv:
+            return []
+        try:
+            parts = [argv[i] for i in range(min(count.value, 128))]
         finally:
-            kernel=ctypes.WinDLL('kernel32');kernel.LocalFree.argtypes=[ctypes.c_void_p];kernel.LocalFree(argv)
+            kernel = ctypes.WinDLL('kernel32')
+            kernel.LocalFree.argtypes = [ctypes.c_void_p]
+            kernel.LocalFree(argv)
     else:
         import shlex
-        try:parts=shlex.split(command)
-        except ValueError:return []
-    result=[]
+
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            return []
+    result = []
     for part in parts:
-        path=Path(os.path.expandvars(part))
-        if path.is_absolute():result.append(str(path.absolute()))
+        path = Path(os.path.expandvars(part))
+        if path.is_absolute():
+            result.append(str(path.absolute()))
     return result
+
 
 def referenced_paths(record):
     """Return the file paths a recorded resource points at: the file itself, a process's program, or
     the programs named in a Run value, service or task.
     """
-    target=record['resource'];state=record.get('after') or {}
-    if not state.get('exists'):return []
-    if target['kind'] in ('startup_file','setting_file','file'):return [target['path']]
-    if target['kind']=='process':return [state['path']] if state.get('exists') else []
-    if target['kind']=='registry':return command_paths(state.get('value',''))
-    if target['kind']=='service':return command_paths(state.get('image',''))
-    if target['kind']=='task':
-        xml=state.get('xml','')
-        if len(xml)>131072 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():raise ValueError('Unsafe task XML')
-        root=ET.fromstring(xml);result=[]
+    target = record['resource']
+    state = record.get('after') or {}
+    if not state.get('exists'):
+        return []
+    if target['kind'] in ('startup_file', 'setting_file', 'file'):
+        return [target['path']]
+    if target['kind'] == 'process':
+        return [state['path']] if state.get('exists') else []
+    if target['kind'] == 'registry':
+        return command_paths(state.get('value', ''))
+    if target['kind'] == 'service':
+        return command_paths(state.get('image', ''))
+    if target['kind'] == 'task':
+        xml = state.get('xml', '')
+        if len(xml) > 131072 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():
+            raise ValueError('Unsafe task XML')
+        root = ET.fromstring(xml)
+        result = []
         for element in root.iter():
-            if element.tag.rsplit('}',1)[-1]=='Exec':
-                values={e.tag.rsplit('}',1)[-1]:e.text or '' for e in element}
-                result+=command_paths('"'+values.get('Command','')+'" '+values.get('Arguments',''))
+            if element.tag.rsplit('}', 1)[-1] == 'Exec':
+                values = {e.tag.rsplit('}', 1)[-1]: e.text or '' for e in element}
+                result += command_paths(
+                    '"' + values.get('Command', '') + '" ' + values.get('Arguments', '')
+                )
         return result
     return []
 
+
 def task_disabled(state):
     """Tell whether a scheduled task's XML definition says it is disabled."""
-    xml=state.get('xml','')
-    if len(xml)>131072 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():raise ValueError('Unsafe task definition')
-    root=ET.fromstring(xml)
+    xml = state.get('xml', '')
+    if len(xml) > 131072 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():
+        raise ValueError('Unsafe task definition')
+    root = ET.fromstring(xml)
     for settings in root:
-        if settings.tag.rsplit('}',1)[-1]!='Settings':continue
-        return any(e.tag.rsplit('}',1)[-1]=='Enabled' and (e.text or '').strip().casefold()=='false' for e in settings)
+        if settings.tag.rsplit('}', 1)[-1] != 'Settings':
+            continue
+        return any(
+            e.tag.rsplit('}', 1)[-1] == 'Enabled' and (e.text or '').strip().casefold() == 'false'
+            for e in settings
+        )
     return False
 
-MUTATE_SCRIPT=r'''
+
+MUTATE_SCRIPT = r'''
 $ErrorActionPreference='Stop';[Console]::OutputEncoding=[Text.Encoding]::UTF8
 $data=[Console]::In.ReadToEnd() | ConvertFrom-Json
 if($data.resource.kind -eq 'task'){
@@ -97,18 +127,29 @@ if($data.resource.kind -eq 'task'){
 @{applied=$true} | ConvertTo-Json -Compress
 '''
 
-def effect_matches(target,actual,action,desired):
+
+def effect_matches(target, actual, action, desired):
     """Check that an action really took effect: a restored resource matches its desired state, and a
     disabled one is disabled or gone.
     """
-    if action=='restore':
-        if target['kind'] in ('setting_file','startup_file'):
-            return not actual.get('exists') if not desired.get('exists') else actual.get('sha256')==desired.get('sha256') and actual.get('exists')
-        if target['kind']=='service':return all(actual.get(key)==desired.get(key) for key in ('start','image','account','display_name','service_type'))
-        return fingerprint(actual)==fingerprint(desired)
-    if target['kind']=='service':return actual.get('exists') and actual.get('start')=='Disabled'
-    if target['kind']=='task':
+    if action == 'restore':
+        if target['kind'] in ('setting_file', 'startup_file'):
+            return (
+                not actual.get('exists')
+                if not desired.get('exists')
+                else actual.get('sha256') == desired.get('sha256') and actual.get('exists')
+            )
+        if target['kind'] == 'service':
+            return all(
+                actual.get(key) == desired.get(key)
+                for key in ('start', 'image', 'account', 'display_name', 'service_type')
+            )
+        return fingerprint(actual) == fingerprint(desired)
+    if target['kind'] == 'service':
+        return actual.get('exists') and actual.get('start') == 'Disabled'
+    if target['kind'] == 'task':
         try:
             return task_disabled(actual)
-        except (ValueError,ET.ParseError):return False
+        except (ValueError, ET.ParseError):
+            return False
     return not actual.get('exists')

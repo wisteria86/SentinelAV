@@ -8,6 +8,7 @@ Mutexes are held by the monitor for as long as protection runs. Marker files go
 in the Windows folder, which needs administrator rights; without them the file
 markers are skipped and reported as such. Every marker cites its source.
 """
+
 import json
 import os
 import stat
@@ -22,16 +23,25 @@ def markers(path=None):
     """Load the list of infection markers (mutexes and files, each with its family and source) from the
     bundled JSON.
     """
-    return json.loads(Path(path or RESOURCE_ROOT / 'deception' / 'vaccines.json').read_text(encoding='utf-8'))['markers']
+    return json.loads(
+        Path(path or RESOURCE_ROOT / 'deception' / 'vaccines.json').read_text(encoding='utf-8')
+    )['markers']
 
 
 class Vaccines:
     """Holds infection markers that make certain malware believe the PC is already infected, so it
     stops.
     """
+
     def __init__(self, items=None):
         """Use the given markers, or the bundled list by default."""
-        self.items, self.handles, self.held, self.skipped, self.files = items if items is not None else markers(), [], [], [], []
+        self.items, self.handles, self.held, self.skipped, self.files = (
+            items if items is not None else markers(),
+            [],
+            [],
+            [],
+            [],
+        )
 
     def start(self):
         """Create every mutex and every missing marker file (files need administrator rights). Returns
@@ -40,6 +50,7 @@ class Vaccines:
         if os.name != 'nt':
             return self.held
         import win32event
+
         for item in self.items:
             if item['type'] == 'mutex':
                 try:
@@ -58,7 +69,9 @@ class Vaccines:
                         self.files.append(str(path))
                         self.held.append(item['family'] + ': ' + str(path))
                     except OSError as error:
-                        self.skipped.append(f'{path}: needs administrator rights ({error.strerror})')
+                        self.skipped.append(
+                            f'{path}: needs administrator rights ({error.strerror})'
+                        )
         return self.held
 
     def stop(self):

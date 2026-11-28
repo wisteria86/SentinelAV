@@ -9,6 +9,7 @@ sessions all point at 127.0.0.2, where nothing real runs. They work as local
 honeytokens: anything that follows one connects to SentinelAV's listener, which
 names the connecting process. No data ever leaves this PC.
 """
+
 import secrets
 import socket
 import threading
@@ -16,7 +17,16 @@ import time
 from pathlib import Path
 
 from sentinelav.monitoring.deception import registry_decoys
-from sentinelav.monitoring.deception.common import DECOY_HOST, MARKER, connection_owner, describe, event, flag, profile_dirs, write_decoy
+from sentinelav.monitoring.deception.common import (
+    DECOY_HOST,
+    MARKER,
+    connection_owner,
+    describe,
+    event,
+    flag,
+    profile_dirs,
+    write_decoy,
+)
 from sentinelav.monitoring.honeypots import NetworkHoneypot
 
 
@@ -35,19 +45,50 @@ def deploy(bitcoin_dir=None):
     created, entries = [], []
     documents = home / 'Documents'
     if documents.is_dir():
-        rdp = (f'full address:s:{DECOY_HOST}:{ports["rdp"]}\r\nusername:s:backup-admin\r\nprompt for credentials:i:1\r\n'
-               f'; {MARKER}\r\n').encode('utf-16')
-        url = f'[InternetShortcut]\r\nURL=http://{DECOY_HOST}:{ports["web"]}/login?id={token}\r\n; {MARKER}\r\n'.encode('utf-8')
+        rdp = (
+            f'full address:s:{DECOY_HOST}:{ports["rdp"]}\r\nusername:s:backup-admin\r\nprompt for credentials:i:1\r\n'
+            f'; {MARKER}\r\n'
+        ).encode('utf-16')
+        url = f'[InternetShortcut]\r\nURL=http://{DECOY_HOST}:{ports["web"]}/login?id={token}\r\n; {MARKER}\r\n'.encode(
+            'utf-8'
+        )
         for name, content in (('Backup server.rdp', rdp), ('Company VPN portal.url', url)):
             entry = write_decoy(documents / name, content, 'breadcrumb', created)
             if entry:
                 entries.append(entry)
-    specs = [('PuTTY saved session', r'SimonTatham\PuTTY', r'Sessions\Backup%20Server',
-              dict(HostName=DECOY_HOST, PortNumber=ports['ssh'], UserName='backup-admin', Protocol='ssh')),
-             ('WinSCP saved session', r'Martin Prikryl\WinSCP 2', r'Sessions\backup-admin@files',
-              dict(HostName=DECOY_HOST, PortNumber=ports['sftp'], UserName='backup-admin', Password=secrets.token_hex(24)))]
+    specs = [
+        (
+            'PuTTY saved session',
+            r'SimonTatham\PuTTY',
+            r'Sessions\Backup%20Server',
+            dict(
+                HostName=DECOY_HOST,
+                PortNumber=ports['ssh'],
+                UserName='backup-admin',
+                Protocol='ssh',
+            ),
+        ),
+        (
+            'WinSCP saved session',
+            r'Martin Prikryl\WinSCP 2',
+            r'Sessions\backup-admin@files',
+            dict(
+                HostName=DECOY_HOST,
+                PortNumber=ports['sftp'],
+                UserName='backup-admin',
+                Password=secrets.token_hex(24),
+            ),
+        ),
+    ]
     if bitcoin_dir:
-        specs.append(('Bitcoin Core wallet location', r'Bitcoin\Bitcoin-Qt', '', dict(strDataDir=str(bitcoin_dir))))
+        specs.append(
+            (
+                'Bitcoin Core wallet location',
+                r'Bitcoin\Bitcoin-Qt',
+                '',
+                dict(strDataDir=str(bitcoin_dir)),
+            )
+        )
     registry = registry_decoys.deploy(specs)
     return dict(entries=entries, created=created, registry=registry, ports=ports, token=token)
 
@@ -68,18 +109,19 @@ class DecoyServers:
             try:
                 server.bind((self.host, port))
                 server.listen(8)
-                server.settimeout(.5)
+                server.settimeout(0.5)
             except OSError:
                 server.close()
                 self.skipped.append(port)
                 continue
             self.sockets.append(server)
-            threading.Thread(target=self._serve, args=(server, port), daemon=True, name=f'decoy-server-{port}').start()
+            threading.Thread(
+                target=self._serve, args=(server, port), daemon=True, name=f'decoy-server-{port}'
+            ).start()
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
-        """Accept connections on one decoy port, identify the connecting process, and raise an alert.
-        """
+        """Accept connections on one decoy port, identify the connecting process, and raise an alert."""
         while not self.stop_event.is_set():
             try:
                 connection, (address, peer_port) = server.accept()
@@ -94,9 +136,20 @@ class DecoyServers:
                 except OSError:
                     first = b''
             label = self.labels[port]
-            details = (f'Something followed the decoy {label} breadcrumb to {self.host}:{port}: {describe(process)}. '
-                       'Only a program searching this PC for saved servers and logins would find it.')
-            self.emit(event('Decoy server contacted', details, breadcrumb=label, port=port, process=process, first_bytes=first[:64].hex()))
+            details = (
+                f'Something followed the decoy {label} breadcrumb to {self.host}:{port}: {describe(process)}. '
+                'Only a program searching this PC for saved servers and logins would find it.'
+            )
+            self.emit(
+                event(
+                    'Decoy server contacted',
+                    details,
+                    breadcrumb=label,
+                    port=port,
+                    process=process,
+                    first_bytes=first[:64].hex(),
+                )
+            )
             flag(self.behavior, process, f'Connected to the decoy {label} server')
 
     def stop(self):
@@ -136,15 +189,27 @@ class TarpitHoneypot(NetworkHoneypot):
 
     def _report(self, port, address, peer_port):
         """Record and announce one connection to the tarpit."""
-        record = dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), port=port, address=address, peer_port=peer_port, first_bytes='')
-        self.records = (self.records + [record])[-self.limit:]
+        record = dict(
+            time=time.strftime('%Y-%m-%d %H:%M:%S'),
+            port=port,
+            address=address,
+            peer_port=peer_port,
+            first_bytes='',
+        )
+        self.records = (self.records + [record])[-self.limit :]
         local = address.startswith('127.') or address == '::1'
-        self.emit(dict(record, kind='Network honeypot contacted', source='Honeypot', level='Warning' if local else 'Alert',
-            details=f'{address}:{peer_port} connected to decoy port {port} and is being held in a tarpit.'))
+        self.emit(
+            dict(
+                record,
+                kind='Network honeypot contacted',
+                source='Honeypot',
+                level='Warning' if local else 'Alert',
+                details=f'{address}:{peer_port} connected to decoy port {port} and is being held in a tarpit.',
+            )
+        )
 
     def _trickle(self, connection):
-        """Keep a connection busy by sending a single byte every few seconds until the hold time is up.
-        """
+        """Keep a connection busy by sending a single byte every few seconds until the hold time is up."""
         deadline = time.monotonic() + self.hold
         try:
             with connection:
@@ -161,5 +226,6 @@ def remove(state):
     changed.
     """
     from sentinelav.monitoring.deception.common import remove_decoys
+
     registry_decoys.remove(state.get('registry', []))
     return remove_decoys(state.get('entries', []), state.get('created', []))

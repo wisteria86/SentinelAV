@@ -3,6 +3,7 @@
 # Used by: ui.design
 
 """Reference-inspired desktop components; all icons are resolution-independent SVGs."""
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QFrame, QHBoxLayout, QVBoxLayout
 from .design_components import icon, art
@@ -10,9 +11,9 @@ from .design_components import icon, art
 
 class DashboardMixin:
     """Builds the Dashboard page and keeps its numbers and the reports table up to date."""
+
     def dashboard(self):
-        """Build the Dashboard: status card, four metric cards, and the Quick/Custom scan buttons.
-        """
+        """Build the Dashboard: status card, four metric cards, and the Quick/Custom scan buttons."""
         layout = self.page('Dashboard', 'Your system security at a glance')
         frame = QFrame(objectName='card')
         frame.setMaximumHeight(150)
@@ -31,7 +32,9 @@ class DashboardMixin:
         copy.addStretch()
         self.dashboard_title = QLabel('Ready to scan', objectName='statusTitle')
         copy.addWidget(self.dashboard_title)
-        text = QLabel('On-demand scanning is available.\nRun a scan to check your files.', objectName='muted')
+        text = QLabel(
+            'On-demand scanning is available.\nRun a scan to check your files.', objectName='muted'
+        )
         text.setWordWrap(True)
         self.dashboard_description = text
         copy.addWidget(text)
@@ -54,13 +57,18 @@ class DashboardMixin:
         metrics.setSpacing(12)
         self.metric_values = []
         self.metric_notes = []
-        for symbol, title in [('scan','Last Scan'),('report','Files Scanned'),('shield','Threats Found'),('bars','System Status')]:
+        for symbol, title in [
+            ('scan', 'Last Scan'),
+            ('report', 'Files Scanned'),
+            ('shield', 'Threats Found'),
+            ('bars', 'System Status'),
+        ]:
             box = QFrame(objectName='card')
             box.setMinimumHeight(150)
             box.setMaximumHeight(160)
             box.setMinimumWidth(0)
             col = QVBoxLayout(box)
-            col.setContentsMargins(18,18,14,16)
+            col.setContentsMargins(18, 18, 14, 16)
             col.setSpacing(2)
             chip = QFrame(objectName='chip')
             chip.setFixedSize(38, 38)
@@ -96,22 +104,53 @@ class DashboardMixin:
     def refresh(self):
         """Update the dashboard metrics and refill the Reports table for the selected report tab."""
         history = self.store.history()
-        values = ['Never' if not history else history[0]['started'][5:16],
-                  f"{sum(s['scanned'] for s in history):,}",
-                  str(sum(len(s['detections']) for s in history)), 'On-demand']
-        notes = ['No scans yet' if not history else history[0]['status'], 'Across all scans', 'Recorded detections', 'Monitoring off']
-        for label, value, note, description in zip(self.metric_values,values,self.metric_notes,notes):
+        values = [
+            'Never' if not history else history[0]['started'][5:16],
+            f"{sum(s['scanned'] for s in history):,}",
+            str(sum(len(s['detections']) for s in history)),
+            'On-demand',
+        ]
+        notes = [
+            'No scans yet' if not history else history[0]['status'],
+            'Across all scans',
+            'Recorded detections',
+            'Monitoring off',
+        ]
+        for label, value, note, description in zip(
+            self.metric_values, values, self.metric_notes, notes
+        ):
             label.setText(value)
             note.setText(description)
-        self.latest.setText('Scan results cover inspected files only. Real-time protection is not active.')
+        self.latest.setText(
+            'Scan results cover inspected files only. Real-time protection is not active.'
+        )
         if self.report_mode == 0:
-            headings = ['Date','Scan Type','Files Scanned','Malicious / Suspicious','Result']
-            rows = [(s['started'],s.get('kind',''),s['scanned'],f"{len(s['detections'])} / {len(s.get('suspicious',[]))}",s['status']) for s in history]
+            headings = ['Date', 'Scan Type', 'Files Scanned', 'Malicious / Suspicious', 'Result']
+            rows = [
+                (
+                    s['started'],
+                    s.get('kind', ''),
+                    s['scanned'],
+                    f"{len(s['detections'])} / {len(s.get('suspicious',[]))}",
+                    s['status'],
+                )
+                for s in history
+            ]
         elif self.report_mode == 1:
-            headings = ['Date','File','Detection','SHA-256','Action']
-            rows = [(s['started'],d['path'],'; '.join(d['reasons']),d['sha256'],d.get('verdict','Malicious')+' '+str(d.get('score',''))) for s in history for d in s['detections']+s.get('suspicious',[])]
+            headings = ['Date', 'File', 'Detection', 'SHA-256', 'Action']
+            rows = [
+                (
+                    s['started'],
+                    d['path'],
+                    '; '.join(d['reasons']),
+                    d['sha256'],
+                    d.get('verdict', 'Malicious') + ' ' + str(d.get('score', '')),
+                )
+                for s in history
+                for d in s['detections'] + s.get('suspicious', [])
+            ]
         else:
-            headings = ['Date','Event','Details','Source','Status']
+            headings = ['Date', 'Event', 'Details', 'Source', 'Status']
             rows = []
         self.history_table.setHorizontalHeaderLabels(headings)
-        self.fill(self.history_table,rows)
+        self.fill(self.history_table, rows)

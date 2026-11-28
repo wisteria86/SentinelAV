@@ -8,6 +8,7 @@ The certificates are read from the PE security directory of the bytes being
 scanned (so archive members work too) and compared by SHA-256 thumbprint with the
 abuse.ch Code Signing Certificate Blocklist. Nothing is executed or loaded.
 """
+
 import csv
 import io
 import struct
@@ -26,16 +27,21 @@ def _entries(location, stamp):
     refreshes automatically when the file is updated.
     """
     from pathlib import Path
+
     path = Path(location)
     if not stamp:
         return {}
     text = path.read_text(encoding='utf-8', errors='replace')
-    rows = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    rows = [
+        line for line in text.splitlines() if line.strip() and not line.lstrip().startswith('#')
+    ]
     found = {}
     for row in csv.DictReader(io.StringIO('\n'.join(rows))):
         thumbprint = (row.get('thumbprint') or '').strip().lower()
         if len(thumbprint) == 64 and (row.get('thumbprint_algorithm') or '').upper() == 'SHA256':
-            found[thumbprint] = dict(subject=(row.get('subject_cn') or '')[:80], reason=(row.get('Reason') or '')[:60])
+            found[thumbprint] = dict(
+                subject=(row.get('subject_cn') or '')[:80], reason=(row.get('Reason') or '')[:60]
+            )
     return found
 
 
@@ -55,7 +61,7 @@ def security_directory(data):
     # Follow the DOS header to the PE header, then find the data-directory table, whose position
     # depends on 32- vs 64-bit format.
     offset = struct.unpack_from('<I', data, 0x3C)[0]
-    if offset + 24 > len(data) or data[offset:offset + 4] != b'PE\0\0':
+    if offset + 24 > len(data) or data[offset : offset + 4] != b'PE\0\0':
         return b''
     optional = offset + 24
     if optional + 2 > len(data):
@@ -69,13 +75,14 @@ def security_directory(data):
     start, size = struct.unpack_from('<II', data, entry)
     if not start or not size or size > MAX_SECURITY_BYTES or start + size > len(data):
         return b''
-    return data[start:start + size]
+    return data[start : start + size]
 
 
 def thumbprints(data):
     """SHA-256 thumbprints of every certificate in the PE's Authenticode signatures."""
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.serialization import pkcs7
+
     area = security_directory(data)
     found = []
     position = 0
@@ -87,7 +94,9 @@ def thumbprints(data):
             break
         if kind == 2:
             try:
-                for certificate in pkcs7.load_der_pkcs7_certificates(bytes(area[position + 8:position + length])):
+                for certificate in pkcs7.load_der_pkcs7_certificates(
+                    bytes(area[position + 8 : position + length])
+                ):
                     found.append(certificate.fingerprint(hashes.SHA256()).hex())
             except ValueError:
                 pass

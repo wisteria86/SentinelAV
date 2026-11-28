@@ -9,6 +9,7 @@ on a free port. Scan workers find it through a small endpoint file and send byte
 with INSTREAM, so archive members and decoded content are scanned without being
 written to disk. Nothing scanned is ever executed.
 """
+
 import json
 import os
 import socket
@@ -28,14 +29,16 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 class ClamAVUnavailable(RuntimeError):
-    """Raised when ClamAV cannot be used: not installed, no signatures, not running, or a scan error.
-    """
+    """Raised when ClamAV cannot be used: not installed, no signatures, not running, or a scan error."""
+
     pass
 
 
 def has_definitions(database):
     """Tell whether the database folder contains ClamAV signature files."""
-    return database.is_dir() and any(item.suffix in DATABASE_SUFFIXES for item in database.iterdir())
+    return database.is_dir() and any(
+        item.suffix in DATABASE_SUFFIXES for item in database.iterdir()
+    )
 
 
 def _free_port():
@@ -48,13 +51,37 @@ def _free_port():
 def _config(database, port):
     # Limits keep one hostile file from exhausting clamd. PUA detection stays off to avoid flagging ordinary tools.
     """Build the text of a clamd configuration file for the given database folder and port."""
-    return '\n'.join([
-        f'DatabaseDirectory "{database}"', f'TCPSocket {port}', 'TCPAddr 127.0.0.1', 'Foreground yes',
-        'MaxThreads 8', 'StreamMaxLength 256M', 'MaxScanSize 512M', 'MaxFileSize 256M', 'MaxRecursion 12',
-        'MaxFiles 4096', 'MaxScanTime 110000', 'ReadTimeout 180', 'CommandReadTimeout 30',
-        'HeuristicAlerts yes', 'AlertBrokenExecutables no', 'AlertEncrypted no', 'DetectPUA no',
-        'ScanArchive yes', 'ScanPE yes', 'ScanELF yes', 'ScanOLE2 yes', 'ScanPDF yes', 'ScanHTML yes',
-        'ScanMail yes', 'Bytecode yes', 'LogTime no', '']).replace('\\', '/')
+    return '\n'.join(
+        [
+            f'DatabaseDirectory "{database}"',
+            f'TCPSocket {port}',
+            'TCPAddr 127.0.0.1',
+            'Foreground yes',
+            'MaxThreads 8',
+            'StreamMaxLength 256M',
+            'MaxScanSize 512M',
+            'MaxFileSize 256M',
+            'MaxRecursion 12',
+            'MaxFiles 4096',
+            'MaxScanTime 110000',
+            'ReadTimeout 180',
+            'CommandReadTimeout 30',
+            'HeuristicAlerts yes',
+            'AlertBrokenExecutables no',
+            'AlertEncrypted no',
+            'DetectPUA no',
+            'ScanArchive yes',
+            'ScanPE yes',
+            'ScanELF yes',
+            'ScanOLE2 yes',
+            'ScanPDF yes',
+            'ScanHTML yes',
+            'ScanMail yes',
+            'Bytecode yes',
+            'LogTime no',
+            '',
+        ]
+    ).replace('\\', '/')
 
 
 def _request(endpoint, command, timeout=10):
@@ -117,7 +144,7 @@ def scan_bytes(endpoint, data, timeout=SCAN_TIMEOUT):
     with socket.create_connection(tuple(endpoint), timeout=timeout) as connection:
         connection.sendall(b'zINSTREAM\0')
         for start in range(0, len(view), CHUNK):
-            part = view[start:start + CHUNK]
+            part = view[start : start + CHUNK]
             connection.sendall(struct.pack('>I', len(part)) + part)
         connection.sendall(struct.pack('>I', 0))
         reply = _reply(connection)
@@ -162,20 +189,30 @@ class ClamdService:
         config = self.runtime / 'clamd.conf'
         config.write_text(_config(self.database, port), encoding='utf-8')
         log = (self.runtime / 'clamd.log').open('ab')
-        self.process = subprocess.Popen([str(tools['clamd']), '--config-file=' + str(config)], cwd=str(tools['home']),
-            stdin=subprocess.DEVNULL, stdout=log, stderr=log, creationflags=NO_WINDOW)
+        self.process = subprocess.Popen(
+            [str(tools['clamd']), '--config-file=' + str(config)],
+            cwd=str(tools['home']),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=log,
+            creationflags=NO_WINDOW,
+        )
         log.close()
         endpoint = ('127.0.0.1', port)
         deadline = time.monotonic() + timeout
         # Loading the full database takes tens of seconds.
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
-                raise ClamAVUnavailable(f'clamd exited with code {self.process.returncode}; see clamd.log')
+                raise ClamAVUnavailable(
+                    f'clamd exited with code {self.process.returncode}; see clamd.log'
+                )
             if alive(endpoint):
                 state = self.runtime / ENDPOINT_FILE
-                state.write_text(json.dumps(dict(port=port, pid=self.process.pid)), encoding='utf-8')
+                state.write_text(
+                    json.dumps(dict(port=port, pid=self.process.pid)), encoding='utf-8'
+                )
                 return endpoint
-            time.sleep(.5)
+            time.sleep(0.5)
         self.stop()
         raise ClamAVUnavailable('clamd did not start in time')
 
@@ -201,7 +238,9 @@ class ClamdService:
     def _port(self):
         """Return the port written in the endpoint file, or 0 if there is none."""
         try:
-            return int(json.loads((self.runtime / ENDPOINT_FILE).read_text(encoding='utf-8'))['port'])
+            return int(
+                json.loads((self.runtime / ENDPOINT_FILE).read_text(encoding='utf-8'))['port']
+            )
         except (OSError, ValueError, KeyError):
             return 0
 
@@ -213,11 +252,28 @@ def update_definitions(home=None, database=None, timeout=1800):
         raise ClamAVUnavailable('ClamAV is not installed')
     database = database or database_dir()
     config = database / 'freshclam.conf'
-    config.write_text('\n'.join([f'DatabaseDirectory "{database}"', 'DatabaseMirror database.clamav.net',
-        'Foreground yes', 'LogTime no', 'Bytecode yes', '']).replace('\\', '/'), encoding='utf-8')
-    completed = subprocess.run([str(tools['freshclam']), '--config-file=' + str(config), '--stdout'],
-        cwd=str(tools['home']), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
-        creationflags=NO_WINDOW)
+    config.write_text(
+        '\n'.join(
+            [
+                f'DatabaseDirectory "{database}"',
+                'DatabaseMirror database.clamav.net',
+                'Foreground yes',
+                'LogTime no',
+                'Bytecode yes',
+                '',
+            ]
+        ).replace('\\', '/'),
+        encoding='utf-8',
+    )
+    completed = subprocess.run(
+        [str(tools['freshclam']), '--config-file=' + str(config), '--stdout'],
+        cwd=str(tools['home']),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        creationflags=NO_WINDOW,
+    )
     if completed.returncode != 0 or not has_definitions(database):
         raise ClamAVUnavailable('freshclam failed: ' + (completed.stdout + completed.stderr)[-400:])
     return completed.stdout[-2000:]
@@ -229,8 +285,17 @@ def definitions_summary(database=None):
     if not has_definitions(database):
         return dict(status='Missing', files=[])
     files = sorted(item for item in database.iterdir() if item.suffix in DATABASE_SUFFIXES)
-    return dict(status='Present', files=[dict(name=item.name, bytes=item.stat().st_size,
-        modified=time.strftime('%Y-%m-%d %H:%M', time.localtime(item.stat().st_mtime))) for item in files])
+    return dict(
+        status='Present',
+        files=[
+            dict(
+                name=item.name,
+                bytes=item.stat().st_size,
+                modified=time.strftime('%Y-%m-%d %H:%M', time.localtime(item.stat().st_mtime)),
+            )
+            for item in files
+        ],
+    )
 
 
 def ensure_service(enabled=True):

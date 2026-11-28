@@ -8,6 +8,7 @@ The pipe ACL is restricted to the current user by Qt. This does not defend
 against malicious code already running as that user. No remote commands,
 arbitrary code execution, or automatic response actions are exposed.
 """
+
 from sentinelav.paths import PROJECT_ROOT
 import hashlib
 import json
@@ -27,7 +28,9 @@ def endpoint(data):
     """Return the local pipe name for the background engine that serves this data folder (one engine
     per folder).
     """
-    identity = str(Path(data).resolve()).casefold() if os.name == 'nt' else str(Path(data).resolve())
+    identity = (
+        str(Path(data).resolve()).casefold() if os.name == 'nt' else str(Path(data).resolve())
+    )
     return 'SentinelAV-engine-' + hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 
@@ -38,10 +41,17 @@ def decode(raw):
     if len(raw) > MAX_MESSAGE:
         raise ValueError('Request too large')
     value = json.loads(raw)
-    if (not isinstance(value, dict) or type(value.get('version')) is not int or value.get('version') != 1
-            or not isinstance(value.get('command'), str) or value['command'] not in COMMANDS):
+    if (
+        not isinstance(value, dict)
+        or type(value.get('version')) is not int
+        or value.get('version') != 1
+        or not isinstance(value.get('command'), str)
+        or value['command'] not in COMMANDS
+    ):
         raise ValueError('Unsupported protocol or command')
-    allowed = {'version', 'command'} | ({'cursor', 'epoch'} if value['command'] == 'poll' else set())
+    allowed = {'version', 'command'} | (
+        {'cursor', 'epoch'} if value['command'] == 'poll' else set()
+    )
     if set(value) - allowed:
         raise ValueError('Unexpected request fields')
     if value['command'] == 'poll':
@@ -66,8 +76,10 @@ def request(data, command, **fields):
     try:
         sock.connectToServer(endpoint(data))
         if not sock.waitForConnected(1500):
-            if sock.error() in (QLocalSocket.LocalSocketError.ServerNotFoundError,
-                                QLocalSocket.LocalSocketError.ConnectionRefusedError):
+            if sock.error() in (
+                QLocalSocket.LocalSocketError.ServerNotFoundError,
+                QLocalSocket.LocalSocketError.ConnectionRefusedError,
+            ):
                 raise ConnectionError('Background engine unavailable: ' + sock.errorString())
             raise RuntimeError('Cannot verify background engine: ' + sock.errorString())
         sock.write(encoded)
@@ -82,7 +94,10 @@ def request(data, command, **fields):
             if b'\n' in raw:
                 break
             if time.monotonic() >= deadline or not sock.waitForReadyRead(500):
-                if time.monotonic() >= deadline or sock.state() == QLocalSocket.LocalSocketState.UnconnectedState:
+                if (
+                    time.monotonic() >= deadline
+                    or sock.state() == QLocalSocket.LocalSocketState.UnconnectedState
+                ):
                     raise ConnectionError('Background engine reply timed out or disconnected')
         result = json.loads(bytes(raw).split(b'\n', 1)[0])
         if not isinstance(result, dict) or result.get('version') != 1:
@@ -100,22 +115,44 @@ def configuration(store, root):
     settings.
     """
     from sentinelav.response.auto_response import policy_for
+
     folders = store.get('watch_folders', [])
-    if not isinstance(folders, list) or len(folders) > 64 or any(
-            not isinstance(p, str) or not Path(p).is_absolute() or not Path(p).is_dir() for p in folders):
+    if (
+        not isinstance(folders, list)
+        or len(folders) > 64
+        or any(
+            not isinstance(p, str) or not Path(p).is_absolute() or not Path(p).is_dir()
+            for p in folders
+        )
+    ):
         raise ValueError('Configure up to 64 existing absolute watch folders')
     cap = store.get('max_mb', 100)
     if type(cap) is not int or not 1 <= cap <= 1024:
         raise ValueError('Invalid scan size limit')
-    result = dict(folders=folders, signatures=root/'signatures.json', rules=root/'rules', max_mb=cap,
-                  exclusions=store.get('exclusions', []) + [str(store.path.parent)],
-                  canaries=store.get('canaries', []), network_indicators=store.get('network_indicators', []),
-                  trusted_hashes=store.get('trusted_hashes', []))
-    result.update(inspection_options=store.get('inspection_options',{}),event_processes=store.get('event_processes',True),
-                  auto_response=policy_for(store.get('auto_response',None),folders),data_dir=str(store.path.parent),artifact_updates=store.get('artifact_updates',{}))
-    result.update(watch_app_changes=store.get('watch_app_changes',False),tracked_settings=store.get('tracked_settings',[]))
-    result['evaluation_attestation']=store.get('evaluation_attestation',False) is True
-    if store.get('kernel_collector',''): result['kernel_collector']=store.get('kernel_collector','')
+    result = dict(
+        folders=folders,
+        signatures=root / 'signatures.json',
+        rules=root / 'rules',
+        max_mb=cap,
+        exclusions=store.get('exclusions', []) + [str(store.path.parent)],
+        canaries=store.get('canaries', []),
+        network_indicators=store.get('network_indicators', []),
+        trusted_hashes=store.get('trusted_hashes', []),
+    )
+    result.update(
+        inspection_options=store.get('inspection_options', {}),
+        event_processes=store.get('event_processes', True),
+        auto_response=policy_for(store.get('auto_response', None), folders),
+        data_dir=str(store.path.parent),
+        artifact_updates=store.get('artifact_updates', {}),
+    )
+    result.update(
+        watch_app_changes=store.get('watch_app_changes', False),
+        tracked_settings=store.get('tracked_settings', []),
+    )
+    result['evaluation_attestation'] = store.get('evaluation_attestation', False) is True
+    if store.get('kernel_collector', ''):
+        result['kernel_collector'] = store.get('kernel_collector', '')
     for name in ('processes', 'sysmon', 'behavior', 'network'):
         result[name] = store.get('watch_' + name, name in ('processes', 'behavior'))
         if type(result[name]) is not bool:
@@ -128,8 +165,12 @@ def launch(data):
     if getattr(sys, 'frozen', False):
         command = [sys.executable]
     else:
-        python = Path(sys.executable).with_name('pythonw.exe') if os.name == 'nt' else Path(sys.executable)
-        command = [str(python), str((PROJECT_ROOT/'app.py'))]
+        python = (
+            Path(sys.executable).with_name('pythonw.exe')
+            if os.name == 'nt'
+            else Path(sys.executable)
+        )
+        command = [str(python), str((PROJECT_ROOT / 'app.py'))]
     command += ['--engine-host', '--data-dir', str(Path(data).resolve())]
     options = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.name == 'nt':

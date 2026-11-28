@@ -9,6 +9,7 @@ The pipe ACL is restricted to the current user by Qt. This does not defend
 against malicious code already running as that user. No remote commands,
 arbitrary code execution, or automatic response actions are exposed.
 """
+
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import hashlib
 import json
@@ -43,18 +44,21 @@ class EngineHost(QObject):
     the monitor are saved to the database and kept in a short in-memory list so the app can poll for
     new ones.
     """
+
     def __init__(self, data, root, monitor_factory=Monitor):
         """Open the database, claim the pipe for this data folder and start the 100 ms housekeeping
         timer.
         """
         super().__init__()
         self.data, self.root = Path(data), Path(root)
-        self.store = Store(self.data/'sentinelav.db')
+        self.store = Store(self.data / 'sentinelav.db')
         self.factory = monitor_factory
         self.monitor = self.thread = None
         self.state, self.error, self.stats = 'Off', '', {}
         self.epoch, self.sequence = uuid.uuid4().hex, 0
-        self.events = deque(maxlen=2000 if self.store.get('evaluation_attestation',False) is True else 200)
+        self.events = deque(
+            maxlen=2000 if self.store.get('evaluation_attestation', False) is True else 200
+        )
         self.inbox = queue.Queue(maxsize=2048)
         self.dropped = 0
         self.quitting = False
@@ -88,14 +92,18 @@ class EngineHost(QObject):
                 raise ValueError('Wait for monitoring to stop')
             return
         config = configuration(self.store, self.root)
-        self.monitor = self.factory(config, lambda e: self.publish('event', e), lambda s: self.publish('status', s))
+        self.monitor = self.factory(
+            config, lambda e: self.publish('event', e), lambda s: self.publish('status', s)
+        )
         self.state, self.error = 'Starting', ''
+
         def run():
             """Thread body: run the monitor and report any crash back to the engine."""
             try:
                 self.monitor.run()
             except Exception as error:
                 self.publish('error', str(error))
+
         self.thread = threading.Thread(target=run, name='SentinelAV-monitor')
         self.thread.start()
 
@@ -168,10 +176,20 @@ class EngineHost(QObject):
             if len(json.dumps(candidate).encode()) > MAX_MESSAGE // 2:
                 break
             selected = candidate
-        return dict(version=1, ok=True, state=self.state, error=self.error, stats=self.stats,
-                    epoch=self.epoch, cursor=selected[-1]['sequence'] if selected else self.sequence,
-                    events=selected, gap=bool(command == 'poll' and self.events and cursor < self.events[0][0]-1),
-                    dropped=self.dropped, background=True, elevated_service=False)
+        return dict(
+            version=1,
+            ok=True,
+            state=self.state,
+            error=self.error,
+            stats=self.stats,
+            epoch=self.epoch,
+            cursor=selected[-1]['sequence'] if selected else self.sequence,
+            events=selected,
+            gap=bool(command == 'poll' and self.events and cursor < self.events[0][0] - 1),
+            dropped=self.dropped,
+            background=True,
+            elevated_service=False,
+        )
 
     def accept(self):
         """Accept new pipe connections (at most 8 at once). Each connection sends exactly one request
@@ -190,9 +208,9 @@ class EngineHost(QObject):
             timer.timeout.connect(sock.abort)
             timer.start(3000)
             buffer = bytearray()
+
             def read(sock=sock, buffer=buffer):
-                """Collect incoming bytes; once a full line has arrived, handle it and send the reply.
-                """
+                """Collect incoming bytes; once a full line has arrived, handle it and send the reply."""
                 buffer.extend(bytes(sock.readAll()))
                 if len(buffer) > MAX_MESSAGE:
                     sock.abort()
@@ -208,10 +226,12 @@ class EngineHost(QObject):
                     reply = dict(version=1, ok=False, error=str(error)[:1000])
                 sock.write(json.dumps(reply).encode() + b'\n')
                 sock.disconnectFromServer()
+
             def cleanup(sock=sock):
                 """Forget a connection once it closes."""
                 self.clients.discard(sock)
                 sock.deleteLater()
+
             sock.readyRead.connect(read)
             sock.disconnected.connect(cleanup)
             if sock.bytesAvailable():
@@ -229,6 +249,7 @@ def main(data):
     if os.name != 'nt':
         raise RuntimeError('Background engine currently supports Windows only')
     import ctypes
+
     if ctypes.windll.shell32.IsUserAnAdmin():
         raise RuntimeError('Run the per-user background engine without administrator elevation')
     data = Path(data).absolute()
@@ -237,7 +258,7 @@ def main(data):
             raise ValueError('Engine data path cannot contain links')
     data.mkdir(parents=True, exist_ok=True)
     app = QCoreApplication(sys.argv[:1])
-    lock = QLockFile(str(data/'sentinelav.detection.engine.lock'))
+    lock = QLockFile(str(data / 'sentinelav.detection.engine.lock'))
     lock.setStaleLockTime(0)
     if not lock.tryLock(0):
         return 0
@@ -245,7 +266,9 @@ def main(data):
         host = EngineHost(data, RESOURCE_ROOT)
         return app.exec()
     except Exception as error:
-        (data/'engine-startup-error.json').write_text(json.dumps(dict(error=type(error).__name__,reason=str(error)[:2000])),encoding='utf-8')
+        (data / 'engine-startup-error.json').write_text(
+            json.dumps(dict(error=type(error).__name__, reason=str(error)[:2000])), encoding='utf-8'
+        )
         return 1
     finally:
         lock.unlock()

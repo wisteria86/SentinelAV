@@ -10,6 +10,7 @@ Definitions (ClamAV signatures, rule packs, feeds): SENTINELAV_DEFINITIONS or
 SENTINELAV_CLAMAV_DB, the work drive when present, then the per-user
 SentinelAV data folder.
 """
+
 import os
 from pathlib import Path
 from sentinelav.paths import PROJECT_ROOT
@@ -53,7 +54,11 @@ def _base():
 
 def definitions_dir(name):
     """A named definition area, such as 'yara-forge' or 'feeds'."""
-    root = Path(os.environ['SENTINELAV_DEFINITIONS']) if os.environ.get('SENTINELAV_DEFINITIONS') else _base() / 'definitions'
+    root = (
+        Path(os.environ['SENTINELAV_DEFINITIONS'])
+        if os.environ.get('SENTINELAV_DEFINITIONS')
+        else _base() / 'definitions'
+    )
     path = root / name
     try:
         path.mkdir(parents=True, exist_ok=True)
@@ -64,14 +69,22 @@ def definitions_dir(name):
 
 def signature_data_dir(resource_root):
     """The hash database folder: the definitions area once it holds an active feed, else the bundled resources."""
-    root = Path(os.environ['SENTINELAV_DEFINITIONS']) if os.environ.get('SENTINELAV_DEFINITIONS') else _base() / 'definitions'
+    root = (
+        Path(os.environ['SENTINELAV_DEFINITIONS'])
+        if os.environ.get('SENTINELAV_DEFINITIONS')
+        else _base() / 'definitions'
+    )
     moved = root / 'signature-data'
     return moved if (moved / 'active.json').is_file() else Path(resource_root) / 'signature-data'
 
 
 def database_dir():
     """Return (creating it if possible) the folder that holds ClamAV's signature database."""
-    path = Path(os.environ['SENTINELAV_CLAMAV_DB']) if os.environ.get('SENTINELAV_CLAMAV_DB') else _base() / 'clamav-db'
+    path = (
+        Path(os.environ['SENTINELAV_CLAMAV_DB'])
+        if os.environ.get('SENTINELAV_CLAMAV_DB')
+        else _base() / 'clamav-db'
+    )
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError:

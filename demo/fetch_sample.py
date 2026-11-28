@@ -7,6 +7,7 @@ file, so no antivirus on this PC sees (or removes) the malware. The key is not a
 secret: the encryption only keeps the bytes unreadable until the offline Sandbox
 decrypts them. Usage: python demo/fetch_sample.py [theZoo folder name]
 """
+
 import hashlib
 import os
 import sys
@@ -30,4 +31,6 @@ sealed = iv + encryptor.update(padder.update(data) + padder.finalize()) + encryp
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / f'{NAME}.zip.sealed').write_bytes(sealed)
 (OUT / f'{NAME}.zip.key').write_text(key.hex(), encoding='ascii')
-print(f'{NAME}.zip: {len(data):,} bytes, SHA-256 {hashlib.sha256(data).hexdigest()}, stored encrypted in {OUT}')
+print(
+    f'{NAME}.zip: {len(data):,} bytes, SHA-256 {hashlib.sha256(data).hexdigest()}, stored encrypted in {OUT}'
+)

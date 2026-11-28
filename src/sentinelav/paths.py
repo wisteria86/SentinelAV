@@ -4,6 +4,7 @@
 #   detection.neural_bytes
 
 """Shared paths for source checkouts and PyInstaller bundles."""
+
 from pathlib import Path
 import sys
 
