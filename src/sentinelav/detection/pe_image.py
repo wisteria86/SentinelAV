@@ -19,7 +19,8 @@ class PEImage:
         """Read the PE optional header (32 or 64-bit, image base and size, data directories) and
         sanity-check it.
         """
-        self.data, self.metadata = data, metadata
+        self.data = data
+        self.metadata = metadata
         self.optional = struct.unpack_from('<I', data, 0x3C)[0] + 24
         self.optional_size = struct.unpack_from('<H', data, self.optional - 4)[0]
         if self.optional_size < 96:

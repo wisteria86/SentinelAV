@@ -68,7 +68,10 @@ def apply_changes(folder, changes, provenance, package=None, restore_revoked=Tru
             db.execute(
                 'CREATE TABLE IF NOT EXISTS revocations(sha256 BLOB PRIMARY KEY,reason TEXT NOT NULL) WITHOUT ROWID'
             )
-            added = corrected = removed = ignored_revoked = 0
+            added = 0
+            corrected = 0
+            removed = 0
+            ignored_revoked = 0
             for item in changes['upserts']:
                 digest = bytes.fromhex(item['sha256'])
                 if (

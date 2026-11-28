@@ -64,7 +64,8 @@ class IndexInfo:
 
     def __init__(self, count, metadata):
         """Remember how many signatures the worker loaded and their metadata."""
-        self.count, self.metadata = count, metadata
+        self.count = count
+        self.metadata = metadata
 
     def __len__(self):
         """Return the number of signatures."""

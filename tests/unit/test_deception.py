@@ -140,7 +140,9 @@ class ServerTests(unittest.TestCase):
 
 class FakeClipboard:
     def __init__(self):
-        self.value, self.number, self.input = '', 0, 1
+        self.value = ''
+        self.number = 0
+        self.input = 1
 
     def sequence(self):
         return self.number
@@ -149,7 +151,8 @@ class FakeClipboard:
         return self.value
 
     def copy(self, value, typed=True):
-        self.value, self.number = value, self.number + 1
+        self.value = value
+        self.number = self.number + 1
         self.input += typed
 
     def owner(self):
@@ -161,7 +164,8 @@ class FakeClipboard:
 
 class ClipboardTests(unittest.TestCase):
     def test_swap_without_input_is_reported_and_user_copies_are_not(self):
-        board, events = FakeClipboard(), []
+        board = FakeClipboard()
+        events = []
         guard = clipboard.ClipboardGuard(events.append, clipboard=board)
         board.copy('0x' + 'a' * 40)
         guard.poll()

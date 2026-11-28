@@ -69,11 +69,11 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
         self.exclusions = [Path(p).resolve() for p in exclusions]
         self.trusted_hashes = set() if strict else set(trusted_hashes)
         if strict:
-            self.rules, self.rule_summary, self.rule_metadata = (
-                None,
-                dict(status='Disabled', warnings=[], reason='Signature-free evaluation'),
-                {},
+            self.rules = None
+            self.rule_summary = dict(
+                status='Disabled', warnings=[], reason='Signature-free evaluation'
             )
+            self.rule_metadata = {}
         else:
             self.rules, self.rule_summary, self.rule_metadata = compile_rules(rules_dir)
         self.warnings = list(self.rule_summary['warnings'])

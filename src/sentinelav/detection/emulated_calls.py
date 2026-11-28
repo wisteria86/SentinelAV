@@ -104,15 +104,12 @@ class EmulatedCallsMixin:
                 return len(value) + 1
             return self.output_text(a[1], a[2], value, name.endswith('w'))
         if name.startswith(('gettemppath', 'getwindowsdirectory', 'getsystemdirectory')):
-            value = (
-                'C:\\Temp\\'
-                if name.startswith('gettemppath')
-                else (
-                    'C:\\Windows\\System32'
-                    if name.startswith('getsystemdirectory')
-                    else 'C:\\Windows'
-                )
-            )
+            if name.startswith('gettemppath'):
+                value = 'C:\\Temp\\'
+            elif name.startswith('getsystemdirectory'):
+                value = 'C:\\Windows\\System32'
+            else:
+                value = 'C:\\Windows'
             capacity, address = (a[0], a[1]) if name.startswith('gettemppath') else (a[1], a[0])
             if capacity <= len(value):
                 return len(value) + 1

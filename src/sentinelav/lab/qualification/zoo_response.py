@@ -75,7 +75,8 @@ def response_cycle(raw, suffix, root, settings):
 def realtime_check(raw, suffix, root, settings, patience=90):
     """Drop a sample into a watched folder and time detection and any automatic quarantine."""
     result = dict(detected=False)
-    monitor = thread = None
+    monitor = None
+    thread = None
     try:
         folder = _workspace(root, 'realtime')
         events = []

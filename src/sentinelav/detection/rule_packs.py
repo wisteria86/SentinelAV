@@ -168,7 +168,8 @@ class RulePack:
 
 def load_packs():
     """Installed packs and one warning per pack that could not load."""
-    packs, warnings = [], []
+    packs = []
+    warnings = []
     for name in PACKS:
         # A pack that was never installed is a status for the Updates page, not a warning on every scan.
         if not (definitions_dir(name) / 'pack.json').is_file():

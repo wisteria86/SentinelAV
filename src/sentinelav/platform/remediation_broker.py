@@ -141,7 +141,9 @@ class BrokerJournal:
         """root is the protected folder, owner the deployment owner's SID, and rows the change records
         read from the service.
         """
-        self.root, self.owner, self.rows = root, owner, {r['id']: r for r in rows}
+        self.root = root
+        self.owner = owner
+        self.rows = {r['id']: r for r in rows}
 
     def change(self, key):
         """Return one change record by id."""

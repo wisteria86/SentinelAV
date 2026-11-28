@@ -116,5 +116,6 @@ def profile_dirs():
     local = Path(os.environ.get('LOCALAPPDATA') or home / 'AppData' / 'Local')
     roaming = Path(os.environ.get('APPDATA') or home / 'AppData' / 'Roaming')
     if os.environ.get('SENTINELAV_DECOY_HOME'):
-        local, roaming = home / 'AppData' / 'Local', home / 'AppData' / 'Roaming'
+        local = home / 'AppData' / 'Local'
+        roaming = home / 'AppData' / 'Roaming'
     return home, local, roaming

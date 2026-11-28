@@ -79,7 +79,8 @@ def emulate_windows(data, metadata, analyze):
         machine.mem_map(image.base, (image.size + 4095) & ~4095)
         machine.mem_write(image.base, bytes(data[: image.headers]))
         for section in metadata['sections']:
-            address, length = section['virtual_address'], section['raw_bytes']
+            address = section['virtual_address']
+            length = section['raw_bytes']
             if address + length > image.size:
                 raise ValueError('Section exceeds image')
             if length:
@@ -251,23 +252,18 @@ def emulate_windows(data, metadata, analyze):
             tls_callbacks_declared=len(callbacks),
         )
         if result['termination_reason'] == 'not_started':
-            result['termination_reason'] = (
-                'exit'
-                if shim.exited
-                else (
-                    'returned'
-                    if outcome['returned']
-                    else (
-                        'changed_page_limit'
-                        if outcome['budget']
-                        else (
-                            'instruction_limit'
-                            if steps[0] >= 200000
-                            else 'time_limit' if time.monotonic() >= deadline else 'incomplete_path'
-                        )
-                    )
-                )
-            )
+            if shim.exited:
+                result['termination_reason'] = 'exit'
+            elif outcome['returned']:
+                result['termination_reason'] = 'returned'
+            elif outcome['budget']:
+                result['termination_reason'] = 'changed_page_limit'
+            elif steps[0] >= 200000:
+                result['termination_reason'] = 'instruction_limit'
+            elif time.monotonic() >= deadline:
+                result['termination_reason'] = 'time_limit'
+            else:
+                result['termination_reason'] = 'incomplete_path'
         result['omissions'].extend(shim.omissions)
         result['omissions'].append(
             'Win32 subset: no full DLL loader, PEB/TEB, static TLS storage, multithreading or Windows exceptions'

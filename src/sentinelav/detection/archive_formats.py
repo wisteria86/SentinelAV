@@ -52,8 +52,12 @@ class Member:
         """Describe one entry: its name, uncompressed size (-1 if unknown), a read(limit) function, and
         flags for compressed size, encryption and unsafe types (such as links).
         """
-        self.name, self.size, self.read = name, size, read
-        self.compressed, self.encrypted, self.unsafe = compressed, encrypted, unsafe
+        self.name = name
+        self.size = size
+        self.read = read
+        self.compressed = compressed
+        self.encrypted = encrypted
+        self.unsafe = unsafe
 
 
 def _zip_read(archive, info):
@@ -346,7 +350,9 @@ def msi_strings(package):
         for name in ('!_StringPool', '!_StringData')
     )
     words = [int.from_bytes(pool[k : k + 2], 'little') for k in range(0, len(pool) - 1, 2)]
-    lines, offset, i = [], 0, 1
+    lines = []
+    offset = 0
+    i = 1
     while i * 2 + 1 < len(words) and offset <= len(raw):
         if words[i * 2] == 0 and words[i * 2 + 1] == 0:
             i += 1

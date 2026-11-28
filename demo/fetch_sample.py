@@ -24,7 +24,8 @@ OUT = Path(os.environ.get('SENTINELAV_WORK_ROOT', 'F:/SentinelAV-Work')) / 'demo
 data = urllib.request.urlopen(URL, timeout=60).read()
 if not data.startswith(b'PK'):
     sys.exit('Download is not a ZIP archive')
-key, iv = os.urandom(32), os.urandom(16)
+key = os.urandom(32)
+iv = os.urandom(16)
 padder = padding.PKCS7(128).padder()
 encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
 sealed = iv + encryptor.update(padder.update(data) + padder.finalize()) + encryptor.finalize()

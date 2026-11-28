@@ -223,7 +223,9 @@ def constants(code):
     found = set()
     if code[:4] != b'\xca\xfe\xba\xbe' or len(code) < 10:
         return found
-    count, offset, index = int.from_bytes(code[8:10], 'big'), 10, 1
+    count = int.from_bytes(code[8:10], 'big')
+    offset = 10
+    index = 1
     while index < count and offset < len(code):
         tag = code[offset]
         if tag == 1:
@@ -280,7 +282,8 @@ def android_indicators(data, kind):
     if kind == 'apk':
         manifest, code = _members(data)
     else:
-        manifest, code = b'', [bytes(data)]
+        manifest = b''
+        code = [bytes(data)]
     found = []
     # The binary manifest stores names as UTF-16 string-pool entries; read both encodings without XML parsing.
     plain = extract(manifest, 4 * 1024 * 1024)
@@ -363,7 +366,8 @@ def java_indicators(data, kind):
     names = set().union(*(constants(item) for item in code))
     text = '\n'.join(sorted(names))
     found = []
-    core = jna = False
+    core = False
+    jna = False
     if kind == 'jar':
         with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
             paths = [n for n in archive.namelist()[:16384] if n.endswith(('.class', '.class/'))]

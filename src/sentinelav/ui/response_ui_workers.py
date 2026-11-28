@@ -18,7 +18,10 @@ class ResponseWorker(QThread):
     def __init__(self, path, root, method, args):
         """Remember the database path, resources folder, the method name and its arguments."""
         super().__init__()
-        self.path, self.root, self.method, self.args = path, root, method, args
+        self.path = path
+        self.root = root
+        self.method = method
+        self.args = args
 
     def run(self):
         """Call the method and emit completed(result), or audit the failure and emit failed(message)."""

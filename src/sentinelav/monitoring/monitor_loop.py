@@ -218,7 +218,11 @@ class MonitorLoopMixin:
                     if process_reader:
                         process_reader.close()
                     process_reader = None
-            next_process = next_sysmon = next_status = next_network = next_canary = 0
+            next_process = 0
+            next_sysmon = 0
+            next_status = 0
+            next_network = 0
+            next_canary = 0
             network_available = self.config.get('network', False)
             denied = 0
             # Main loop. Each source is polled on its own timer so a slow one never starves the
@@ -473,7 +477,8 @@ class MonitorLoopMixin:
                         'Protection',
                         'Warning',
                     )
-            self.kernel_reader = self.responder = None
+            self.kernel_reader = None
+            self.responder = None
             if observer.is_alive():
                 observer.stop()
                 observer.join(timeout=5)

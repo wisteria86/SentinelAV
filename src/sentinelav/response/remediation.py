@@ -36,12 +36,10 @@ class Remediator:
         re-scans a file, responder quarantines files and stops processes, and verify_buffer(bytes)
         scans content that is about to be restored.
         """
-        self.journal, self.backend, self.verify, self.responder = (
-            journal,
-            backend,
-            verify,
-            responder,
-        )
+        self.journal = journal
+        self.backend = backend
+        self.verify = verify
+        self.responder = responder
         self.verify_buffer = verify_buffer
 
     def verified_references(self, record):
@@ -318,19 +316,16 @@ class Remediator:
                 result.update(state='Unresolved', reason=str(error))
             self.journal.operation(plan)
         verified = sum(r['state'] == 'Verified' for r in plan['results'])
-        plan['state'] = (
-            (
+        if verified == len(plan['results']):
+            plan['state'] = (
                 'Verified removal within supported scope'
                 if plan['mode'] == 'cleanup'
                 else 'Restoration verified'
             )
-            if verified == len(plan['results'])
-            else (
-                'Partially remediated—specific remnants remain'
-                if verified
-                else 'Action failed or requires additional authorization'
-            )
-        )
+        elif verified:
+            plan['state'] = 'Partially remediated—specific remnants remain'
+        else:
+            plan['state'] = 'Action failed or requires additional authorization'
         if plan['mode'] == 'cleanup':
             try:
                 plan['verification'] = self.backend.verify_incident(plan)

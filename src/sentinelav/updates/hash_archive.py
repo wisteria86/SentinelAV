@@ -112,7 +112,8 @@ def _import_archive(archive, output, activate=False, progress=lambda count: None
 
     If anything fails, the partial database is deleted.
     """
-    archive, output = Path(archive).resolve(), Path(output).absolute()
+    archive = Path(archive).resolve()
+    output = Path(output).absolute()
     for part in [output, *output.parents]:
         if part.is_symlink() or part.is_junction():
             raise ValueError('Output cannot contain linked path components')

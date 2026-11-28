@@ -23,7 +23,8 @@ class Inventory:
     settings = []
 
     def __init__(self, rows, complete=('registry',)):
-        self.rows, self.complete = rows, list(complete)
+        self.rows = rows
+        self.complete = list(complete)
 
     def collect(self):
         return dict(rows=self.rows, errors=[], complete=self.complete)

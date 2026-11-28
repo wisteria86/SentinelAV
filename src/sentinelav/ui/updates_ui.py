@@ -34,7 +34,9 @@ class DefinitionWorker(QThread):
     def __init__(self, root, kind, path=None):
         """Remember the resources folder, the kind of update and its input file."""
         super().__init__()
-        self.root, self.kind, self.path = Path(root), kind, path
+        self.root = Path(root)
+        self.kind = kind
+        self.path = path
         self.cancelled = threading.Event()
 
     def run(self):

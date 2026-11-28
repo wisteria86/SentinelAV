@@ -159,7 +159,8 @@ def upper_bound(failures, trials, confidence=0.95):
             comb(trials, k) * rate**k * (1 - rate) ** (trials - k) for k in range(failures + 1)
         )
 
-    low, high = failures / trials, 1.0
+    low = failures / trials
+    high = 1.0
     for _ in range(60):
         middle = (low + high) / 2
         if tail(middle) > 1 - confidence:

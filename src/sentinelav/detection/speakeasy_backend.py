@@ -162,15 +162,12 @@ def emulate(data, metadata, analyze, profile='background'):
                     dict(virtual_file_index=index, reasons=reasons, yara_matches=matches)
                 )
         if result['termination_reason'] == 'not_started':
-            result['termination_reason'] = (
-                'execution_fault'
-                if result['diagnostics']
-                else (
-                    'instruction_limit'
-                    if result['instructions_observed'] >= instructions
-                    else 'modeled_run_ended'
-                )
-            )
+            if result['diagnostics']:
+                result['termination_reason'] = 'execution_fault'
+            elif result['instructions_observed'] >= instructions:
+                result['termination_reason'] = 'instruction_limit'
+            else:
+                result['termination_reason'] = 'modeled_run_ended'
         result['omissions'].extend(
             'Speakeasy execution stop: ' + str(item)[:300] for item in result['diagnostics'][:16]
         )

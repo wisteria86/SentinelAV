@@ -26,7 +26,9 @@ class ScanWorker(QThread):
     ):
         """Remember what to scan and with which settings."""
         super().__init__()
-        self.roots, self.max_mb, self.exclusions = roots, max_mb, exclusions
+        self.roots = roots
+        self.max_mb = max_mb
+        self.exclusions = exclusions
         self.trusted_hashes = trusted_hashes
         self.options = options
         self.resource_root = resource_root or ROOT

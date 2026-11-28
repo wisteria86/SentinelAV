@@ -33,7 +33,8 @@ class MonitoringTests(unittest.TestCase):
             root = Path(temp)
             excluded = root / 'ignored'
             excluded.mkdir()
-            events, statuses = [], []
+            events = []
+            statuses = []
             config = self.config(root)
             config['exclusions'] = [excluded]
             monitor = Monitor(config, events.append, statuses.append)
@@ -184,7 +185,8 @@ class MonitoringTests(unittest.TestCase):
 
     def test_network_runtime_failure_preserves_folder_monitoring(self):
         with tempfile.TemporaryDirectory() as temp:
-            events, states = [], []
+            events = []
+            states = []
             config = self.config(Path(temp))
             config.update(network=True, behavior=True)
             monitor = Monitor(

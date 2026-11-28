@@ -107,9 +107,12 @@ class WinAPIModel(EmulatedCallsMixin):
         """Set up an empty virtual environment on top of a Unicorn CPU (machine), with regions reserved
         for import stubs and the heap.
         """
-        self.machine, self.wide, self.reg = machine, wide, registers
+        self.machine = machine
+        self.wide = wide
+        self.reg = registers
         self.width = 8 if wide else 4
-        self.stub_base, self.heap_base = stub_base, heap_base
+        self.stub_base = stub_base
+        self.heap_base = heap_base
         self.next_heap = heap_base
         self.heap_bytes = 0
         self.stubs = {}

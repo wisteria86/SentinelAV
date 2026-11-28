@@ -35,13 +35,11 @@ class Vaccines:
 
     def __init__(self, items=None):
         """Use the given markers, or the bundled list by default."""
-        self.items, self.handles, self.held, self.skipped, self.files = (
-            items if items is not None else markers(),
-            [],
-            [],
-            [],
-            [],
-        )
+        self.items = items if items is not None else markers()
+        self.handles = []
+        self.held = []
+        self.skipped = []
+        self.files = []
 
     def start(self):
         """Create every mutex and every missing marker file (files need administrator rights). Returns

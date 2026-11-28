@@ -104,7 +104,12 @@ def _confidence(score, groups, decisive, partial):
     if decisive:
         return 'High'
     independent = sum(value >= 12 and group != 'context' for group, value in groups.items())
-    level = 2 if independent >= 3 and score >= MALICIOUS else 1 if independent >= 2 else 0
+    if independent >= 3 and score >= MALICIOUS:
+        level = 2
+    elif independent >= 2:
+        level = 1
+    else:
+        level = 0
     if partial and level:
         level -= 1
     return ('Low', 'Medium', 'High')[level]

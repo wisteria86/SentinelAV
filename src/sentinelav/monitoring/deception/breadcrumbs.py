@@ -42,7 +42,8 @@ def deploy(bitcoin_dir=None):
     home, _, _ = profile_dirs()
     ports = dict(rdp=free_port(), web=free_port(), ssh=free_port(), sftp=free_port(), ftp=21)
     token = secrets.token_hex(6)
-    created, entries = [], []
+    created = []
+    entries = []
     documents = home / 'Documents'
     if documents.is_dir():
         rdp = (
@@ -99,8 +100,13 @@ class DecoyServers:
     def __init__(self, ports, emit, behavior=None, host=DECOY_HOST, owner=connection_owner):
         """Prepare listeners for the decoy ports ({label: port}); start() opens them."""
         self.labels = {port: name for name, port in ports.items()}
-        self.emit, self.behavior, self.host, self.owner = emit, behavior, host, owner
-        self.sockets, self.skipped, self.stop_event = [], [], threading.Event()
+        self.emit = emit
+        self.behavior = behavior
+        self.host = host
+        self.owner = owner
+        self.sockets = []
+        self.skipped = []
+        self.stop_event = threading.Event()
 
     def start(self):
         """Open a listener on each decoy port that is free and return the ports actually opened."""
@@ -170,7 +176,9 @@ class TarpitHoneypot(NetworkHoneypot):
         every `interval` seconds, with at most `slots` held at once.
         """
         super().__init__(emit, ports, **options)
-        self.interval, self.hold, self.slots = interval, hold, threading.BoundedSemaphore(slots)
+        self.interval = interval
+        self.hold = hold
+        self.slots = threading.BoundedSemaphore(slots)
 
     def _serve(self, server, port):
         """Accept connections, report them, and hand each one to a trickle thread (refusing new ones

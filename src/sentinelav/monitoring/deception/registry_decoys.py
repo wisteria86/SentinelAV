@@ -43,7 +43,8 @@ def _read(root, path):
     """Return all values of a registry key as a dict, or None if the key does not exist."""
     try:
         with winreg.OpenKey(root, path) as key:
-            values, index = {}, 0
+            values = {}
+            index = 0
             while True:
                 try:
                     name, value, _ = winreg.EnumValue(key, index)

@@ -38,7 +38,8 @@ def deploy(options, data_dir):
     from sentinelav.monitoring.deception import breadcrumbs, stores
 
     options = dict(DEFAULTS, **(options or {}))
-    state, problems = dict(options=options), []
+    state = dict(options=options)
+    problems = []
     if options['stores']:
         _, state['stores'] = stores.deploy()
     if options['breadcrumbs']:
@@ -66,7 +67,8 @@ def deploy(options, data_dir):
         from sentinelav.monitoring.deception import accounts
         from sentinelav.monitoring.deception.common import write_decoy
 
-        folder, created = Path(data_dir) / 'decoy-share', []
+        folder = Path(data_dir) / 'decoy-share'
+        created = []
         files = [
             write_decoy(
                 folder / name,
@@ -136,8 +138,13 @@ class DeceptionRuntime:
 
     def __init__(self, state, emit, behavior=None, data_dir='.'):
         """Remember the deployed state; nothing starts until start() is called."""
-        self.state, self.emit, self.behavior, self.data_dir = state, emit, behavior, Path(data_dir)
-        self.parts, self.notes, self.next_slow = {}, [], 0
+        self.state = state
+        self.emit = emit
+        self.behavior = behavior
+        self.data_dir = Path(data_dir)
+        self.parts = {}
+        self.notes = []
+        self.next_slow = 0
 
     def _try(self, name, build):
         """Build one part, recording a note instead of failing if it cannot start."""

@@ -117,7 +117,10 @@ class AutoResponder:
         response policy, and emit is a callback that receives event dictionaries for the activity
         log.
         """
-        self.data_dir, self.root, self.policy, self.emit = Path(data_dir), Path(root), policy, emit
+        self.data_dir = Path(data_dir)
+        self.root = Path(root)
+        self.policy = policy
+        self.emit = emit
         self.queue = queue.Queue(maxsize=8)
         self.stopping = threading.Event()
         self.attempts = deque()

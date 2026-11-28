@@ -34,7 +34,8 @@ EMULATION = ('Not run', 'Partial', 'Unavailable', 'Not applicable')
 
 
 def command(row, kind='diagnostics'):
-    name, sha = row['path'], row['sha256']
+    name = row['path']
+    sha = row['sha256']
     if not re.fullmatch(r'[A-Za-z0-9_.-]+', name) or not re.fullmatch('[0-9a-f]{64}', sha):
         raise ValueError('Invalid fixed measurement identity')
     script = r'''

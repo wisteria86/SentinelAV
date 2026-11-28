@@ -50,15 +50,14 @@ def main():
                     key=lambda i: i.filename,
                 )
                 for index, entry in enumerate(entries):
-                    split = (
-                        ('calibration' if index < 4 else 'test')
-                        if args.published_model
-                        else (
-                            'train'
-                            if source == 'train' and index < 44
-                            else 'calibration' if source == 'train' else 'test'
-                        )
-                    )
+                    if args.published_model:
+                        split = 'calibration' if index < 4 else 'test'
+                    elif source == 'train' and index < 44:
+                        split = 'train'
+                    elif source == 'train':
+                        split = 'calibration'
+                    else:
+                        split = 'test'
                     limit = min(args.per_class, 100) if split == 'train' else args.per_class
                     heaps = {0: [], 1: []}
                     with archive.open(entry) as rows:

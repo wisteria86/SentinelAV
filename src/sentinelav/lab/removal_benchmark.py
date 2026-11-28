@@ -89,7 +89,8 @@ def compare(manifest, trials):
                 collateral=sorted(collateral),
             )
 
-        d, s = outcome(defender), outcome(sentinel)
+        d = outcome(defender)
+        s = outcome(sentinel)
         difference = int(s['complete']) - int(d['complete'])
         differences.append(difference)
         families.add(case['family'])

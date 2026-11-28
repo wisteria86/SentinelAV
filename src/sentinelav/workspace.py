@@ -43,7 +43,8 @@ class Workspace:
         keep).
         """
         self.root = unlinked(root or os.environ.get('SENTINELAV_WORK_ROOT', 'F:/SentinelAV-Work'))
-        self.quota, self.reserve = quota, reserve
+        self.quota = quota
+        self.reserve = reserve
 
     def usage(self):
         """Add up the size in bytes of every file under the workspace, refusing any linked entries on

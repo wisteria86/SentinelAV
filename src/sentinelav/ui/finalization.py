@@ -40,7 +40,9 @@ class PreferencesWorker(QThread):
     def __init__(self, schedule, data_dir, startup):
         """Remember the schedule, data folder and whether to start with Windows."""
         super().__init__()
-        self.schedule, self.data_dir, self.startup = schedule, data_dir, startup
+        self.schedule = schedule
+        self.data_dir = data_dir
+        self.startup = startup
 
     def run(self):
         """Apply both settings and emit completed(schedule, list of problems)."""
@@ -144,7 +146,8 @@ class FinalizationMixin:
                 self, 'Invalid schedule folder', 'Choose an existing absolute folder path.'
             )
             return
-        hour, minute = self.schedule_time.time().hour(), self.schedule_time.time().minute()
+        hour = self.schedule_time.time().hour()
+        minute = self.schedule_time.time().minute()
         schedule = dict(
             enabled=self.schedule_option.isChecked(),
             hour=hour,
@@ -224,7 +227,12 @@ class FinalizationMixin:
             return
         kind = Path(path).suffix.lower().lstrip('.')
         if kind not in ('html', 'json', 'csv'):
-            kind = 'json' if 'JSON' in selected else 'csv' if 'CSV' in selected else 'html'
+            if 'JSON' in selected:
+                kind = 'json'
+            elif 'CSV' in selected:
+                kind = 'csv'
+            else:
+                kind = 'html'
             path += '.' + kind
         try:
             Path(path).write_text(

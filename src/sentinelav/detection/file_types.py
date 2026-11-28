@@ -227,27 +227,38 @@ def classify(data, suffix=''):
     elif head.startswith(b'MZ'):
         offset = struct.unpack_from('<I', data, 0x3C)[0] if len(data) >= 64 else 0
         if not _dos_mz(data) and data[offset : offset + 2] == b'PE':
-            kind, platform = 'pe', 'Win32'
+            kind = 'pe'
+            platform = 'Win32'
         elif not _dos_mz(data):
-            kind, platform = 'dos_mz', 'Win16'
+            kind = 'dos_mz'
+            platform = 'Win16'
         else:
-            kind, platform = 'dos_mz', 'DOS'
+            kind = 'dos_mz'
+            platform = 'DOS'
     elif head.startswith(b'\x7fELF'):
-        kind, platform = 'elf', 'Linux'
+        kind = 'elf'
+        platform = 'Linux'
     elif _macho(head):
-        kind, platform = 'macho', 'OSX'
+        kind = 'macho'
+        platform = 'OSX'
     elif head[:8].startswith(b'dex\n'):
-        kind, platform = 'dex', 'Android'
+        kind = 'dex'
+        platform = 'Android'
     elif head.startswith(b'\xca\xfe\xba\xbe'):
-        kind, platform = 'class', 'Java'
+        kind = 'class'
+        platform = 'Java'
     elif head.startswith(bytes.fromhex('d0cf11e0a1b11ae1')):
-        kind, platform = 'ole', 'Office'
+        kind = 'ole'
+        platform = 'Office'
     elif head.startswith(b'%PDF-') or b'%PDF-' in head[:1024]:
-        kind, platform = 'pdf', 'PDF'
+        kind = 'pdf'
+        platform = 'PDF'
     elif head.lstrip().startswith(b'{\\rt'):
-        kind, platform = 'rtf', 'Office'
+        kind = 'rtf'
+        platform = 'Office'
     elif head.startswith(b'L\x00\x00\x00\x01\x14\x02\x00'):
-        kind, platform = 'lnk', 'Win32'
+        kind = 'lnk'
+        platform = 'Win32'
     elif head.startswith((b'PK\x03\x04', b'PK\x05\x06', b'PK\x07\x08')):
         kind = _zip_kind(data)
         platform = {'apk': 'Android', 'jar': 'Java', 'ooxml': 'Office'}.get(kind, 'Generic')
@@ -259,7 +270,8 @@ def classify(data, suffix=''):
         and bytes(data[2:4]) == b'\r\n'
         and (suffix == '.pyc' or 2900 <= int.from_bytes(data[:2], 'little') <= 3700)
     ):
-        kind, platform = 'pyc', 'Python'
+        kind = 'pyc'
+        platform = 'Python'
     else:
         for magic, name in ARCHIVE_MAGIC:
             if head.startswith(magic):
@@ -278,9 +290,11 @@ def classify(data, suffix=''):
             and bytes(data[510:512]) == b'\x55\xaa'
             and not _looks_textual(head)
         ):
-            kind, platform = 'boot', 'DOS'
+            kind = 'boot'
+            platform = 'DOS'
         if kind == 'data' and _is_com(data, suffix):
-            kind, platform = 'com', 'DOS'
+            kind = 'com'
+            platform = 'DOS'
         if kind == 'data' and _looks_textual(head):
             kind = _text_kind(data, suffix)
             platform = {

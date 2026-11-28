@@ -56,14 +56,16 @@ class BackgroundWorker(QThread):
                 initial = self.connect_and_start()
                 if initial is None:
                     return
-            epoch, cursor = initial['epoch'], initial['cursor']
+            epoch = initial['epoch']
+            cursor = initial['cursor']
             stopping = False
             while not self.disconnect.is_set():
                 if self.stop_engine.is_set() and not stopping:
                     request(self.data, 'stop')
                     stopping = True
                 reply = request(self.data, 'poll', epoch=epoch, cursor=cursor)
-                epoch, cursor = reply['epoch'], reply['cursor']
+                epoch = reply['epoch']
+                cursor = reply['cursor']
                 if reply['gap']:
                     self.failed.emit(
                         'Live event delivery fell behind. Review persisted protection events in Reports.'

@@ -215,7 +215,12 @@ def main(key_text, holdout=False, zeus_validation=False, signature_free=False, p
     area.mkdir(exist_ok=False)
     corpus = area / 'corpus'
     corpus.mkdir()
-    specs = ZEUS_VALIDATION_SPECS if zeus_validation else HOLDOUT_SPECS if holdout else SPECS
+    if zeus_validation:
+        specs = ZEUS_VALIDATION_SPECS
+    elif holdout:
+        specs = HOLDOUT_SPECS
+    else:
+        specs = SPECS
     entries = []
     imports = []
     failures = []

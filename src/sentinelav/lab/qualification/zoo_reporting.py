@@ -123,9 +123,12 @@ def summarize(ledger, counts, results, cases):
             archives=_archives(binaries, arm),
             source_archives=_archives(source, arm),
         )
-    status = (
-        'blocked' if counts['pending'] else 'partial' if counts['inspection_failure'] else 'passed'
-    )
+    if counts['pending']:
+        status = 'blocked'
+    elif counts['inspection_failure']:
+        status = 'partial'
+    else:
+        status = 'passed'
     return dict(
         status=status,
         outcomes={key: counts[key] for key in (*OUTCOMES, 'pending')},

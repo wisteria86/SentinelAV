@@ -59,7 +59,8 @@ class DeceptionMixin:
         )
         intro.setWordWrap(True)
         layout.insertWidget(4, intro)
-        grid, saved = QGridLayout(), dict(DEFAULTS, **self.store.get('deception_options', {}))
+        grid = QGridLayout()
+        saved = dict(DEFAULTS, **self.store.get('deception_options', {}))
         self.deception_boxes = {}
         for index, (key, text, admin) in enumerate(OPTIONS):
             box = QCheckBox(text + (' *' if admin else ''))

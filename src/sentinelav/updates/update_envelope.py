@@ -69,7 +69,8 @@ def validate_changes(changes):
     """
     if not isinstance(changes, dict) or set(changes) != {'upserts', 'removals'}:
         raise ValueError('Expected upserts and removals')
-    upserts, removals = changes['upserts'], changes['removals']
+    upserts = changes['upserts']
+    removals = changes['removals']
     if (
         not isinstance(upserts, list)
         or not isinstance(removals, list)

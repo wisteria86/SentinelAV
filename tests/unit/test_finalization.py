@@ -91,7 +91,8 @@ class FinalizationTests(unittest.TestCase):
     def test_history_cache_invalidates_for_worker_writes(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'cache.db'
-            first, second = Store(path), Store(path)
+            first = Store(path)
+            second = Store(path)
             self.assertEqual(first.history(), [])
             second.save_scan(dict(scanned=1))
             self.assertEqual(first.history(), [dict(scanned=1)])

@@ -100,7 +100,8 @@ def tool_members(data, suffix, limit=TOOL_LIMIT, passwords=('', *SHARING_PASSWOR
                 process.wait(10)
             if len(output) != total:
                 continue  # Wrong password for encrypted members, or sizes that do not match
-            result, offset = [], 0
+            result = []
+            offset = 0
             for name, size, encrypted in entries:
                 result.append(
                     Member(

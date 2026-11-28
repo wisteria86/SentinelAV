@@ -72,7 +72,10 @@ def inspect_memory(pid, creation, analyze, max_bytes=32 * 1024 * 1024, max_regio
     handle = kernel.OpenProcess(0x0400 | 0x0010, False, pid)
     if not handle:
         raise ctypes.WinError(ctypes.get_last_error())
-    total = regions = queries = private_executable = 0
+    total = 0
+    regions = 0
+    queries = 0
+    private_executable = 0
     matches = []
     omissions = []
     started = time.monotonic()

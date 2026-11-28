@@ -56,7 +56,8 @@ class DecoyTests(unittest.TestCase):
 
     def test_read_change_and_delete_are_reported_once_each(self):
         entries = [e for e in honeypots.deploy(self.home) if e['kind'] != 'ransomware_trap']
-        events, behavior = [], FakeBehavior()
+        events = []
+        behavior = FakeBehavior()
         holder = [dict(pid=4242, name='stealer.exe', exe='C:/x/stealer.exe', create_time=1.0)]
         watcher = honeypots.HoneypotWatcher(
             entries, events.append, behavior, find_holders=lambda path: holder

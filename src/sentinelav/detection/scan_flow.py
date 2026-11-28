@@ -202,13 +202,12 @@ class ScanFlowMixin:
                 break
         result['errors_omitted'] = result['errors'].dropped
         result['errors'] = list(result['errors'])
-        result['status'] = (
-            'Cancelled'
-            if cancelled()
-            else (
-                'Complete with omissions' if result['errors'] or result['skipped'] else 'Complete'
-            )
-        )
+        if cancelled():
+            result['status'] = 'Cancelled'
+        elif result['errors'] or result['skipped']:
+            result['status'] = 'Complete with omissions'
+        else:
+            result['status'] = 'Complete'
         result['elapsed'] = round(time.monotonic() - start, 2)
         if capture_identity:
             from sentinelav.detection.decisions import Evidence, decide
@@ -221,15 +220,14 @@ class ScanFlowMixin:
                 ):
                     continue
                 for reason in finding['reasons']:
-                    source = (
-                        'hash'
-                        if 'SHA-256: ' in reason
-                        else (
-                            'yara'
-                            if 'YARA: ' in reason
-                            else 'amsi' if 'AMSI: ' in reason else 'eicar'
-                        )
-                    )
+                    if 'SHA-256: ' in reason:
+                        source = 'hash'
+                    elif 'YARA: ' in reason:
+                        source = 'yara'
+                    elif 'AMSI: ' in reason:
+                        source = 'amsi'
+                    else:
+                        source = 'eicar'
                     facts.append(Evidence(source, 'signature_match', reason, confirmed=True))
             facts.extend(
                 Evidence('static', s['code'], s['explanation'])
@@ -386,7 +384,9 @@ class ScanFlowMixin:
                 result['errors'].append(
                     f'{path}: Advanced analysis omissions: ' + '; '.join(coverage)[:1200]
                 )
-        nested, encrypted, bomb = [], [], False
+        nested = []
+        encrypted = []
+        bomb = False
         if self.options['archives']:
             nested, omissions, archive_stats = inspect_archive(
                 bytes(data), self.assess_member, cancelled
@@ -403,7 +403,8 @@ class ScanFlowMixin:
                 for error in omissions
                 if not any(limit in error for limit in STANDING_LIMITS)
             )
-            encrypted, bomb = archive_stats['encrypted_executables'], archive_stats['bomb']
+            encrypted = archive_stats['encrypted_executables']
+            bomb = archive_stats['bomb']
         extra = []
         if encrypted:
             extra.append(
@@ -455,7 +456,8 @@ class ScanFlowMixin:
             if derived_authority is not None:
                 row['automatic_response_eligible'] = derived_authority
             self.add_finding(result, 'detections', row)
-        top, arms = assessed, dict(assessed.get('arms') or {})
+        top = assessed
+        arms = dict(assessed.get('arms') or {})
         for finding in nested:
             member = finding.pop('assessment') or {}
             label = '!/'.join(finding['member_chain'])

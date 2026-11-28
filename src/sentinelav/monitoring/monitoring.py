@@ -43,7 +43,9 @@ class Monitor(MonitorLoopMixin):
         agent_protocol.configuration(), emit receives events, and status receives periodic status
         summaries.
         """
-        self.config, self.emit, self.status = config, emit, status
+        self.config = config
+        self.emit = emit
+        self.status = status
         self.stop = threading.Event()
         self.pending = PendingFiles()
         self.retries = OrderedDict()
@@ -54,7 +56,8 @@ class Monitor(MonitorLoopMixin):
         self.process_count = 0
         self.process_infos = {}
         self.behavior = None
-        self.honeypots = self.network_honeypot = None
+        self.honeypots = None
+        self.network_honeypot = None
         self.activity = queue.Queue(maxsize=2048)
         self.network_count = 0
         self.process_graph = ProcessGraph()
@@ -199,7 +202,8 @@ class Monitor(MonitorLoopMixin):
                 self.process_graph.observe(ancestor)
                 ancestors.append(ancestor)
                 visited.add(parent)
-                parent, child_time = ancestor.get('ppid'), ancestor['create_time']
+                parent = ancestor.get('ppid')
+                child_time = ancestor['create_time']
             if self.behavior:
                 self.behavior.process(
                     info, ancestors[0]['name'] if ancestors else '', ancestors=ancestors

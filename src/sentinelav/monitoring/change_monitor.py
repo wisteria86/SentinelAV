@@ -29,7 +29,8 @@ class ChangeTracker:
         """Use `journal` to store snapshots and changes, and `inventory` to list the current autostart
         entries.
         """
-        self.journal, self.inventory = journal, inventory
+        self.journal = journal
+        self.inventory = inventory
 
     def poll(self, observations=(), inventory_result=None):
         """Take a fresh inventory, record new, changed and removed entries, and return the changes.
@@ -77,7 +78,8 @@ class ChangeTracker:
             self.journal.commit_observation(target, state, record)
             changes.append(record)
         for prior in self.journal.snapshots():
-            target, state = prior['resource'], prior['state']
+            target = prior['resource']
+            state = prior['state']
             if target['kind'] == 'setting_file' and target.get('path') not in list(
                 map(str, self.inventory.settings)
             ):
@@ -106,7 +108,10 @@ class ChangeMonitor:
         """Prepare the monitor (the thread is not started yet). emit receives a summary event after
         each round.
         """
-        self.folder, self.settings, self.emit, self.interval = folder, settings, emit, interval
+        self.folder = folder
+        self.settings = settings
+        self.emit = emit
+        self.interval = interval
         self.service_owner = service_owner
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self.run, name='app-change-tracker')

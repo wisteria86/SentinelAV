@@ -52,13 +52,15 @@ def run(target, data_dir):
 
     named = target.casefold()
     if named in ('quick', 'full'):
-        roots, kind = targets(named.capitalize()), named.capitalize() + ' Scan'
+        roots = targets(named.capitalize())
+        kind = named.capitalize() + ' Scan'
     else:
         path = Path(target)
         if not path.is_absolute() or not path.exists():
             print('Scan target must be quick, full, or an existing absolute path', file=sys.stderr)
             return 2
-        roots, kind = [path], 'Custom Folder'
+        roots = [path]
+        kind = 'Custom Folder'
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     store = Store(Path(data_dir) / 'sentinelav.db')
     from sentinelav.detection.clamav_engine import ensure_service

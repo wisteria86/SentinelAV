@@ -48,7 +48,8 @@ def fetch(key):
             urllib.request.Request(url, headers={'User-Agent': 'SentinelAV-HashImport/1.0'}),
             timeout=15,
         ) as response:
-            chunks, size = [], 0
+            chunks = []
+            size = 0
             while True:
                 if time.monotonic() - started > 60:
                     raise ValueError('Download exceeded its time limit')
@@ -73,7 +74,8 @@ def parse_export(raw):
         raise ValueError('Export exceeded size limit')
     text = raw.decode('utf-8-sig')
     header = None
-    signatures, records = {}, {}
+    signatures = {}
+    records = {}
     rows = 0
     for line in io.StringIO(text):
         if not line.strip():

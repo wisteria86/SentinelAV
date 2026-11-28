@@ -84,7 +84,8 @@ class BehaviorEngine:
         """Set up empty state. emit receives alert events, canaries are the bait files to watch,
         networks are IP ranges the user flagged as bad, and clock can be replaced in tests.
         """
-        self.emit, self.clock = emit, clock
+        self.emit = emit
+        self.clock = clock
         self.canaries = list(canaries)
         self.networks = [
             ipaddress.ip_network(n.strip(), strict=False) for n in networks if n.strip()
@@ -168,7 +169,12 @@ class BehaviorEngine:
         while len(self.entities) > 2048:
             self.entities.popitem(last=False)
         score = min(100, sum(v[1] for v in facts.values()))
-        level = 'Alert' if score >= 70 and len(facts) >= 2 else 'Warning' if score >= 30 else None
+        if score >= 70 and len(facts) >= 2:
+            level = 'Alert'
+        elif score >= 30:
+            level = 'Warning'
+        else:
+            level = None
         if level is None:
             return
         key = (entity, level)

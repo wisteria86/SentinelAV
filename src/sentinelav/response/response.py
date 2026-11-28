@@ -56,7 +56,8 @@ class ResponseService:
         """Use `store` for records and audit events, and `root` (the resources folder) to build fresh
         scanners.
         """
-        self.store, self.root = store, Path(root)
+        self.store = store
+        self.root = Path(root)
         self.vault = store.path.parent / 'quarantine'
 
     def audit(self, kind, details, level='Info', **extra):

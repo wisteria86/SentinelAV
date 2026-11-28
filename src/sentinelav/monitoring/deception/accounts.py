@@ -109,12 +109,11 @@ class LogonWatcher:
 
     def __init__(self, emit, names, query=None):
         """Watch for logon events that name any of `names`. query can be replaced in tests."""
-        self.emit, self.names, self.query = (
-            emit,
-            {name.casefold() for name in names},
-            query or self._query,
-        )
-        self.last, self.available = None, True
+        self.emit = emit
+        self.names = {name.casefold() for name in names}
+        self.query = query or self._query
+        self.last = None
+        self.available = True
 
     def _query(self, after):
         """Read logon events from the Security log: only the newest one on the first call, then up to
@@ -163,7 +162,8 @@ class LogonWatcher:
                 )
             )
             return []
-        first_read, found = self.last is None, []
+        first_read = self.last is None
+        found = []
         for xml in rows:
             record = re.search(r'<EventRecordID>(\d+)</EventRecordID>', xml)
             if record:

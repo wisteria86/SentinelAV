@@ -136,7 +136,8 @@ def configure_work_temporary(work):
 
     temporary = Workspace(work).area('cache') / 'qualification-temp'
     unlinked(temporary).mkdir(exist_ok=True)
-    os.environ['TEMP'] = os.environ['TMP'] = str(temporary)
+    os.environ['TEMP'] = str(temporary)
+    os.environ['TMP'] = str(temporary)
     os.environ['PYINSTALLER_CONFIG_DIR'] = str(unlinked(work / 'cache/PyInstaller'))
     tempfile.tempdir = str(temporary)
     return temporary

@@ -178,7 +178,8 @@ def build(name, full_zip, start, end, count, seed, delay=1.0, progress=print):
     done = {entry['sha256'] for entry in manifest['entries']} | {
         entry['sha256'] for entry in manifest['skipped']
     }
-    key, secret = corpus_key(root), auth_key()
+    key = corpus_key(root)
+    secret = auth_key()
     for index, row in enumerate(chosen, 1):
         sha = row['sha256_hash']
         if sha in done:
@@ -243,7 +244,8 @@ def cases(name, definitions=None):
         if windows_target(item.get('file_type'))
         and str(item.get('file_type')).lower() not in skipped
     ]
-    batches, current = [], []
+    batches = []
+    current = []
     for entry in entries:
         if current and (
             len(current) >= BATCH_SIZE
@@ -289,7 +291,8 @@ def stage(parameters, output):
     """Re-seal a batch with a fresh transfer key for one guest; the plaintext ZIP exists only in memory here."""
     name = parameters['corpus']
     root = corpus_root(name, create=False)
-    key, transfer = corpus_key(root), os.urandom(32)
+    key = corpus_key(root)
+    transfer = os.urandom(32)
     staged = []
     for entry in parameters['entries']:
         item = dict(entry)

@@ -61,7 +61,8 @@ class ProcessGraph:
                 break
             result.append(dict(item))
             seen.add(parent)
-            parent, child_time = item.get('ppid'), item['create_time']
+            parent = item.get('ppid')
+            child_time = item['create_time']
         return result
 
 

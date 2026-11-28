@@ -35,7 +35,8 @@ ANALYSIS = (
     ('ollydbg.exe', []),
     ('Wireshark.exe', ['%ProgramFiles%/Wireshark/Wireshark.exe']),
 )
-CREATE_NO_WINDOW, LOGON_NETCREDENTIALS_ONLY = 0x08000000, 2
+CREATE_NO_WINDOW = 0x08000000
+LOGON_NETCREDENTIALS_ONLY = 2
 RUNTIME_FILES = (
     'python3.dll',
     f'python{sys.version_info[0]}{sys.version_info[1]}.dll',
@@ -99,7 +100,8 @@ class DecoyProcesses:
         """Plan which decoys to run (skipping names whose real program is installed). credentials, if
         given, are planted in memory by one extra decoy.
         """
-        self.emit, self.folder = emit, Path(folder)
+        self.emit = emit
+        self.folder = Path(folder)
         self.plan = (
             [(name, 'bait') for name, markers in BAIT if not _present(markers)] if bait else []
         ) + (
@@ -107,7 +109,9 @@ class DecoyProcesses:
             if analysis
             else []
         )
-        self.credentials, self.children, self.offset = credentials, [], 0
+        self.credentials = credentials
+        self.children = []
+        self.offset = 0
         self.status = self.folder / 'decoy-status.jsonl'
 
     def start(self):

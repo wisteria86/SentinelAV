@@ -317,7 +317,12 @@ def _capabilities(names):
     """Report each dangerous capability whose complete set of required functions is imported (see
     CAPABILITIES).
     """
-    density = 1 if len(names) < 150 else 0.5 if len(names) < 400 else 0.25
+    if len(names) < 150:
+        density = 1
+    elif len(names) < 400:
+        density = 0.5
+    else:
+        density = 0.25
     return [
         indicator(
             code,

@@ -92,8 +92,10 @@ class SimulationRunner:
         """root is the resources folder, workspace the folder for temporary runs, emit receives
         activity events, and stop cancels the run.
         """
-        self.root, self.workspace = Path(root), Path(workspace).absolute()
-        self.emit, self.stop = emit, stop or threading.Event()
+        self.root = Path(root)
+        self.workspace = Path(workspace).absolute()
+        self.emit = emit
+        self.stop = stop or threading.Event()
 
     def check(self):
         """Raise if the run was cancelled or has gone over its 15-second limit."""

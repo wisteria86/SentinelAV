@@ -134,7 +134,8 @@ def performance(root, context):
         for _ in range(30):
             for child in p.children(recursive=True):
                 watched.setdefault(child.pid, child)
-            total_cpu = total_rss = 0
+            total_cpu = 0
+            total_rss = 0
             for pid, child in list(watched.items()):
                 try:
                     total_cpu += child.cpu_percent()

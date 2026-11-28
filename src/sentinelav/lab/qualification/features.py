@@ -43,7 +43,10 @@ def regression(work, cancelled, progress, resource_root=None):
     )
     extractor = extractor_class()()
     seen = set()
-    tp = fp = mal = ben = 0
+    tp = 0
+    fp = 0
+    mal = 0
+    ben = 0
     misses = []
     false = []
     batches = {}

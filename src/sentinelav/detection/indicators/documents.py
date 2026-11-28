@@ -384,7 +384,8 @@ def _rtf_objects(lowered, already):
     decoded = b''
     for _, match in zip(range(16), re.finditer(rb'\\objdata', lowered)):
         # Keep only text at the top level of the \objdata group; nested groups and control words are padding.
-        depth, parts = 1, []
+        depth = 1
+        parts = []
         for token in TOKEN.finditer(lowered, match.end(), match.end() + 8 * 1024 * 1024):
             value = token.group()
             if value == b'{':

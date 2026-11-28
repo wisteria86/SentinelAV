@@ -41,7 +41,8 @@ class PendingFiles:
 
     def __init__(self, capacity=1024, delay=0.7):
         """Create an empty queue holding at most `capacity` files."""
-        self.capacity, self.delay = capacity, delay
+        self.capacity = capacity
+        self.delay = delay
         self.items = OrderedDict()
         self.lock = threading.Lock()
         self.dropped = 0

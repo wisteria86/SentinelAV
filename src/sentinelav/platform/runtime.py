@@ -276,11 +276,12 @@ def run_scheduled(data_dir):
         store.save_scan(result)
         schedule['next_run'] = next_daily(schedule['hour'], schedule['minute']).isoformat()
         store.set('schedule', schedule)
-        level = (
-            'Alert'
-            if result['detections']
-            else 'Warning' if result['status'] != 'Complete' or result.get('warnings') else 'Info'
-        )
+        if result['detections']:
+            level = 'Alert'
+        elif result['status'] != 'Complete' or result.get('warnings'):
+            level = 'Warning'
+        else:
+            level = 'Info'
         store.save_event(
             dict(
                 time=datetime.now(ZONE).strftime('%Y-%m-%d %H:%M:%S'),

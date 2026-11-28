@@ -107,7 +107,10 @@ class SequenceDetector:
 
     def __init__(self, emit, clock=time.monotonic, window=120, capacity=2048, policy=None):
         """Load and validate the sequence policy (from the default file unless one is given)."""
-        self.emit, self.clock, self.window, self.capacity = emit, clock, window, capacity
+        self.emit = emit
+        self.clock = clock
+        self.window = window
+        self.capacity = capacity
         self.entities = OrderedDict()
         self.last_record = 0
         if policy is None:
@@ -212,7 +215,8 @@ class BehaviorCorrelator:
 
     def __init__(self, emit, clock=time.monotonic):
         """Load every additional sequence policy and prepare the detectors."""
-        self.emit, self.clock = emit, clock
+        self.emit = emit
+        self.clock = clock
         path = RESOURCE_ROOT / 'behavior/additional-sequences.json'
         if path.is_symlink() or path.stat().st_size > 32768:
             raise ValueError('Invalid behavior policies')

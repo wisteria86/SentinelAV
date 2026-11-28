@@ -94,7 +94,8 @@ class WindowsJob:
         # and limit the number of active processes.
         info.basic.flags = 0x2000 | 0x100 | 0x200 | 0x8
         info.basic.processes = process_limit  # Default: venv redirector plus interpreter.
-        info.process_memory = info.job_memory = memory
+        info.process_memory = memory
+        info.job_memory = memory
         if not self.kernel.SetInformationJobObject(
             handle, 9, ctypes.byref(info), ctypes.sizeof(info)
         ) or not self.kernel.AssignProcessToJobObject(

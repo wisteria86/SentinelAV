@@ -22,10 +22,8 @@ from sentinelav.monitoring.deception.common import connection_owner, describe, e
 
 SINK = '127.0.0.3'
 SOURCE = 'https://urlhaus.abuse.ch/downloads/hostfile/'
-BEGIN, END = (
-    '# >>> SentinelAV sinkhole (malware domains; managed automatically)',
-    '# <<< SentinelAV sinkhole',
-)
+BEGIN = '# >>> SentinelAV sinkhole (malware domains; managed automatically)'
+END = '# <<< SentinelAV sinkhole'
 DOMAIN = re.compile(r'^(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$')
 LIMIT = 50000
 
@@ -117,9 +115,8 @@ def requested_name(first):
         end = offset + 2 + int.from_bytes(first[offset : offset + 2], 'big')
         offset += 2
         while offset + 4 <= min(end, len(first)):
-            kind, length = int.from_bytes(first[offset : offset + 2], 'big'), int.from_bytes(
-                first[offset + 2 : offset + 4], 'big'
-            )
+            kind = int.from_bytes(first[offset : offset + 2], 'big')
+            length = int.from_bytes(first[offset + 2 : offset + 4], 'big')
             if kind == 0:  # server_name: list length, name type, name length, name
                 size = int.from_bytes(first[offset + 7 : offset + 9], 'big')
                 return first[offset + 9 : offset + 9 + size].decode('ascii', 'replace')
@@ -134,14 +131,14 @@ class SinkholeListener:
 
     def __init__(self, emit, behavior=None, ports=(80, 443), host=SINK, owner=connection_owner):
         """Prepare listeners for the given ports on the sinkhole address; start() opens them."""
-        self.emit, self.behavior, self.ports, self.host, self.owner = (
-            emit,
-            behavior,
-            ports,
-            host,
-            owner,
-        )
-        self.sockets, self.skipped, self.stop_event = [], [], threading.Event()
+        self.emit = emit
+        self.behavior = behavior
+        self.ports = ports
+        self.host = host
+        self.owner = owner
+        self.sockets = []
+        self.skipped = []
+        self.stop_event = threading.Event()
 
     def start(self):
         """Open a listener on each port that is free and return the ports actually opened."""

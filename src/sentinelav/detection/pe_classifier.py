@@ -99,11 +99,12 @@ def predict(model, data):
 
     image = pefile.PE(data=bytes(data), fast_load=True)
     directories = image.OPTIONAL_HEADER.DATA_DIRECTORY
-    kind = (
-        'Dot_Net'
-        if len(directories) > 14 and directories[14].VirtualAddress
-        else 'Win64' if image.OPTIONAL_HEADER.Magic == 0x20B else 'Win32'
-    )
+    if len(directories) > 14 and directories[14].VirtualAddress:
+        kind = 'Dot_Net'
+    elif image.OPTIONAL_HEADER.Magic == 0x20B:
+        kind = 'Win64'
+    else:
+        kind = 'Win32'
     if kind not in model['formats']:
         raise ValueError('No trained model coverage for ' + kind)
     import lightgbm
@@ -120,7 +121,8 @@ def predict(model, data):
     calibration = model.get('calibration', {})
     calibrated = False
     if calibration.get('method') == 'platt':
-        a, b = calibration.get('a'), calibration.get('b')
+        a = calibration.get('a')
+        b = calibration.get('b')
         if any(type(v) not in (int, float) or not math.isfinite(v) for v in (a, b)):
             raise ValueError('Invalid calibration')
         z = max(-700, min(700, a * math.log(max(1e-12, score) / max(1e-12, 1 - score)) + b))

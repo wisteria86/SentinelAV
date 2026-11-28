@@ -50,12 +50,17 @@ class EngineHost(QObject):
         timer.
         """
         super().__init__()
-        self.data, self.root = Path(data), Path(root)
+        self.data = Path(data)
+        self.root = Path(root)
         self.store = Store(self.data / 'sentinelav.db')
         self.factory = monitor_factory
-        self.monitor = self.thread = None
-        self.state, self.error, self.stats = 'Off', '', {}
-        self.epoch, self.sequence = uuid.uuid4().hex, 0
+        self.monitor = None
+        self.thread = None
+        self.state = 'Off'
+        self.error = ''
+        self.stats = {}
+        self.epoch = uuid.uuid4().hex
+        self.sequence = 0
         self.events = deque(
             maxlen=2000 if self.store.get('evaluation_attestation', False) is True else 200
         )
@@ -95,7 +100,8 @@ class EngineHost(QObject):
         self.monitor = self.factory(
             config, lambda e: self.publish('event', e), lambda s: self.publish('status', s)
         )
-        self.state, self.error = 'Starting', ''
+        self.state = 'Starting'
+        self.error = ''
 
         def run():
             """Thread body: run the monitor and report any crash back to the engine."""
@@ -137,7 +143,8 @@ class EngineHost(QObject):
                 self.sequence += 1
                 self.events.append((self.sequence, value))
         if self.thread and not self.thread.is_alive() and self.inbox.empty():
-            self.thread = self.monitor = None
+            self.thread = None
+            self.monitor = None
             self.state = 'Failed' if self.error else 'Off'
         if self.quitting and self.thread is None:
             self.server.close()

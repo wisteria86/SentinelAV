@@ -227,7 +227,8 @@ def deploy(stores=STORES):
     """Place every store whose app folder is absent. Returns (entries, record) for the watcher and later cleanup."""
     _, local, roaming = profile_dirs()
     bases = dict(local=local, roaming=roaming)
-    entries, record = [], []
+    entries = []
+    record = []
     for name, base, folder, files, markers in stores:
         root = bases[base] / folder
         if root.exists() or installed(markers):
@@ -250,7 +251,8 @@ def deploy(stores=STORES):
 
 def retire_installed(record):
     """Remove stores whose app has since been installed. Returns (still placed, names retired)."""
-    kept, retired = [], []
+    kept = []
+    retired = []
     for store in record:
         if installed(store['markers']):
             remove_decoys(store['entries'], store['created'])

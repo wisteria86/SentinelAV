@@ -76,7 +76,8 @@ def detection_metrics(rows):
     malware = [r for r in rows if r['label'] == 'malware']
     benign = [r for r in rows if r['label'] == 'benign']
     measured = lambda rs: [r for r in rs if r.get('available') and r.get('coverage_complete')]
-    m, b = measured(malware), measured(benign)
+    m = measured(malware)
+    b = measured(benign)
     tp = sum(r.get('available') and r.get('confirmed') is True for r in malware)
     fp = sum(r.get('available') and r.get('confirmed') is True for r in benign)
     fn = sum(not r.get('confirmed') for r in m)

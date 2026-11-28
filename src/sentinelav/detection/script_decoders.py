@@ -134,7 +134,8 @@ def _number(token):
 
 def powershell_normalize(text):
     """PowerShell text with literal format, char-code and backtick obfuscation undone; None when nothing changed."""
-    original = text = text[:TEXT_LIMIT]
+    original = text[:TEXT_LIMIT]
+    text = original
     # Backticks inside a word, or before a letter that is not an escape such as `n `t `r `a `b `f `v, only break up keywords.
     text = re.sub(r'(?<=[a-z])`(?=[a-z])|`(?=[cdeg-mopqsuw-z])', '', text, flags=re.I)
     # Repeat a few times, because undoing one layer of obfuscation often reveals another.

@@ -51,11 +51,9 @@ class WindowsClipboard:
         import ctypes
         from ctypes import wintypes
 
-        self.ctypes, self.user32, self.kernel32 = (
-            ctypes,
-            ctypes.windll.user32,
-            ctypes.windll.kernel32,
-        )
+        self.ctypes = ctypes
+        self.user32 = ctypes.windll.user32
+        self.kernel32 = ctypes.windll.kernel32
         self.user32.GetClipboardData.restype = wintypes.HANDLE
         self.kernel32.GlobalLock.restype = ctypes.c_void_p
         self.kernel32.GlobalLock.argtypes = [wintypes.HANDLE]
@@ -152,16 +150,16 @@ class ClipboardGuard:
         how long the user must be away before bait is placed, and clipboard and clock can be
         replaced in tests.
         """
-        self.emit, self.behavior, self.bait, self.window, self.idle_for, self.clock = (
-            emit,
-            behavior,
-            bait,
-            window,
-            idle_for,
-            clock,
-        )
+        self.emit = emit
+        self.behavior = behavior
+        self.bait = bait
+        self.window = window
+        self.idle_for = idle_for
+        self.clock = clock
         self.clipboard = clipboard or (WindowsClipboard() if os.name == 'nt' else None)
-        self.seen, self.last = None, None  # last: (address, kind, time, last input tick, was bait)
+        # last: (address, kind, time, last input tick, was bait)
+        self.seen = None
+        self.last = None
         self.baited = None
         import threading
 
@@ -247,11 +245,9 @@ class ClipboardGuard:
             return win32gui.DefWindowProc(window, message, wparam, lparam)
 
         klass = win32gui.WNDCLASS()
-        klass.lpfnWndProc, klass.lpszClassName, klass.hInstance = (
-            handle,
-            f'SentinelAVClipboardGuard{id(self)}',
-            win32api.GetModuleHandle(None),
-        )
+        klass.lpfnWndProc = handle
+        klass.lpszClassName = f'SentinelAVClipboardGuard{id(self)}'
+        klass.hInstance = win32api.GetModuleHandle(None)
         try:
             win32gui.RegisterClass(klass)
         except win32gui.error:

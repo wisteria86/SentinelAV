@@ -41,13 +41,11 @@ class AppChangeWorker(QThread):
         which history to use.
         """
         super().__init__()
-        self.folder, self.settings, self.options, self.action, self.value = (
-            folder,
-            settings,
-            options,
-            action,
-            value,
-        )
+        self.folder = folder
+        self.settings = settings
+        self.options = options
+        self.action = action
+        self.value = value
         self.source = source
 
     def run(self):

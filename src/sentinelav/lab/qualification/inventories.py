@@ -92,7 +92,10 @@ def feature_qualification(work, fmt, cancelled, progress, resource_root=None):
     )
     extractor = extractor_class()()
     seen = set()
-    mal = ben = tp = fp = 0
+    mal = 0
+    ben = 0
+    tp = 0
+    fp = 0
     misses = []
     false = []
     week = {}

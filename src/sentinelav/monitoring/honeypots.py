@@ -40,7 +40,8 @@ TRAP_FILES = (
     '008 letter.docx',
     '009 backup.zip',
 )
-HIDDEN, NOT_INDEXED = 0x2, 0x2000
+HIDDEN = 0x2
+NOT_INDEXED = 0x2000
 DEFAULT_PORTS = (23, 2323, 5900)
 WORDS = (
     'river',
@@ -150,7 +151,8 @@ def holders(path, budget=2.0):
     import psutil
 
     target = os.path.normcase(str(path))
-    found, deadline = [], time.monotonic() + budget
+    found = []
+    deadline = time.monotonic() + budget
     for process in psutil.process_iter(['pid', 'name', 'exe', 'create_time']):
         if time.monotonic() > deadline:
             break
@@ -177,12 +179,10 @@ class HoneypotWatcher:
         indicators, and find_holders and clock can be replaced in tests.
         """
         self.entries = [dict(entry) for entry in entries]
-        self.emit, self.behavior, self.find_holders, self.clock = (
-            emit,
-            behavior,
-            find_holders,
-            clock,
-        )
+        self.emit = emit
+        self.behavior = behavior
+        self.find_holders = find_holders
+        self.clock = clock
         self.reported = {}
 
     def paths(self):
@@ -206,11 +206,11 @@ class HoneypotWatcher:
             except OSError:
                 return 'locked after a change'
             # Reading it here updated the access time; re-baseline so this check is not reported as a read.
-            entry['mtime_ns'], entry['size'], entry['atime_ns'] = (
-                info.st_mtime_ns,
-                info.st_size,
-                path.stat().st_atime_ns,
-            )
+            # Read the new access time first: if stat() fails, the entry must stay untouched.
+            accessed = path.stat().st_atime_ns
+            entry['mtime_ns'] = info.st_mtime_ns
+            entry['size'] = info.st_size
+            entry['atime_ns'] = accessed
             if changed:
                 entry['sha256'] = ''
                 return 'modified'
@@ -297,8 +297,14 @@ class NetworkHoneypot:
 
     def __init__(self, emit, ports=DEFAULT_PORTS, host='0.0.0.0', limit=256):
         """Prepare listeners for the given ports (they are opened by start())."""
-        self.emit, self.ports, self.host, self.limit = emit, tuple(ports), host, limit
-        self.sockets, self.skipped, self.stop_event, self.records = [], [], threading.Event(), []
+        self.emit = emit
+        self.ports = tuple(ports)
+        self.host = host
+        self.limit = limit
+        self.sockets = []
+        self.skipped = []
+        self.stop_event = threading.Event()
+        self.records = []
 
     def start(self):
         """Open a listener on each port that is free (ports already in use are skipped) and return the

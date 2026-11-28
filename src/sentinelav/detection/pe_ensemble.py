@@ -132,11 +132,12 @@ def predict(model, data, confirm=None):
     image = pefile.PE(data=bytes(data), fast_load=True)
     try:
         directories = image.OPTIONAL_HEADER.DATA_DIRECTORY
-        kind = (
-            'Dot_Net'
-            if len(directories) > 14 and directories[14].VirtualAddress
-            else 'Win64' if image.OPTIONAL_HEADER.Magic == 0x20B else 'Win32'
-        )
+        if len(directories) > 14 and directories[14].VirtualAddress:
+            kind = 'Dot_Net'
+        elif image.OPTIONAL_HEADER.Magic == 0x20B:
+            kind = 'Win64'
+        else:
+            kind = 'Win32'
     finally:
         image.close()
     vector = features(data)

@@ -142,7 +142,8 @@ class ZooStaticTests(unittest.TestCase):
                 store.close()
 
     def test_sealed_staging_hides_content_and_detects_tampering(self):
-        key, blob = os.urandom(32), 'a' * 40
+        key = os.urandom(32)
+        blob = 'a' * 40
         data = b'PK\x03\x04 recognizable archive bytes'
         sealed = zoo_inventory.seal(data, key, blob)
         self.assertNotIn(b'recognizable', sealed)

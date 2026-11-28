@@ -68,7 +68,8 @@ class PipeAPI:
                 ('inherit', wintypes.BOOL),
             ]
 
-        self.Overlapped, self.Security = Overlapped, Security
+        self.Overlapped = Overlapped
+        self.Security = Security
         declarations = {
             'CreateNamedPipeW': (
                 [
@@ -266,7 +267,8 @@ class AmsiBroker:
         self.stop = threading.Event()
         self.ready = threading.Event()
         self.error = None
-        self.resources, self.pipe_name = Path(resources), pipe_name
+        self.resources = Path(resources)
+        self.pipe_name = pipe_name
         self.completed = 0
         self.omissions = 0
         self.thread = threading.Thread(target=self.run, name='amsi-buffer-broker', daemon=True)

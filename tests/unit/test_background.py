@@ -136,7 +136,8 @@ class EngineLifecycleTests(unittest.TestCase):
             def __init__(self, config, emit, status):
                 type(self).count += 1
                 self.stop = threading.Event()
-                self.emit, self.status = emit, status
+                self.emit = emit
+                self.status = status
 
             def run(self):
                 self.status(dict(folders=0))
