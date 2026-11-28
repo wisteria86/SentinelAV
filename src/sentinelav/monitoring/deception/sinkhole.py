@@ -9,6 +9,7 @@ Windows hosts file between SentinelAV's own marker lines, mapped to 127.0.0.3,
 where a listener records which program tried to reach which domain. Editing the
 hosts file needs administrator rights; removal deletes only SentinelAV's block.
 """
+
 import os
 import re
 import socket
@@ -21,29 +22,38 @@ from sentinelav.monitoring.deception.common import connection_owner, describe, e
 
 SINK = '127.0.0.3'
 SOURCE = 'https://urlhaus.abuse.ch/downloads/hostfile/'
-BEGIN, END = '# >>> SentinelAV sinkhole (malware domains; managed automatically)', '# <<< SentinelAV sinkhole'
+BEGIN = '# >>> SentinelAV sinkhole (malware domains; managed automatically)'
+END = '# <<< SentinelAV sinkhole'
 DOMAIN = re.compile(r'^(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$')
 LIMIT = 50000
 
 
 def hosts_path():
     """Return the path of the Windows hosts file."""
-    return Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'drivers' / 'etc' / 'hosts'
+    return (
+        Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'drivers' / 'etc' / 'hosts'
+    )
 
 
 def fetch(url=SOURCE, timeout=30):
     """Download the public URLhaus host list and return its malware domains."""
-    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'SentinelAV-sinkhole/1'}), timeout=timeout) as response:
+    with urllib.request.urlopen(
+        urllib.request.Request(url, headers={'User-Agent': 'SentinelAV-sinkhole/1'}),
+        timeout=timeout,
+    ) as response:
         return parse(response.read(8 * 1024 * 1024).decode('utf-8', 'replace'))
 
 
 def parse(text):
-    """Extract the valid domain names from hosts-file text (at most LIMIT of them, sorted and unique).
-    """
+    """Extract the valid domain names from hosts-file text (at most LIMIT of them, sorted and unique)."""
     domains = []
     for line in text.splitlines():
         parts = line.split('#', 1)[0].split()
-        if len(parts) >= 2 and DOMAIN.match(parts[1].casefold()) and parts[1].casefold() != 'localhost':
+        if (
+            len(parts) >= 2
+            and DOMAIN.match(parts[1].casefold())
+            and parts[1].casefold() != 'localhost'
+        ):
             domains.append(parts[1].casefold())
     return sorted(set(domains))[:LIMIT]
 
@@ -61,7 +71,9 @@ def apply(domains, path=None):
     current = path.read_text(encoding='utf-8', errors='replace')
     block = '\n'.join([BEGIN] + [f'{SINK} {domain}' for domain in domains] + [END]) + '\n'
     base = without_block(current)
-    path.write_text(base + ('' if base.endswith('\n') or not base else '\n') + block, encoding='utf-8')
+    path.write_text(
+        base + ('' if base.endswith('\n') or not base else '\n') + block, encoding='utf-8'
+    )
     _flush()
     return len(domains)
 
@@ -81,7 +93,9 @@ def remove(path=None):
 def _flush():
     """Clear the Windows DNS cache so hosts-file changes take effect immediately."""
     if os.name == 'nt':
-        subprocess.run(['ipconfig', '/flushdns'], capture_output=True, creationflags=0x08000000, timeout=30)
+        subprocess.run(
+            ['ipconfig', '/flushdns'], capture_output=True, creationflags=0x08000000, timeout=30
+        )
 
 
 def requested_name(first):
@@ -96,15 +110,16 @@ def requested_name(first):
             return ''
         offset = 5 + 4 + 2 + 32  # record header, handshake header, version, random
         offset += 1 + first[offset]  # session id
-        offset += 2 + int.from_bytes(first[offset:offset + 2], 'big')  # cipher suites
+        offset += 2 + int.from_bytes(first[offset : offset + 2], 'big')  # cipher suites
         offset += 1 + first[offset]  # compression methods
-        end = offset + 2 + int.from_bytes(first[offset:offset + 2], 'big')
+        end = offset + 2 + int.from_bytes(first[offset : offset + 2], 'big')
         offset += 2
         while offset + 4 <= min(end, len(first)):
-            kind, length = int.from_bytes(first[offset:offset + 2], 'big'), int.from_bytes(first[offset + 2:offset + 4], 'big')
+            kind = int.from_bytes(first[offset : offset + 2], 'big')
+            length = int.from_bytes(first[offset + 2 : offset + 4], 'big')
             if kind == 0:  # server_name: list length, name type, name length, name
-                size = int.from_bytes(first[offset + 7:offset + 9], 'big')
-                return first[offset + 9:offset + 9 + size].decode('ascii', 'replace')
+                size = int.from_bytes(first[offset + 7 : offset + 9], 'big')
+                return first[offset + 9 : offset + 9 + size].decode('ascii', 'replace')
             offset += 4 + length
     except IndexError:
         pass
@@ -112,12 +127,18 @@ def requested_name(first):
 
 
 class SinkholeListener:
-    """Listens on the sinkhole address and reports which program tried to reach which malware domain.
-    """
+    """Listens on the sinkhole address and reports which program tried to reach which malware domain."""
+
     def __init__(self, emit, behavior=None, ports=(80, 443), host=SINK, owner=connection_owner):
         """Prepare listeners for the given ports on the sinkhole address; start() opens them."""
-        self.emit, self.behavior, self.ports, self.host, self.owner = emit, behavior, ports, host, owner
-        self.sockets, self.skipped, self.stop_event = [], [], threading.Event()
+        self.emit = emit
+        self.behavior = behavior
+        self.ports = ports
+        self.host = host
+        self.owner = owner
+        self.sockets = []
+        self.skipped = []
+        self.stop_event = threading.Event()
 
     def start(self):
         """Open a listener on each port that is free and return the ports actually opened."""
@@ -126,13 +147,15 @@ class SinkholeListener:
             try:
                 server.bind((self.host, port))
                 server.listen(16)
-                server.settimeout(.5)
+                server.settimeout(0.5)
             except OSError:
                 server.close()
                 self.skipped.append(port)
                 continue
             self.sockets.append(server)
-            threading.Thread(target=self._serve, args=(server, port), daemon=True, name=f'sinkhole-{port}').start()
+            threading.Thread(
+                target=self._serve, args=(server, port), daemon=True, name=f'sinkhole-{port}'
+            ).start()
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
@@ -152,8 +175,16 @@ class SinkholeListener:
                 except OSError:
                     first = b''
             domain = requested_name(first) or 'unknown domain'
-            self.emit(event('Malware domain contacted', f'{describe(process)} tried to reach {domain}, a domain listed for '
-                'distributing malware. The connection went to SentinelAV\'s sinkhole instead.', domain=domain, port=port, process=process))
+            self.emit(
+                event(
+                    'Malware domain contacted',
+                    f'{describe(process)} tried to reach {domain}, a domain listed for '
+                    'distributing malware. The connection went to SentinelAV\'s sinkhole instead.',
+                    domain=domain,
+                    port=port,
+                    process=process,
+                )
+            )
             flag(self.behavior, process, f'Tried to reach the malware domain {domain}', 60)
 
     def stop(self):

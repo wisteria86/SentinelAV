@@ -3,6 +3,7 @@
 # Used by: the CLI, desktop launcher, or packaging workflow
 
 """Stable launcher for the desktop shortcut, background engine and scan workers."""
+
 from pathlib import Path
 import sys
 

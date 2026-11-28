@@ -2,6 +2,7 @@
 # Works with: monitoring.honeypots
 
 """Verify decoy deployment, read and change detection, safe removal, and the network honeypot."""
+
 import os
 import socket
 import tempfile
@@ -42,18 +43,28 @@ class DecoyTests(unittest.TestCase):
         paths = {Path(entry['path']).name for entry in entries}
         self.assertNotIn('passwords-backup.txt', paths)
         self.assertEqual(existing.read_text(encoding='utf-8'), 'my real file')
-        self.assertEqual(len([e for e in entries if e['kind'] == 'ransomware_trap']), len(honeypots.TRAP_FILES))
-        self.assertTrue(all(Path(e['path']).read_text(encoding='utf-8').startswith(honeypots.MARKER) for e in entries))
+        self.assertEqual(
+            len([e for e in entries if e['kind'] == 'ransomware_trap']), len(honeypots.TRAP_FILES)
+        )
+        self.assertTrue(
+            all(
+                Path(e['path']).read_text(encoding='utf-8').startswith(honeypots.MARKER)
+                for e in entries
+            )
+        )
         self.assertEqual(honeypots.deploy(self.home), [])
 
     def test_read_change_and_delete_are_reported_once_each(self):
         entries = [e for e in honeypots.deploy(self.home) if e['kind'] != 'ransomware_trap']
-        events, behavior = [], FakeBehavior()
+        events = []
+        behavior = FakeBehavior()
         holder = [dict(pid=4242, name='stealer.exe', exe='C:/x/stealer.exe', create_time=1.0)]
-        watcher = honeypots.HoneypotWatcher(entries, events.append, behavior, find_holders=lambda path: holder)
+        watcher = honeypots.HoneypotWatcher(
+            entries, events.append, behavior, find_holders=lambda path: holder
+        )
         self.assertEqual(watcher.poll(), [])
         target = Path(entries[0]['path'])
-        time.sleep(.05)
+        time.sleep(0.05)
         target.read_bytes()
         # Some volumes update access time lazily; force the observable effect a read has.
         os.utime(target, ns=(target.stat().st_atime_ns + 10_000_000, target.stat().st_mtime_ns))
@@ -98,7 +109,7 @@ class NetworkHoneypotTests(unittest.TestCase):
             client.sendall(b'USER root\r\n')
         deadline = time.monotonic() + 5
         while not events and time.monotonic() < deadline:
-            time.sleep(.05)
+            time.sleep(0.05)
         self.assertEqual(events[0]['kind'], 'Network honeypot contacted')
         self.assertEqual(events[0]['level'], 'Warning')
         self.assertEqual(bytes.fromhex(events[0]['first_bytes']), b'USER root\r\n')
@@ -108,7 +119,9 @@ class NetworkHoneypotTests(unittest.TestCase):
         busy.bind(('127.0.0.1', 0))
         busy.listen()
         self.addCleanup(busy.close)
-        listener = honeypots.NetworkHoneypot(lambda event: None, ports=(busy.getsockname()[1],), host='127.0.0.1')
+        listener = honeypots.NetworkHoneypot(
+            lambda event: None, ports=(busy.getsockname()[1],), host='127.0.0.1'
+        )
         self.assertEqual(listener.start(), [])
         self.assertEqual(listener.skipped, [busy.getsockname()[1]])
 

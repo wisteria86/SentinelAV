@@ -8,6 +8,7 @@ This never transfers samples, free-form sample strings, or guest file paths.
 Run before disposing the registered offline guest. The original report stays
 immutable; diagnostics and computed counts are a separate evidence artifact.
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -16,16 +17,25 @@ import subprocess
 
 from tools.evaluation.run_learned_zoo import invoke
 
-
 OUTCOMES = ('unavailable', 'not_detected', 'detected', 'detected_incomplete')
-TERMINATIONS = ('not_applicable', 'not_started', 'unsupported_api', 'execution_fault',
-                'instruction_limit', 'modeled_run_ended', 'backend_error', 'timeout',
-                'time_limit', 'changed_page_limit')
+TERMINATIONS = (
+    'not_applicable',
+    'not_started',
+    'unsupported_api',
+    'execution_fault',
+    'instruction_limit',
+    'modeled_run_ended',
+    'backend_error',
+    'timeout',
+    'time_limit',
+    'changed_page_limit',
+)
 EMULATION = ('Not run', 'Partial', 'Unavailable', 'Not applicable')
 
 
 def command(row, kind='diagnostics'):
-    name, sha = row['path'], row['sha256']
+    name = row['path']
+    sha = row['sha256']
     if not re.fullmatch(r'[A-Za-z0-9_.-]+', name) or not re.fullmatch('[0-9a-f]{64}', sha):
         raise ValueError('Invalid fixed measurement identity')
     script = r'''
@@ -63,17 +73,24 @@ $v=$v -bor ([int][Math]::Min(3,@($e.diagnostics | Where-Object {$null -ne $_}).C
 exit (1073741824+$v)
 '''.replace('__NAME__', name).replace('__SHA__', sha)
     if kind == 'neural':
-        return script.replace('exit (1073741824+$v)', r'''
+        return script.replace(
+            'exit (1073741824+$v)',
+            r'''
 $n=$x.candidate_neural
 $s=16383
 if($null -ne $n.model_score){$s=[int][Math]::Round(10000*[double]$n.model_score);if($s -lt 0 -or $s -gt 10000){exit 87}}
 $i=@('Complete','Partial','Not applicable','Disabled','Unavailable').IndexOf([string]$n.status)
 if($i -lt 0){$i=7}
 exit (1073741824+$s+($i -shl 14))
-''')
+''',
+        )
     if kind in ('bytes_examined', 'bytes_total'):
-        return script.replace('exit (1073741824+$v)',
-            "$b=$x.candidate_neural." + kind + ";if($null -eq $b -or $b -lt 0 -or $b -gt 8388608){exit 88};exit (1073741824+[int]$b)")
+        return script.replace(
+            'exit (1073741824+$v)',
+            "$b=$x.candidate_neural."
+            + kind
+            + ";if($null -eq $b -or $b -lt 0 -or $b -gt 8388608){exit 88};exit (1073741824+[int]$b)",
+        )
     if kind != 'diagnostics':
         raise ValueError('Unsupported numeric metadata field')
     return script
@@ -84,14 +101,19 @@ def decode(value):
     if not 0 <= value < 2**30:
         raise ValueError('Invalid bounded diagnostic response')
     ti = (value >> 8) & 15
-    return dict(outcome=OUTCOMES[value & 3], row_error=bool(value & 4),
-                scan_present=bool(value & 8), advanced_review=bool(value & 16),
-                scan_errors=bool(value & 32), scan_skipped=bool(value & 64),
-                scan_complete=bool(value & 128),
-                emulation_termination=TERMINATIONS[ti] if ti < len(TERMINATIONS) else 'Unclassified',
-                emulation_status=EMULATION[(value >> 12) & 3],
-                api_attempts=(value >> 14) & 16383,
-                diagnostic_count_capped_at_3=(value >> 28) & 3)
+    return dict(
+        outcome=OUTCOMES[value & 3],
+        row_error=bool(value & 4),
+        scan_present=bool(value & 8),
+        advanced_review=bool(value & 16),
+        scan_errors=bool(value & 32),
+        scan_skipped=bool(value & 64),
+        scan_complete=bool(value & 128),
+        emulation_termination=TERMINATIONS[ti] if ti < len(TERMINATIONS) else 'Unclassified',
+        emulation_status=EMULATION[(value >> 12) & 3],
+        api_attempts=(value >> 14) & 16383,
+        diagnostic_count_capped_at_3=(value >> 28) & 3,
+    )
 
 
 def main():
@@ -99,13 +121,25 @@ def main():
     parser.add_argument('report', type=Path)
     args = parser.parse_args()
     report = json.loads(args.report.read_text())
-    state = json.loads(Path('F:/SentinelAV-Work/lab/windows-sandbox/latest.json').read_text(encoding='utf-8-sig'))
+    state = json.loads(
+        Path('F:/SentinelAV-Work/lab/windows-sandbox/latest.json').read_text(encoding='utf-8-sig')
+    )
     guest = report['guest_id']
-    running = json.loads(subprocess.check_output(['wsb.exe', 'list', '--raw']))['WindowsSandboxEnvironments']
-    if not (state.get('active_guest_verified') and state.get('guest_id') == guest
-            and state.get('kit_id') == report['kit_id'] and len(running) == 1 and running[0]['Id'] == guest):
+    running = json.loads(subprocess.check_output(['wsb.exe', 'list', '--raw']))[
+        'WindowsSandboxEnvironments'
+    ]
+    if not (
+        state.get('active_guest_verified')
+        and state.get('guest_id') == guest
+        and state.get('kit_id') == report['kit_id']
+        and len(running) == 1
+        and running[0]['Id'] == guest
+    ):
         raise ValueError('Matching registered offline guest required')
-    if report.get('signature_free') is not True or report.get('sample_native_execution') is not False:
+    if (
+        report.get('signature_free') is not True
+        or report.get('sample_native_execution') is not False
+    ):
         raise ValueError('Strict static/virtual evaluation required')
     rows = []
     for row in report['rows']:
@@ -119,8 +153,12 @@ def main():
                     raise ValueError('Invalid neural metadata')
                 index = value >> 14
                 statuses = ('Complete', 'Partial', 'Not applicable', 'Disabled', 'Unavailable')
-                result['neural_status'] = statuses[index] if index < len(statuses) else 'Unavailable'
-                result['neural_score'] = None if (value & 16383) == 16383 else (value & 16383) / 10000
+                result['neural_status'] = (
+                    statuses[index] if index < len(statuses) else 'Unavailable'
+                )
+                result['neural_score'] = (
+                    None if (value & 16383) == 16383 else (value & 16383) / 10000
+                )
                 if result['neural_status'] == 'Partial':
                     for field in ('bytes_examined', 'bytes_total'):
                         size = invoke(guest, command(row, field)) - 1073741824
@@ -128,8 +166,14 @@ def main():
                             raise ValueError('Invalid bounded neural byte count')
                         result['neural_' + field] = size
         rows.append(result)
-    eligible_observations = [r for r in rows if not r.get('unavailable') and r.get('signature_free_attested')
-                            and r.get('postcheck_unchanged') and not r['diagnostics']['row_error']]
+    eligible_observations = [
+        r
+        for r in rows
+        if not r.get('unavailable')
+        and r.get('signature_free_attested')
+        and r.get('postcheck_unchanged')
+        and not r['diagnostics']['row_error']
+    ]
     unique = {}
     duplicates = []
     for row in eligible_observations:
@@ -137,29 +181,56 @@ def main():
         if previous is not None:
             if previous['label'] != row['label']:
                 raise ValueError('Conflicting labels for one measured identity')
-            duplicates.append(dict(path=row['path'], duplicate_of=previous['path'], sha256=row['sha256']))
+            duplicates.append(
+                dict(path=row['path'], duplicate_of=previous['path'], sha256=row['sha256'])
+            )
         else:
             unique[row['sha256']] = row
     eligible = list(unique.values())
     counts = {}
     for label in ('malware', 'benign'):
         selected = [r for r in eligible if r['label'] == label]
-        counts[label] = dict(planned=sum(r['label'] == label for r in rows), unique_imported_and_attested=len(selected),
+        counts[label] = dict(
+            planned=sum(r['label'] == label for r in rows),
+            unique_imported_and_attested=len(selected),
             feature_model_complete=sum(r['model_complete'] for r in selected),
             neural_complete=sum(r['neural_complete'] for r in selected),
             neural_partial=sum(r['neural_status'] == 'Partial' for r in selected),
-            both_models_complete=sum(r['model_complete'] and r['neural_complete'] for r in selected),
+            both_models_complete=sum(
+                r['model_complete'] and r['neural_complete'] for r in selected
+            ),
             feature_model_flags=sum(r['model_complete'] and r['model_flag'] for r in selected),
             neural_flags=sum(r['neural_complete'] and r['neural_flag'] for r in selected),
-            either_complete_model_flags=sum((r['model_complete'] and r['model_flag']) or (r['neural_complete'] and r['neural_flag']) for r in selected),
-            neural_partial_review_flags=sum(r['neural_status'] == 'Partial' and r['neural_flag'] for r in selected),
-            either_model_review_flags_including_partial=sum((r['model_complete'] and r['model_flag']) or (r['neural_status'] in ('Complete', 'Partial') and r['neural_flag']) for r in selected),
+            either_complete_model_flags=sum(
+                (r['model_complete'] and r['model_flag'])
+                or (r['neural_complete'] and r['neural_flag'])
+                for r in selected
+            ),
+            neural_partial_review_flags=sum(
+                r['neural_status'] == 'Partial' and r['neural_flag'] for r in selected
+            ),
+            either_model_review_flags_including_partial=sum(
+                (r['model_complete'] and r['model_flag'])
+                or (r['neural_status'] in ('Complete', 'Partial') and r['neural_flag'])
+                for r in selected
+            ),
             pipeline_review_flags=sum(r['diagnostics']['advanced_review'] for r in selected),
             rows_with_scan_errors=sum(r['diagnostics']['scan_errors'] for r in selected),
-            confirmed_detections=sum(r['diagnostics']['outcome'] in ('detected', 'detected_incomplete') for r in selected),
-            full_inspection_coverage=sum(r['coverage_complete'] for r in selected))
-    evidence = dict(schema=1, source_report=str(args.report.absolute()), guest_id=guest, kit_id=report['kit_id'],
-                    counts=counts, rows=rows, duplicates_excluded_from_counts=duplicates, limitations=report['limitations'])
+            confirmed_detections=sum(
+                r['diagnostics']['outcome'] in ('detected', 'detected_incomplete') for r in selected
+            ),
+            full_inspection_coverage=sum(r['coverage_complete'] for r in selected),
+        )
+    evidence = dict(
+        schema=1,
+        source_report=str(args.report.absolute()),
+        guest_id=guest,
+        kit_id=report['kit_id'],
+        counts=counts,
+        rows=rows,
+        duplicates_excluded_from_counts=duplicates,
+        limitations=report['limitations'],
+    )
     path = args.report.with_name('diagnostic-audit.json')
     with path.open('x', encoding='utf-8') as stream:
         json.dump(evidence, stream, indent=2)

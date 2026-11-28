@@ -21,8 +21,36 @@ BATCH_SECONDS = 3000
 DEV_PERCENT = 30
 SEAL_CONTEXT = b'SentinelAV-zoo-batch-v1:'
 # Platform and type words that lead a folder name but do not identify a family.
-FAMILY_PREFIXES = {'all', 'android', 'backdoor', 'bat', 'coll', 'dos', 'dropper', 'exploit', 'js', 'linux', 'msil', 'osx', 'ransomware', 'rootkit',
-                   'spy', 'trojan', 'virus', 'vbs', 'w32', 'w64', 'w97m', 'win32', 'win64', 'winx', 'wm', 'worm', 'x97m', 'xm'}
+FAMILY_PREFIXES = {
+    'all',
+    'android',
+    'backdoor',
+    'bat',
+    'coll',
+    'dos',
+    'dropper',
+    'exploit',
+    'js',
+    'linux',
+    'msil',
+    'osx',
+    'ransomware',
+    'rootkit',
+    'spy',
+    'trojan',
+    'virus',
+    'vbs',
+    'w32',
+    'w64',
+    'w97m',
+    'win32',
+    'win64',
+    'winx',
+    'wm',
+    'worm',
+    'x97m',
+    'xm',
+}
 MAX_ARCHIVE = 64 * 1024**2
 SHA1 = re.compile(r'[a-f0-9]{40}')
 TREE_SHA256 = 'e370aa35ef82a8217840d210dfcf55405ce69fcfbf3ea80ee52ea7894389778c'
@@ -33,14 +61,14 @@ SIDECARS = PASSWORD_SUFFIXES | {'.md5', '.sha256', '.sha', '.sha1', '.shasum', '
 def git(repo, *args):
     """Run a read-only git command against the bare repository and return its output."""
     return subprocess.check_output(
-        ['git', '--no-replace-objects', '--git-dir', str(repo), *args], timeout=60,
+        ['git', '--no-replace-objects', '--git-dir', str(repo), *args],
+        timeout=60,
         env=dict(os.environ, GIT_NO_LAZY_FETCH='1', GIT_TERMINAL_PROMPT='0'),
     )
 
 
 def repository(work):
-    """Return the local bare sample repository after checking it is bare and has the pinned commit.
-    """
+    """Return the local bare sample repository after checking it is bare and has the pinned commit."""
     path = unlinked(work / 'datasets/theZoo.git')
     if not path.is_dir():
         raise FileNotFoundError(f'Place a local bare theZoo repository at {path}')
@@ -58,20 +86,34 @@ def family_of(path):
     depth = 3 if len(parts) > 4 and parts[:2] == ['malware', 'Source'] else 2
     name = parts[depth] if len(parts) > depth + 1 and parts[0] == 'malware' else parts[-1]
     tokens = [token for token in re.split(r'[._\s-]+', name) if token]
-    return next((token.casefold() for token in tokens if token.casefold() not in FAMILY_PREFIXES), name.casefold())
+    return next(
+        (token.casefold() for token in tokens if token.casefold() not in FAMILY_PREFIXES),
+        name.casefold(),
+    )
 
 
 def seen_families():
     """Families examined in earlier work can never be holdout evidence."""
     from sentinelav.lab.static_corpus import HOLDOUT_SPECS, SPECS, ZEUS_VALIDATION_SPECS
-    return {family_of('malware/Binaries/' + spec['family'] + '/x') for spec in (*SPECS, *HOLDOUT_SPECS, *ZEUS_VALIDATION_SPECS)}
+
+    return {
+        family_of('malware/Binaries/' + spec['family'] + '/x')
+        for spec in (*SPECS, *HOLDOUT_SPECS, *ZEUS_VALIDATION_SPECS)
+    }
 
 
 def split_of(family):
     """Deterministic, name-blind split: rules may be tuned on dev only, and holdout is scored once."""
-    if any(len(seen) >= 4 and (family.startswith(seen) or seen.startswith(family)) for seen in seen_families()):
+    if any(
+        len(seen) >= 4 and (family.startswith(seen) or seen.startswith(family))
+        for seen in seen_families()
+    ):
         return 'dev'
-    return 'dev' if int(hashlib.sha256(family.encode()).hexdigest()[:8], 16) % 100 < DEV_PERCENT else 'holdout'
+    return (
+        'dev'
+        if int(hashlib.sha256(family.encode()).hexdigest()[:8], 16) % 100 < DEV_PERCENT
+        else 'holdout'
+    )
 
 
 def tree_entries():
@@ -92,10 +134,15 @@ def cases(split=None):
     passwords = {}
     folders = {}
     for record in tree_entries():
-        mode, kind, blob, size = (record[key] for key in ('mode','type','oid','size'))
+        mode, kind, blob, size = (record[key] for key in ('mode', 'type', 'oid', 'size'))
         path = record['path']
         suffix = Path(path).suffix.lower()
-        if suffix in PASSWORD_SUFFIXES and kind == 'blob' and type(size) is int and 0 < size <= 1024:
+        if (
+            suffix in PASSWORD_SUFFIXES
+            and kind == 'blob'
+            and type(size) is int
+            and 0 < size <= 1024
+        ):
             passwords[path.rsplit('.', 1)[0].casefold()] = blob
             folders.setdefault(path.rsplit('/', 1)[0], []).append(blob)
         if suffix in SIDECARS:
@@ -121,25 +168,52 @@ def cases(split=None):
     current = []
     for entry in entries:
         size = entry['bytes'] if type(entry['bytes']) is int else 0
-        if current and (len(current) >= BATCH_SIZE or sum(row['bytes'] for row in current if type(row['bytes']) is int) + size > BATCH_BYTES):
+        if current and (
+            len(current) >= BATCH_SIZE
+            or sum(row['bytes'] for row in current if type(row['bytes']) is int) + size
+            > BATCH_BYTES
+        ):
             batches.append(current)
             current = []
         current.append(entry)
     if current:
         batches.append(current)
-    return [asdict(CaseDefinition(
-        f'zoo-{index:04}', 'raw_detection', 'sandbox', 'zoo_static', mode='normal', seconds=BATCH_SECONDS,
-        parameters=dict(revision=REVISION, entries=batch), expected=dict(zoo_accounted=True),
-    )) for index, batch in enumerate(batches)]
+    return [
+        asdict(
+            CaseDefinition(
+                f'zoo-{index:04}',
+                'raw_detection',
+                'sandbox',
+                'zoo_static',
+                mode='normal',
+                seconds=BATCH_SECONDS,
+                parameters=dict(revision=REVISION, entries=batch),
+                expected=dict(zoo_accounted=True),
+            )
+        )
+        for index, batch in enumerate(batches)
+    ]
 
 
 def quick_cases():
     """Return the single quick-test case covering the fixed static corpus fixtures."""
     from sentinelav.lab.static_corpus import SPECS
+
     entries = [dict(path=spec['family'], blob=spec['blob'], fixture=spec['id']) for spec in SPECS]
-    return [asdict(CaseDefinition('zoo-quick', 'raw_detection', 'sandbox', 'zoo_static',
-        mode='normal', seconds=900, parameters=dict(revision=REVISION, entries=entries, group='base'),
-        expected=dict(zoo_accounted=True)))]
+    return [
+        asdict(
+            CaseDefinition(
+                'zoo-quick',
+                'raw_detection',
+                'sandbox',
+                'zoo_static',
+                mode='normal',
+                seconds=900,
+                parameters=dict(revision=REVISION, entries=entries, group='base'),
+                expected=dict(zoo_accounted=True),
+            )
+        )
+    ]
 
 
 def blob_identity(data):
@@ -150,6 +224,7 @@ def blob_identity(data):
 def seal(data, key, blob):
     """Archives exist on the host only as Git objects or this ciphertext; only the guest can open them."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     nonce = os.urandom(12)
     return nonce + AESGCM(key).encrypt(nonce, data, SEAL_CONTEXT + blob.encode())
 
@@ -157,6 +232,7 @@ def seal(data, key, blob):
 def unseal(sealed, key, blob):
     """Decrypt a sealed archive (the reverse of seal())."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     return AESGCM(key).decrypt(sealed[:12], sealed[12:], SEAL_CONTEXT + blob.encode())
 
 
@@ -187,6 +263,7 @@ def stage(work, parameters, output):
             archive = output / (blob + '.sealed')
             if not archive.exists():
                 from io import BytesIO
+
                 with zipfile.ZipFile(BytesIO(data)) as source:
                     members = [row for row in source.infolist() if not row.is_dir()]
                     if not members or any(not row.flag_bits & 1 for row in members):
@@ -195,7 +272,11 @@ def stage(work, parameters, output):
             password_blob = item.get('password_blob')
             if password_blob:
                 import base64
-                if not SHA1.fullmatch(password_blob) or int(git(repo, 'cat-file', '-s', password_blob)) > 1024:
+
+                if (
+                    not SHA1.fullmatch(password_blob)
+                    or int(git(repo, 'cat-file', '-s', password_blob)) > 1024
+                ):
                     raise ValueError('Invalid pinned archive password blob')
                 password = git(repo, 'cat-file', 'blob', password_blob)
                 if blob_identity(password) != password_blob:
@@ -204,4 +285,5 @@ def stage(work, parameters, output):
         except (OSError, ValueError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
             item['stage_error'] = type(error).__name__
     import base64
+
     return dict(revision=REVISION, entries=staged, transfer_key=base64.b64encode(key).decode())

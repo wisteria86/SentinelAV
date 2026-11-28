@@ -9,6 +9,7 @@ another file name, created as a hard link so it costs no disk space. Names are
 skipped when the real program is installed or already running. Decoys exit on
 their own when the monitor stops.
 """
+
 import json
 import os
 import secrets
@@ -20,13 +21,28 @@ from pathlib import Path
 from sentinelav.monitoring.deception.common import event
 
 # Programs that injectors and remote-desktop credential thieves target, used only where the real one is absent.
-BAIT = (('mstsc.exe', []), ('KeePass.exe', ['%ProgramFiles%/KeePass Password Safe 2/KeePass.exe']),
-        ('firefox.exe', ['%ProgramFiles%/Mozilla Firefox/firefox.exe']))
+BAIT = (
+    ('mstsc.exe', []),
+    ('KeePass.exe', ['%ProgramFiles%/KeePass Password Safe 2/KeePass.exe']),
+    ('firefox.exe', ['%ProgramFiles%/Mozilla Firefox/firefox.exe']),
+)
 # Tools whose presence makes evasive malware assume it is being analyzed and stay dormant.
-ANALYSIS = (('vmtoolsd.exe', ['%ProgramFiles%/VMware/VMware Tools/vmtoolsd.exe']), ('VBoxService.exe', ['%SystemRoot%/System32/VBoxService.exe']),
-            ('procmon.exe', []), ('x64dbg.exe', []), ('ollydbg.exe', []), ('Wireshark.exe', ['%ProgramFiles%/Wireshark/Wireshark.exe']))
-CREATE_NO_WINDOW, LOGON_NETCREDENTIALS_ONLY = 0x08000000, 2
-RUNTIME_FILES = ('python3.dll', f'python{sys.version_info[0]}{sys.version_info[1]}.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
+ANALYSIS = (
+    ('vmtoolsd.exe', ['%ProgramFiles%/VMware/VMware Tools/vmtoolsd.exe']),
+    ('VBoxService.exe', ['%SystemRoot%/System32/VBoxService.exe']),
+    ('procmon.exe', []),
+    ('x64dbg.exe', []),
+    ('ollydbg.exe', []),
+    ('Wireshark.exe', ['%ProgramFiles%/Wireshark/Wireshark.exe']),
+)
+CREATE_NO_WINDOW = 0x08000000
+LOGON_NETCREDENTIALS_ONLY = 2
+RUNTIME_FILES = (
+    'python3.dll',
+    f'python{sys.version_info[0]}{sys.version_info[1]}.dll',
+    'vcruntime140.dll',
+    'vcruntime140_1.dll',
+)
 
 
 def _link(source, target):
@@ -43,6 +59,7 @@ def _link(source, target):
 def running_names():
     """Return the lower-case names of every running process."""
     import psutil
+
     return {(process.info['name'] or '').casefold() for process in psutil.process_iter(['name'])}
 
 
@@ -63,25 +80,38 @@ def host_command(name, folder, role, status, parent):
     source = Path(__file__).resolve().parents[3]
     paths = [str(source)] + [entry for entry in sys.path if entry.endswith('site-packages')]
     env = dict(os.environ, PYTHONHOME=sys.base_prefix, PYTHONPATH=os.pathsep.join(paths))
-    return [str(folder / name), '-m', 'sentinelav.monitoring.deception.decoy_process', *arguments], env
+    return [
+        str(folder / name),
+        '-m',
+        'sentinelav.monitoring.deception.decoy_process',
+        *arguments,
+    ], env
 
 
 def _present(markers):
-    """Tell whether any of the given program paths exists (meaning the real program is installed).
-    """
+    """Tell whether any of the given program paths exists (meaning the real program is installed)."""
     return any(Path(os.path.expandvars(marker)).exists() for marker in markers)
 
 
 class DecoyProcesses:
     """Starts and watches the decoy processes."""
+
     def __init__(self, emit, folder, bait=True, analysis=False, credentials=None):
         """Plan which decoys to run (skipping names whose real program is installed). credentials, if
         given, are planted in memory by one extra decoy.
         """
-        self.emit, self.folder = emit, Path(folder)
-        self.plan = ([(name, 'bait') for name, markers in BAIT if not _present(markers)] if bait else []) + \
-                    ([(name, 'analysis') for name, markers in ANALYSIS if not _present(markers)] if analysis else [])
-        self.credentials, self.children, self.offset = credentials, [], 0
+        self.emit = emit
+        self.folder = Path(folder)
+        self.plan = (
+            [(name, 'bait') for name, markers in BAIT if not _present(markers)] if bait else []
+        ) + (
+            [(name, 'analysis') for name, markers in ANALYSIS if not _present(markers)]
+            if analysis
+            else []
+        )
+        self.credentials = credentials
+        self.children = []
+        self.offset = 0
         self.status = self.folder / 'decoy-status.jsonl'
 
     def start(self):
@@ -96,9 +126,22 @@ class DecoyProcesses:
             if name.casefold() in busy:
                 continue  # The real program is running; a second copy of its name would only confuse.
             try:
-                command, env = host_command(name, self.folder / 'host', role, self.status, os.getpid())
-                self.children.append((name, subprocess.Popen(command, env=env, creationflags=CREATE_NO_WINDOW,
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)))
+                command, env = host_command(
+                    name, self.folder / 'host', role, self.status, os.getpid()
+                )
+                self.children.append(
+                    (
+                        name,
+                        subprocess.Popen(
+                            command,
+                            env=env,
+                            creationflags=CREATE_NO_WINDOW,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        ),
+                    )
+                )
             except OSError as error:
                 self.emit(event('Decoy process unavailable', f'{name}: {error}', level='Warning'))
         if self.credentials:
@@ -109,17 +152,29 @@ class DecoyProcesses:
         """A bait process whose network logon uses fake credentials, so a memory-dumping tool finds them in LSASS."""
         try:
             import win32process
-            command, _ = host_command('svchost-backup.exe', self.folder / 'host', 'bait', self.status, os.getpid())
+
+            command, _ = host_command(
+                'svchost-backup.exe', self.folder / 'host', 'bait', self.status, os.getpid()
+            )
             info = win32process.STARTUPINFO()
-            handles = win32process.CreateProcessWithLogonW(self.credentials['user'], self.credentials['domain'], self.credentials['password'],
-                LOGON_NETCREDENTIALS_ONLY, None, subprocess.list2cmdline(command), CREATE_NO_WINDOW, None, None, info)
+            handles = win32process.CreateProcessWithLogonW(
+                self.credentials['user'],
+                self.credentials['domain'],
+                self.credentials['password'],
+                LOGON_NETCREDENTIALS_ONLY,
+                None,
+                subprocess.list2cmdline(command),
+                CREATE_NO_WINDOW,
+                None,
+                None,
+                info,
+            )
             self.children.append(('svchost-backup.exe', handles))
         except Exception as error:
             self.emit(event('Fake credentials not planted', str(error)[:200], level='Warning'))
 
     def poll(self):
-        """Read new findings from the decoys' status file and raise an alert for each injection found.
-        """
+        """Read new findings from the decoys' status file and raise an alert for each injection found."""
         try:
             with self.status.open('r', encoding='utf-8') as stream:
                 stream.seek(self.offset)
@@ -133,9 +188,19 @@ class DecoyProcesses:
                 item = json.loads(line)
             except ValueError:
                 continue
-            what = 'executable memory appeared' if item['kind'] == 'executable_memory' else 'a thread started outside every loaded module'
-            events.append(event('Code injected into a decoy process', f"In decoy {item['role']} process PID {item['pid']}, {what}. "
-                'Nothing legitimate injects code into an idle program, so another process on this PC is injecting code.', decoy=item))
+            what = (
+                'executable memory appeared'
+                if item['kind'] == 'executable_memory'
+                else 'a thread started outside every loaded module'
+            )
+            events.append(
+                event(
+                    'Code injected into a decoy process',
+                    f"In decoy {item['role']} process PID {item['pid']}, {what}. "
+                    'Nothing legitimate injects code into an idle program, so another process on this PC is injecting code.',
+                    decoy=item,
+                )
+            )
             self.emit(events[-1])
         return events
 
@@ -147,6 +212,7 @@ class DecoyProcesses:
                     child.terminate()
                 else:  # CreateProcessWithLogonW returns raw handles.
                     import win32api
+
                     win32api.TerminateProcess(child[0], 0)
             except Exception:
                 pass
@@ -163,4 +229,6 @@ class DecoyProcesses:
 
 def fake_credentials():
     """Make up a fake service account and password to plant in memory as bait."""
-    return dict(user='svc_backup', domain='CORP-FILES', password='Decoy-' + secrets.token_urlsafe(12))
+    return dict(
+        user='svc_backup', domain='CORP-FILES', password='Decoy-' + secrets.token_urlsafe(12)
+    )

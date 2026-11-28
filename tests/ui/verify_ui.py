@@ -22,7 +22,6 @@ from PySide6.QtGui import QFontDatabase
 
 from sentinelav.ui.application import Window, STYLE
 
-
 app = QApplication([])
 
 from sentinelav.ui.design import configure_app
@@ -33,11 +32,11 @@ with tempfile.TemporaryDirectory() as temp:
 
     root = Path(temp)
 
-    marker = root/'demo.txt'
+    marker = root / 'demo.txt'
 
     marker.write_text('SENTINELAV_DEMO_THREAT_7C23A')
 
-    window = Window(data_dir=root/'state')
+    window = Window(data_dir=root / 'state')
 
     window.show()
 
@@ -79,7 +78,7 @@ with tempfile.TemporaryDirectory() as temp:
 
     app.processEvents()
 
-    window.grab().save(str(SCREENSHOTS_DIR/'preview.png'))
+    window.grab().save(str(SCREENSHOTS_DIR / 'preview.png'))
 
     for page in range(window.stack.count()):
 
@@ -89,7 +88,7 @@ with tempfile.TemporaryDirectory() as temp:
 
         assert window.stack.currentIndex() == page
 
-        window.grab().save(str(SCREENSHOTS_DIR/f'preview-{page}.png'))
+        window.grab().save(str(SCREENSHOTS_DIR / f'preview-{page}.png'))
 
     window.change_report(1)
 
@@ -99,13 +98,14 @@ with tempfile.TemporaryDirectory() as temp:
 
     from unittest.mock import patch
     from PySide6.QtWidgets import QTabWidget
-    for title in ('Scheduling','Definitions','Defense'):
+
+    for title in ('Scheduling', 'Definitions', 'Defense'):
         window.open_settings_tab(title)
-        tabs=window.stack.widget(5).findChild(QTabWidget)
+        tabs = window.stack.widget(5).findChild(QTabWidget)
         assert tabs.tabText(tabs.currentIndex()) == title
     tabs.setCurrentIndex(0)
     window.select_scan_tab(1)
-    with patch.object(window,'full_scan') as full:
+    with patch.object(window, 'full_scan') as full:
         window.run_selected_scan()
         full.assert_called_once()
 
@@ -115,9 +115,9 @@ with tempfile.TemporaryDirectory() as temp:
 
     window.path_label.setText('C:/' + 'a-very-long-folder-name/' * 40 + 'sample.exe')
 
-    for width, height in [(960,600), (1440,900), (1920,1080)]:
+    for width, height in [(960, 600), (1440, 900), (1920, 1080)]:
 
-        window.resize(width,height)
+        window.resize(width, height)
 
         for page in range(window.stack.count()):
 
@@ -129,27 +129,33 @@ with tempfile.TemporaryDirectory() as temp:
 
             assert scroll.widget().width() <= 930
 
-            assert scroll.horizontalScrollBar().maximum() == 0, (width,page,'horizontal overflow')
+            assert scroll.horizontalScrollBar().maximum() == 0, (width, page, 'horizontal overflow')
 
-            title = scroll.widget().findChild(__import__('PySide6.QtWidgets',fromlist=['QLabel']).QLabel,'title')
+            title = scroll.widget().findChild(
+                __import__('PySide6.QtWidgets', fromlist=['QLabel']).QLabel, 'title'
+            )
 
-            assert title.mapTo(scroll.widget(),QPoint(0,0)).y() == 23, (width,page,'header alignment')
+            assert title.mapTo(scroll.widget(), QPoint(0, 0)).y() == 23, (
+                width,
+                page,
+                'header alignment',
+            )
 
-    window.resize(1000,620)
+    window.resize(1000, 620)
 
     window.navigate(5)
 
     app.processEvents()
 
-    combo = next(c for c in window.findChildren(QComboBox) if c.currentText()=='Light')
+    combo = next(c for c in window.findChildren(QComboBox) if c.currentText() == 'Light')
 
     combo.showPopup()
 
     app.processEvents()
 
-    assert combo.view().model().index(0,0).data() == 'Light'
+    assert combo.view().model().index(0, 0).data() == 'Light'
 
-    combo.view().window().grab().save(str(SCREENSHOTS_DIR/'preview-dropdown.png'))
+    combo.view().window().grab().save(str(SCREENSHOTS_DIR / 'preview-dropdown.png'))
 
     combo.hidePopup()
 
@@ -159,7 +165,7 @@ with tempfile.TemporaryDirectory() as temp:
 
         app.processEvents()
 
-        window.grab().save(str(SCREENSHOTS_DIR/f'preview-{page}.png'))
+        window.grab().save(str(SCREENSHOTS_DIR / f'preview-{page}.png'))
 
     window.close()
 

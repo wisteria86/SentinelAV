@@ -2,6 +2,7 @@
 # Works with: monitoring.deception
 
 """Verify deception features on a temporary profile, a throwaway registry key and loopback sockets only."""
+
 import os
 import secrets
 import socket
@@ -12,7 +13,15 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from sentinelav.monitoring.deception import accounts, breadcrumbs, clipboard, registry_decoys, sinkhole, stores, vaccines
+from sentinelav.monitoring.deception import (
+    accounts,
+    breadcrumbs,
+    clipboard,
+    registry_decoys,
+    sinkhole,
+    stores,
+    vaccines,
+)
 
 
 class TempHome(unittest.TestCase):
@@ -45,7 +54,13 @@ class StoreTests(TempHome):
 
     def test_store_retires_when_the_app_is_installed(self):
         marker = self.home / 'chrome.exe'
-        store = ('Test', 'local', 'Test/User Data', [('Profile 9/Login Data', 'browser_store', lambda: b'x')], [str(marker)])
+        store = (
+            'Test',
+            'local',
+            'Test/User Data',
+            [('Profile 9/Login Data', 'browser_store', lambda: b'x')],
+            [str(marker)],
+        )
         _, record = stores.deploy([store])
         marker.write_bytes(b'')
         kept, retired = stores.retire_installed(record)
@@ -57,23 +72,35 @@ class StoreTests(TempHome):
 class RegistryTests(unittest.TestCase):
     def setUp(self):
         import winreg
+
         self.base = r'Software\SentinelAV-Test-' + secrets.token_hex(4)
         self.addCleanup(registry_decoys._delete_tree, winreg.HKEY_CURRENT_USER, self.base)
-        self.specs = [('session', r'App\Tool', r'Sessions\Decoy', dict(HostName='127.0.0.2', PortNumber=4444))]
+        self.specs = [
+            ('session', r'App\Tool', r'Sessions\Decoy', dict(HostName='127.0.0.2', PortNumber=4444))
+        ]
 
     def test_change_is_seen_and_removal_keeps_real_entries(self):
         import winreg
+
         record = registry_decoys.deploy(self.specs, base=self.base)
         self.assertEqual(registry_decoys.changed(record), [])
-        registry_decoys._write(winreg.HKEY_CURRENT_USER, record[0]['path'], dict(HostName='evil.example.invalid'))
+        registry_decoys._write(
+            winreg.HKEY_CURRENT_USER, record[0]['path'], dict(HostName='evil.example.invalid')
+        )
         self.assertEqual(registry_decoys.changed(record)[0][1], 'modified')
-        registry_decoys._write(winreg.HKEY_CURRENT_USER, self.base + r'\App\Tool\Sessions\Real', dict(HostName='real'))
+        registry_decoys._write(
+            winreg.HKEY_CURRENT_USER, self.base + r'\App\Tool\Sessions\Real', dict(HostName='real')
+        )
         registry_decoys.remove(record, base=self.base)
         self.assertIsNone(registry_decoys._read(winreg.HKEY_CURRENT_USER, record[0]['path']))
-        self.assertEqual(registry_decoys._read(winreg.HKEY_CURRENT_USER, self.base + r'\App\Tool\Sessions\Real'), dict(HostName='real'))
+        self.assertEqual(
+            registry_decoys._read(winreg.HKEY_CURRENT_USER, self.base + r'\App\Tool\Sessions\Real'),
+            dict(HostName='real'),
+        )
 
     def test_nothing_is_added_next_to_an_installed_app(self):
         import winreg
+
         registry_decoys._write(winreg.HKEY_CURRENT_USER, self.base + r'\App\Tool', dict(Version=1))
         self.assertEqual(registry_decoys.deploy(self.specs, base=self.base), [])
 
@@ -82,7 +109,12 @@ class ServerTests(unittest.TestCase):
     def test_decoy_server_reports_who_connected(self):
         events = []
         port = breadcrumbs.free_port('127.0.0.1')
-        server = breadcrumbs.DecoyServers(dict(rdp=port), events.append, host='127.0.0.1', owner=lambda *a: dict(pid=7, name='stealer.exe', exe='', create_time=0))
+        server = breadcrumbs.DecoyServers(
+            dict(rdp=port),
+            events.append,
+            host='127.0.0.1',
+            owner=lambda *a: dict(pid=7, name='stealer.exe', exe='', create_time=0),
+        )
         self.addCleanup(server.stop)
         self.assertEqual(server.start(), [port])
         with socket.create_connection(('127.0.0.1', port)) as client:
@@ -90,13 +122,15 @@ class ServerTests(unittest.TestCase):
         for _ in range(40):
             if events:
                 break
-            time.sleep(.05)
+            time.sleep(0.05)
         self.assertIn('stealer.exe (PID 7)', events[0]['details'])
 
     def test_tarpit_trickles_and_reports(self):
         events = []
         port = breadcrumbs.free_port('127.0.0.1')
-        pit = breadcrumbs.TarpitHoneypot(events.append, [port], interval=.05, hold=1, host='127.0.0.1')
+        pit = breadcrumbs.TarpitHoneypot(
+            events.append, [port], interval=0.05, hold=1, host='127.0.0.1'
+        )
         self.addCleanup(pit.stop)
         pit.start()
         with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
@@ -106,7 +140,9 @@ class ServerTests(unittest.TestCase):
 
 class FakeClipboard:
     def __init__(self):
-        self.value, self.number, self.input = '', 0, 1
+        self.value = ''
+        self.number = 0
+        self.input = 1
 
     def sequence(self):
         return self.number
@@ -115,7 +151,8 @@ class FakeClipboard:
         return self.value
 
     def copy(self, value, typed=True):
-        self.value, self.number = value, self.number + 1
+        self.value = value
+        self.number = self.number + 1
         self.input += typed
 
     def owner(self):
@@ -127,7 +164,8 @@ class FakeClipboard:
 
 class ClipboardTests(unittest.TestCase):
     def test_swap_without_input_is_reported_and_user_copies_are_not(self):
-        board, events = FakeClipboard(), []
+        board = FakeClipboard()
+        events = []
         guard = clipboard.ClipboardGuard(events.append, clipboard=board)
         board.copy('0x' + 'a' * 40)
         guard.poll()
@@ -139,7 +177,9 @@ class ClipboardTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
 
     def test_wallet_shapes_and_bait_checksum(self):
-        self.assertEqual(clipboard.wallet_kind('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'), 'bitcoin')
+        self.assertEqual(
+            clipboard.wallet_kind('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'), 'bitcoin'
+        )
         self.assertIsNone(clipboard.wallet_kind('hello world'))
         self.assertEqual(clipboard.wallet_kind(clipboard.decoy_address()), 'bitcoin')
 
@@ -150,23 +190,36 @@ class SinkholeTests(unittest.TestCase):
             hosts = Path(folder) / 'hosts'
             hosts.write_text('127.0.0.1 localhost\n', encoding='utf-8')
             with mock.patch.object(sinkhole, '_flush'):
-                sinkhole.apply(sinkhole.parse('127.0.0.1\tbad.example.invalid\n# comment\n127.0.0.1 localhost\n'), hosts)
+                sinkhole.apply(
+                    sinkhole.parse(
+                        '127.0.0.1\tbad.example.invalid\n# comment\n127.0.0.1 localhost\n'
+                    ),
+                    hosts,
+                )
                 self.assertIn('127.0.0.3 bad.example.invalid', hosts.read_text(encoding='utf-8'))
                 sinkhole.remove(hosts)
             self.assertEqual(hosts.read_text(encoding='utf-8'), '127.0.0.1 localhost\n')
 
     def test_host_header_is_read(self):
-        self.assertEqual(sinkhole.requested_name(b'GET / HTTP/1.1\r\nHost: bad.example.invalid\r\n\r\n'), 'bad.example.invalid')
+        self.assertEqual(
+            sinkhole.requested_name(b'GET / HTTP/1.1\r\nHost: bad.example.invalid\r\n\r\n'),
+            'bad.example.invalid',
+        )
 
 
 class LogonWatcherTests(unittest.TestCase):
     def test_only_new_events_naming_a_decoy_are_reported(self):
         def xml(record, name):
-            return (f"<Event><System><EventID>4625</EventID><EventRecordID>{record}</EventRecordID></System>"
-                    f"<EventData><Data Name='TargetUserName'>{name}</Data><Data Name='IpAddress'>10.0.0.5</Data></EventData></Event>")
+            return (
+                f"<Event><System><EventID>4625</EventID><EventRecordID>{record}</EventRecordID></System>"
+                f"<EventData><Data Name='TargetUserName'>{name}</Data><Data Name='IpAddress'>10.0.0.5</Data></EventData></Event>"
+            )
+
         replies = iter([[xml(10, 'backup_admin')], [xml(11, 'alice'), xml(12, 'BACKUP_ADMIN')]])
         events = []
-        watcher = accounts.LogonWatcher(events.append, ['backup_admin'], query=lambda after: next(replies))
+        watcher = accounts.LogonWatcher(
+            events.append, ['backup_admin'], query=lambda after: next(replies)
+        )
         self.assertEqual(watcher.poll(), [])
         self.assertEqual(len(watcher.poll()), 1)
         self.assertIn('10.0.0.5', events[0]['details'])
@@ -177,8 +230,16 @@ class VaccineTests(unittest.TestCase):
     def test_mutex_is_held_and_marker_file_removed_only_if_ours(self):
         with tempfile.TemporaryDirectory() as folder:
             marker = Path(folder) / 'marker'
-            held = vaccines.Vaccines([dict(family='Test', type='mutex', name='Local\\SentinelAV-test-' + secrets.token_hex(4)),
-                                      dict(family='Test', type='file', paths=[str(marker)])])
+            held = vaccines.Vaccines(
+                [
+                    dict(
+                        family='Test',
+                        type='mutex',
+                        name='Local\\SentinelAV-test-' + secrets.token_hex(4),
+                    ),
+                    dict(family='Test', type='file', paths=[str(marker)]),
+                ]
+            )
             self.assertEqual(len(held.start()), 2)
             held.stop()
             vaccines.remove_files([str(marker)])
@@ -193,6 +254,7 @@ class InjectionTests(unittest.TestCase):
     def test_new_executable_memory_is_seen(self):
         import ctypes
         from sentinelav.monitoring.deception import decoy_process
+
         before = decoy_process.executable_private_regions()
         kernel32 = ctypes.windll.kernel32
         kernel32.VirtualAlloc.restype = ctypes.c_void_p

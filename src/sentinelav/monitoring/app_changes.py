@@ -4,5 +4,15 @@
 #   platform.remediation_broker
 
 """Public persistence API; inventory and continuous reconciliation are separate."""
-from .windows_inventory import MAX_FILE, RUN_KEYS, resource, powershell, file_state, TASKS_SCRIPT, SERVICES_SCRIPT, WindowsInventory
-from .change_monitor import ChangeTracker,ChangeMonitor
+
+from .windows_inventory import (
+    MAX_FILE,
+    RUN_KEYS,
+    resource,
+    powershell,
+    file_state,
+    TASKS_SCRIPT,
+    SERVICES_SCRIPT,
+    WindowsInventory,
+)
+from .change_monitor import ChangeTracker, ChangeMonitor

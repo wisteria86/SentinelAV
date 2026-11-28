@@ -3,6 +3,7 @@
 # Used by: ui.design
 
 """Reference-inspired desktop components; all icons are resolution-independent SVGs."""
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QProgressBar
 from .design_components import PathLabel, art
@@ -10,6 +11,7 @@ from .design_components import PathLabel, art
 
 class ScanPageMixin:
     """Builds the Scan page."""
+
     def scan_page(self):
         """Build the Scan page: scan type tabs, progress card with live counters, start buttons and the
         results table.
@@ -18,7 +20,7 @@ class ScanPageMixin:
         tabs = QHBoxLayout()
         tabs.setSpacing(0)
         self.scan_tabs = []
-        for i, name in enumerate(['Quick Scan','Full Scan','Custom Scan']):
+        for i, name in enumerate(['Quick Scan', 'Full Scan', 'Custom Scan']):
             b = QPushButton(name, objectName='tab')
             b.setCheckable(True)
             b.setChecked(i == 0)
@@ -36,7 +38,10 @@ class ScanPageMixin:
         text.setSpacing(4)
         text.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.scan_status = QLabel('Ready to scan', objectName='value')
-        self.path_label = PathLabel('Check common malware locations, running programs and startup entries.', objectName='small')
+        self.path_label = PathLabel(
+            'Check common malware locations, running programs and startup entries.',
+            objectName='small',
+        )
         text.addWidget(self.scan_status)
         text.addWidget(self.path_label)
         head.addLayout(text, 1)
@@ -77,9 +82,15 @@ class ScanPageMixin:
         self.selected_scan = index
         for i, button in enumerate(self.scan_tabs):
             button.setChecked(i == index)
-        self.scan_start.setText(['Start Quick Scan','Start Full Scan','Choose Folder…'][index])
+        self.scan_start.setText(['Start Quick Scan', 'Start Full Scan', 'Choose Folder…'][index])
         if self.worker is None:
-            self.path_label.setText(['Check common malware locations, running programs and startup entries.','Check every file on all fixed drives.','Choose any folder or select individual files.'][index])
+            self.path_label.setText(
+                [
+                    'Check common malware locations, running programs and startup entries.',
+                    'Check every file on all fixed drives.',
+                    'Choose any folder or select individual files.',
+                ][index]
+            )
 
     def run_selected_scan(self):
         """Start the scan type of the selected tab."""

@@ -3,6 +3,7 @@
 # Used by: monitoring.deception.*
 
 """Shared helpers for deception features: decoy file records, owning-process lookup and event shape."""
+
 import hashlib
 import os
 import time
@@ -25,8 +26,14 @@ def write_decoy(path, content, kind, created):
     except FileExistsError:
         return None
     info = path.stat()
-    return dict(path=str(path), kind=kind, sha256=hashlib.sha256(content).hexdigest(), atime_ns=info.st_atime_ns,
-        mtime_ns=info.st_mtime_ns, size=info.st_size)
+    return dict(
+        path=str(path),
+        kind=kind,
+        sha256=hashlib.sha256(content).hexdigest(),
+        atime_ns=info.st_atime_ns,
+        mtime_ns=info.st_mtime_ns,
+        size=info.st_size,
+    )
 
 
 def remove_decoys(entries, created):
@@ -55,10 +62,21 @@ def connection_owner(peer_address, peer_port):
     """The local process on the other end of a loopback connection, or None when it cannot be identified."""
     try:
         import psutil
+
         for item in psutil.net_connections(kind='tcp'):
-            if item.laddr and item.laddr.port == peer_port and item.laddr.ip == peer_address and item.pid:
+            if (
+                item.laddr
+                and item.laddr.port == peer_port
+                and item.laddr.ip == peer_address
+                and item.pid
+            ):
                 process = psutil.Process(item.pid)
-                return dict(pid=item.pid, name=process.name(), exe=process.exe(), create_time=process.create_time())
+                return dict(
+                    pid=item.pid,
+                    name=process.name(),
+                    exe=process.exe(),
+                    create_time=process.create_time(),
+                )
     except Exception:
         return None
     return None
@@ -66,7 +84,14 @@ def connection_owner(peer_address, peer_port):
 
 def event(kind, details, level='Alert', **extra):
     """Build a deception activity event with the current time."""
-    return dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), kind=kind, details=details, source='Deception', level=level, **extra)
+    return dict(
+        time=time.strftime('%Y-%m-%d %H:%M:%S'),
+        kind=kind,
+        details=details,
+        source='Deception',
+        level=level,
+        **extra,
+    )
 
 
 def describe(process):
@@ -78,7 +103,9 @@ def flag(behavior, process, reason, weight=70):
     """Raise the behavior score of the process involved; processes are never stopped here."""
     if behavior and process:
         entity = f"process:{process['pid']}:{process['create_time']}"
-        behavior.indicator(entity, 'decoy_access', weight, reason, pid=process['pid'], path=process['exe'])
+        behavior.indicator(
+            entity, 'decoy_access', weight, reason, pid=process['pid'], path=process['exe']
+        )
 
 
 def profile_dirs():
@@ -89,5 +116,6 @@ def profile_dirs():
     local = Path(os.environ.get('LOCALAPPDATA') or home / 'AppData' / 'Local')
     roaming = Path(os.environ.get('APPDATA') or home / 'AppData' / 'Roaming')
     if os.environ.get('SENTINELAV_DECOY_HOME'):
-        local, roaming = home / 'AppData' / 'Local', home / 'AppData' / 'Roaming'
+        local = home / 'AppData' / 'Local'
+        roaming = home / 'AppData' / 'Roaming'
     return home, local, roaming

@@ -3,12 +3,14 @@
 # Used by: ui.protection
 
 """Phase 3 UI and Qt adapter. SQLite is only touched on the GUI thread."""
+
 from PySide6.QtCore import QThread, Signal
 from sentinelav.monitoring.monitoring import Monitor
 
 
 class ProtectionWorker(QThread):
     """Background thread that runs the Monitor inside the window's process."""
+
     event = Signal(dict)
     status = Signal(dict)
     failed = Signal(str)

@@ -10,6 +10,7 @@ decoys work mainly as breadcrumbs: they point at decoy servers and decoy wallet
 files, and the use of those is what raises the alert. A change to or deletion of
 a decoy key is reported directly.
 """
+
 import os
 
 if os.name == 'nt':
@@ -30,18 +31,20 @@ def default_base():
 
 
 def _write(root, path, values):
-    """Create a registry key and write the given values (numbers as DWORD, everything else as text).
-    """
+    """Create a registry key and write the given values (numbers as DWORD, everything else as text)."""
     with winreg.CreateKeyEx(root, path, 0, winreg.KEY_WRITE) as key:
         for name, value in values.items():
-            winreg.SetValueEx(key, name, 0, winreg.REG_DWORD if isinstance(value, int) else winreg.REG_SZ, value)
+            winreg.SetValueEx(
+                key, name, 0, winreg.REG_DWORD if isinstance(value, int) else winreg.REG_SZ, value
+            )
 
 
 def _read(root, path):
     """Return all values of a registry key as a dict, or None if the key does not exist."""
     try:
         with winreg.OpenKey(root, path) as key:
-            values, index = {}, 0
+            values = {}
+            index = 0
             while True:
                 try:
                     name, value, _ = winreg.EnumValue(key, index)

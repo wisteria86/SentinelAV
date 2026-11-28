@@ -4,6 +4,7 @@
 # Used by: lab.runtime_job, monitoring.background, platform.windows_service, ui.protection
 
 """Bounded, read-only monitoring. No files are removed and no processes are stopped."""
+
 import json
 import os
 import subprocess
@@ -17,14 +18,14 @@ from watchdog.observers import Observer
 import psutil
 from sentinelav.detection.inspection import IsolatedScanner as Scanner
 from sentinelav.monitoring.behavior import BehaviorEngine
-from sentinelav.monitoring.process_telemetry import ProcessEvents,ProcessGraph
+from sentinelav.monitoring.process_telemetry import ProcessEvents, ProcessGraph
 
 
 from .monitor_loop import MonitorLoopMixin
 
-from .event_sources import PendingFiles,Changes,SysmonReader
+from .event_sources import PendingFiles, Changes, SysmonReader
 
-RETRY_LIMIT=5
+RETRY_LIMIT = 5
 
 
 class Monitor(MonitorLoopMixin):
@@ -36,12 +37,15 @@ class Monitor(MonitorLoopMixin):
     MonitorLoopMixin.run(); this class holds the state and the handlers for each kind of
     observation.
     """
+
     def __init__(self, config, emit, status):
         """Set up all monitoring state. config is the configuration from
         agent_protocol.configuration(), emit receives events, and status receives periodic status
         summaries.
         """
-        self.config, self.emit, self.status = config, emit, status
+        self.config = config
+        self.emit = emit
+        self.status = status
         self.stop = threading.Event()
         self.pending = PendingFiles()
         self.retries = OrderedDict()
@@ -52,38 +56,48 @@ class Monitor(MonitorLoopMixin):
         self.process_count = 0
         self.process_infos = {}
         self.behavior = None
-        self.honeypots = self.network_honeypot = None
+        self.honeypots = None
+        self.network_honeypot = None
         self.activity = queue.Queue(maxsize=2048)
         self.network_count = 0
-        self.process_graph=ProcessGraph()
-        self.event_identities=OrderedDict()
-        self.uninspected_process_events=0
-        self.process_event_drops=0
-        self.reported_process_event_drops=0
-        self.responder=None
-        self.inspection_error=''
+        self.process_graph = ProcessGraph()
+        self.event_identities = OrderedDict()
+        self.uninspected_process_events = 0
+        self.process_event_drops = 0
+        self.reported_process_event_drops = 0
+        self.responder = None
+        self.inspection_error = ''
         from sentinelav.monitoring.sequences import BehaviorCorrelator
-        self.sequences=BehaviorCorrelator(self.emit)
-        self.kernel_reader=None
-        self.network_reputation=None
-        self.artifact_updater=None
-        self.change_monitor=None
-        from .health import MonitoringHealth
-        self.health=MonitoringHealth()
 
-    def file_activity(self,kind,path):
-        """Queue a file change for the behaviour engine (counted as dropped if the queue is full).
-        """
+        self.sequences = BehaviorCorrelator(self.emit)
+        self.kernel_reader = None
+        self.network_reputation = None
+        self.artifact_updater = None
+        self.change_monitor = None
+        from .health import MonitoringHealth
+
+        self.health = MonitoringHealth()
+
+    def file_activity(self, kind, path):
+        """Queue a file change for the behaviour engine (counted as dropped if the queue is full)."""
         try:
-            self.activity.put_nowait((kind,path))
+            self.activity.put_nowait((kind, path))
         except queue.Full:
             with self.pending.lock:
                 self.pending.dropped += 1
 
     def event(self, kind, details, source, level='Info', **extra):
         """Emit one timestamped activity event."""
-        self.emit(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), kind=kind,
-                       details=details, source=source, level=level, **extra))
+        self.emit(
+            dict(
+                time=time.strftime('%Y-%m-%d %H:%M:%S'),
+                kind=kind,
+                details=details,
+                source=source,
+                level=level,
+                **extra,
+            )
+        )
 
     def processes(self):
         """Take a snapshot of running processes, check them for suspicious behaviour, and queue newly
@@ -96,7 +110,9 @@ class Monitor(MonitorLoopMixin):
         new = []
         denied = 0
         infos = {}
-        for process in psutil.process_iter(['pid','ppid','name','exe','create_time','cmdline']):
+        for process in psutil.process_iter(
+            ['pid', 'ppid', 'name', 'exe', 'create_time', 'cmdline']
+        ):
             if self.stop.is_set():
                 return
             try:
@@ -113,83 +129,148 @@ class Monitor(MonitorLoopMixin):
         self.process_count = len(current)
         self.seen_processes = current
         self.process_infos = infos
-        for info in infos.values(): self.process_graph.observe(info)
-        visible={(value['pid'],value['create_time']) for value in infos.values()}
+        for info in infos.values():
+            self.process_graph.observe(info)
+        visible = {(value['pid'], value['create_time']) for value in infos.values()}
         if self.behavior:
             for info in infos.values():
-                if info.get('exe') and not self.behavior.excluded(info['exe'],self.exclusions):
-                    ancestors=self.process_graph.ancestors(info)
-                    verified=[]
+                if info.get('exe') and not self.behavior.excluded(info['exe'], self.exclusions):
+                    ancestors = self.process_graph.ancestors(info)
+                    verified = []
                     for ancestor in ancestors:
-                        if (ancestor['pid'],ancestor['create_time']) not in visible: break
+                        if (ancestor['pid'], ancestor['create_time']) not in visible:
+                            break
                         verified.append(ancestor)
-                    self.behavior.process(info,(verified[0].get('name') or '') if verified else '',context_only=not self.config.get('behavior'),ancestors=verified)
+                    self.behavior.process(
+                        info,
+                        (verified[0].get('name') or '') if verified else '',
+                        context_only=not self.config.get('behavior'),
+                        ancestors=verified,
+                    )
         for info in new:
             if not self.config['processes']:
                 continue
-            self.event('Process started', f"{info['name']} · PID {info['pid']} · parent {info['ppid']}",
-                       'Processes', pid=info['pid'], parent=info['ppid'], path=info['exe'])
+            self.event(
+                'Process started',
+                f"{info['name']} · PID {info['pid']} · parent {info['ppid']}",
+                'Processes',
+                pid=info['pid'],
+                parent=info['ppid'],
+                path=info['exe'],
+            )
             if info['exe']:
                 self.pending.add(info['exe'], 'Process executable')
         return denied
 
-    def process_event(self,event):
+    def process_event(self, event):
         """Handle a process-start notification from WMI: verify the process by its start time, work out
         its parent chain, check its behaviour and queue its program for scanning.
         """
         try:
-            process=psutil.Process(event['pid'])
-            info=process.as_dict(attrs=['pid','ppid','name','exe','create_time','cmdline'])
-            if not isinstance(info.get('create_time'),(int,float)): raise ValueError('Process creation time is unavailable')
-            observed=int(event['timestamp'])/10_000_000-11644473600
-            if abs(info['create_time']-observed)>2: raise ValueError('PID identity no longer matches process-start event')
-            key=(info['pid'],info['create_time'])
-            if key in self.event_identities: return
-            self.event_identities[key]=True
-            while len(self.event_identities)>4096: self.event_identities.popitem(last=False)
+            process = psutil.Process(event['pid'])
+            info = process.as_dict(attrs=['pid', 'ppid', 'name', 'exe', 'create_time', 'cmdline'])
+            if not isinstance(info.get('create_time'), (int, float)):
+                raise ValueError('Process creation time is unavailable')
+            observed = int(event['timestamp']) / 10_000_000 - 11644473600
+            if abs(info['create_time'] - observed) > 2:
+                raise ValueError('PID identity no longer matches process-start event')
+            key = (info['pid'], info['create_time'])
+            if key in self.event_identities:
+                return
+            self.event_identities[key] = True
+            while len(self.event_identities) > 4096:
+                self.event_identities.popitem(last=False)
             self.process_graph.observe(info)
-            ancestors=[]
-            parent=info.get('ppid'); child_time=info['create_time']; visited={info['pid']}
+            ancestors = []
+            parent = info.get('ppid')
+            child_time = info['create_time']
+            visited = {info['pid']}
             for _ in range(8):
-                if not parent or parent in visited: break
-                try: ancestor=psutil.Process(parent).as_dict(attrs=['pid','ppid','name','exe','create_time'])
-                except psutil.Error: break
-                if not isinstance(ancestor.get('create_time'),(int,float)) or ancestor['create_time']>child_time: break
-                self.process_graph.observe(ancestor); ancestors.append(ancestor); visited.add(parent)
-                parent,child_time=ancestor.get('ppid'),ancestor['create_time']
-            if self.behavior: self.behavior.process(info,ancestors[0]['name'] if ancestors else '',ancestors=ancestors)
-            self.event('Process start event',f"{info['name']} · PID {info['pid']}",'WMI process events',pid=info['pid'],parent=info['ppid'],path=info.get('exe') or '',ancestry=ancestors)
-            if info.get('exe'): self.pending.add(info['exe'],'Process event executable')
-        except (psutil.Error,OSError,ValueError):
-            self.uninspected_process_events+=1
-            self.event('Short-lived/unavailable process observed',f"{event['name']} · PID {event['pid']}; executable could not be verified",'WMI process events','Warning',pid=event['pid'])
+                if not parent or parent in visited:
+                    break
+                try:
+                    ancestor = psutil.Process(parent).as_dict(
+                        attrs=['pid', 'ppid', 'name', 'exe', 'create_time']
+                    )
+                except psutil.Error:
+                    break
+                if (
+                    not isinstance(ancestor.get('create_time'), (int, float))
+                    or ancestor['create_time'] > child_time
+                ):
+                    break
+                self.process_graph.observe(ancestor)
+                ancestors.append(ancestor)
+                visited.add(parent)
+                parent = ancestor.get('ppid')
+                child_time = ancestor['create_time']
+            if self.behavior:
+                self.behavior.process(
+                    info, ancestors[0]['name'] if ancestors else '', ancestors=ancestors
+                )
+            self.event(
+                'Process start event',
+                f"{info['name']} · PID {info['pid']}",
+                'WMI process events',
+                pid=info['pid'],
+                parent=info['ppid'],
+                path=info.get('exe') or '',
+                ancestry=ancestors,
+            )
+            if info.get('exe'):
+                self.pending.add(info['exe'], 'Process event executable')
+        except (psutil.Error, OSError, ValueError):
+            self.uninspected_process_events += 1
+            self.event(
+                'Short-lived/unavailable process observed',
+                f"{event['name']} · PID {event['pid']}; executable could not be verified",
+                'WMI process events',
+                'Warning',
+                pid=event['pid'],
+            )
 
-    def sysmon_event(self,row):
+    def sysmon_event(self, row):
         """Handle one Sysmon event: log it, feed the behaviour-sequence detectors, and check DNS
         lookups against the reputation feed.
         """
-        if self.change_monitor:self.change_monitor.observe_sysmon(row)
-        self.event(f'Sysmon event {row["Id"]}',(row.get('Message') or '')[:4000],
-                   'Sysmon',record_id=row['RecordId'])
-        if not self.config.get('behavior'): return
+        if self.change_monitor:
+            self.change_monitor.observe_sysmon(row)
+        self.event(
+            f'Sysmon event {row["Id"]}',
+            (row.get('Message') or '')[:4000],
+            'Sysmon',
+            record_id=row['RecordId'],
+        )
+        if not self.config.get('behavior'):
+            return
         from sentinelav.monitoring.sequences import parse_event
+
         try:
-            event=parse_event(row.get('Xml'))
-            if event['record']!=int(row['RecordId']) or event['id']!=int(row['Id']):
+            event = parse_event(row.get('Xml'))
+            if event['record'] != int(row['RecordId']) or event['id'] != int(row['Id']):
                 raise ValueError('Event identity mismatch')
-            image=event['fields'].get('Image')
-            if image and self.behavior and self.behavior.excluded(image,self.exclusions): return
-            target=event['fields'].get('TargetFilename')
-            if target and self.behavior and self.behavior.excluded(target,self.exclusions): return
+            image = event['fields'].get('Image')
+            if image and self.behavior and self.behavior.excluded(image, self.exclusions):
+                return
+            target = event['fields'].get('TargetFilename')
+            if target and self.behavior and self.behavior.excluded(target, self.exclusions):
+                return
             self.sequences.consume(event)
-            if event['id']==22 and self.network_reputation:
-                match=self.network_reputation.lookup_domain(event['fields'].get('QueryName',''))
-                if match and match['verdict'] in ('malicious','suspicious'):
-                    self.event('DNS reputation review','Signed reputation entry for '+match['value'],
-                        'Sysmon DNS','Warning',process_guid=event['fields'].get('ProcessGuid'),
-                        path=event['fields'].get('Image',''),reputation=match,automatic_response_eligible=False)
-        except (ValueError,TypeError,KeyError) as error:
-            self.event('Sysmon correlation omitted',str(error),'Sysmon','Warning')
+            if event['id'] == 22 and self.network_reputation:
+                match = self.network_reputation.lookup_domain(event['fields'].get('QueryName', ''))
+                if match and match['verdict'] in ('malicious', 'suspicious'):
+                    self.event(
+                        'DNS reputation review',
+                        'Signed reputation entry for ' + match['value'],
+                        'Sysmon DNS',
+                        'Warning',
+                        process_guid=event['fields'].get('ProcessGuid'),
+                        path=event['fields'].get('Image', ''),
+                        reputation=match,
+                        automatic_response_eligible=False,
+                    )
+        except (ValueError, TypeError, KeyError) as error:
+            self.event('Sysmon correlation omitted', str(error), 'Sysmon', 'Warning')
 
     def inspect(self, scanner, path, source):
         """Scan one queued file and report what was found.
@@ -198,38 +279,68 @@ class Monitor(MonitorLoopMixin):
         growing waits. Unchanged files are not rescanned, and the same detection is not reported
         more than once a minute.
         """
-        if source == 'Filesystem' and not any(Path(path).resolve().is_relative_to(r) for r in self.allowed_roots):
+        if source == 'Filesystem' and not any(
+            Path(path).resolve().is_relative_to(r) for r in self.allowed_roots
+        ):
             return
         if not Path(path).is_file() or scanner.excluded(Path(path)):
             return
         try:
-            state=os.stat(path)
-            fingerprint=(state.st_size,state.st_mtime_ns)
+            state = os.stat(path)
+            fingerprint = (state.st_size, state.st_mtime_ns)
         except OSError:
             return
         # Repeated events for an unchanged file should not repeat the work.
-        if self.inspected.get(path)==fingerprint:
+        if self.inspected.get(path) == fingerprint:
             return
         result = scanner.scan([path], self.stop.is_set, lambda *args: None)
-        busy=[error for error in result['errors'] if any(text in error for text in ('being used by another process','Permission denied','WinError 32','File changed during inspection'))]
-        if busy and self.retries.get(path,0)<RETRY_LIMIT:
-            attempt=self.retries.get(path,0)+1
-            self.retries[path]=attempt
-            while len(self.retries)>2048:self.retries.popitem(last=False)
-            self.pending.add(path,source,wait=min(30,2**attempt))
+        busy = [
+            error
+            for error in result['errors']
+            if any(
+                text in error
+                for text in (
+                    'being used by another process',
+                    'Permission denied',
+                    'WinError 32',
+                    'File changed during inspection',
+                )
+            )
+        ]
+        if busy and self.retries.get(path, 0) < RETRY_LIMIT:
+            attempt = self.retries.get(path, 0) + 1
+            self.retries[path] = attempt
+            while len(self.retries) > 2048:
+                self.retries.popitem(last=False)
+            self.pending.add(path, source, wait=min(30, 2**attempt))
             return
-        self.retries.pop(path,None)
-        if result['status']=='Complete':
-            self.inspected[path]=fingerprint
-            while len(self.inspected)>8192:self.inspected.popitem(last=False)
+        self.retries.pop(path, None)
+        if result['status'] == 'Complete':
+            self.inspected[path] = fingerprint
+            while len(self.inspected) > 8192:
+                self.inspected.popitem(last=False)
         if self.config.get('evaluation_attestation'):
-            self.event('Inspection policy attestation','Evaluation-only scanner mode evidence',source,
-                       path=str(path),signature_policy=result.get('signature_policy',{}),scanned=result.get('scanned',0),status=result.get('status'))
-        self.inspection_error=('Latest file inspection incomplete; review warnings and rescan omitted files'
-                               if result['status'] not in ('Complete','Cancelled') else '')
+            self.event(
+                'Inspection policy attestation',
+                'Evaluation-only scanner mode evidence',
+                source,
+                path=str(path),
+                signature_policy=result.get('signature_policy', {}),
+                scanned=result.get('scanned', 0),
+                status=result.get('status'),
+            )
+        self.inspection_error = (
+            'Latest file inspection incomplete; review warnings and rescan omitted files'
+            if result['status'] not in ('Complete', 'Cancelled')
+            else ''
+        )
         if result.get('worker_restarted'):
-            self.event('Inspection worker restarted',
-                       'Worker recovered. Earlier incomplete inspections still require a rescan.',source,'Warning')
+            self.event(
+                'Inspection worker restarted',
+                'Worker recovered. Earlier incomplete inspections still require a rescan.',
+                source,
+                'Warning',
+            )
         self.checked += result['scanned']
         for detection in result['detections']:
             key = (detection['path'], detection['sha256'])
@@ -239,17 +350,24 @@ class Monitor(MonitorLoopMixin):
             self.alerted[key] = now
             if len(self.alerted) > 2048:
                 self.alerted.popitem(last=False)
-            self.event('Threat detected', '; '.join(detection['reasons']), source, 'Alert', **detection)
-            if self.behavior: self.behavior.flag_image(detection['path'],detection.get('verdict','Malicious'))
-            if self.responder: self.responder.submit(detection)
-        for finding in result.get('suspicious',[]):
+            self.event(
+                'Threat detected', '; '.join(detection['reasons']), source, 'Alert', **detection
+            )
+            if self.behavior:
+                self.behavior.flag_image(detection['path'], detection.get('verdict', 'Malicious'))
+            if self.responder:
+                self.responder.submit(detection)
+        for finding in result.get('suspicious', []):
             key = (finding['path'], finding['sha256'])
             now = time.monotonic()
             if now - self.alerted.get(key, -1000) < 60:
                 continue
             self.alerted[key] = now
-            self.event('Suspicious file', '; '.join(finding['reasons']), source, 'Warning', **finding)
-            if self.behavior: self.behavior.flag_image(finding['path'],'Suspicious')
+            self.event(
+                'Suspicious file', '; '.join(finding['reasons']), source, 'Warning', **finding
+            )
+            if self.behavior:
+                self.behavior.flag_image(finding['path'], 'Suspicious')
         for error in result['errors']:
             self.event('Inspection failed', error, source, 'Warning')
         if result['skipped']:

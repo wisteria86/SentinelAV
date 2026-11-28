@@ -7,10 +7,11 @@
 No archive extraction, malware acquisition, or execution. Activation is an
 atomic manifest switch; existing readers keep their immutable old snapshot.
 """
+
 from sentinelav.paths import RESOURCE_ROOT
 import argparse
 import csv
-from datetime import datetime,timezone
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -21,35 +22,37 @@ import time
 import uuid
 from zipfile import ZipFile
 
-MAX_CSV=1024*1024*1024
-MAX_ROWS=5_000_000
+MAX_CSV = 1024 * 1024 * 1024
+MAX_ROWS = 5_000_000
 
 
 def checksum(path):
     """Return the SHA-256 of a file, read in 1 MB chunks."""
-    digest=hashlib.sha256()
+    digest = hashlib.sha256()
     with Path(path).open('rb') as stream:
-        while chunk:=stream.read(1024*1024): digest.update(chunk)
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
     return digest.hexdigest()
 
 
-def records(stream,on_reject=None):
+def records(stream, on_reject=None):
     """Yield (hash bytes, label, first seen, file type) for each data row of a MalwareBazaar CSV
     stream.
 
     The header row is found automatically. Malformed rows are passed to on_reject(line number) if
     given (otherwise they raise), and size and row limits are enforced.
     """
-    header=None
-    rows=0
-    for line_number,line in enumerate(iter(lambda:stream.readline(65537),''),1):
-        if not line.strip(): continue
-        if len(line)>65536:
+    header = None
+    rows = 0
+    for line_number, line in enumerate(iter(lambda: stream.readline(65537), ''), 1):
+        if not line.strip():
+            continue
+        if len(line) > 65536:
             raise ValueError('CSV line exceeds size limit')
-        comment=line.lstrip().startswith('#')
-        content=line.lstrip()[1:].lstrip() if comment else line
+        comment = line.lstrip().startswith('#')
+        content = line.lstrip()[1:].lstrip() if comment else line
         try:
-            row=next(csv.reader([content],skipinitialspace=True,strict=True))
+            row = next(csv.reader([content], skipinitialspace=True, strict=True))
         except csv.Error:
             if on_reject is None or header is None:
                 raise
@@ -58,161 +61,226 @@ def records(stream,on_reject=None):
             # record its line number, while bounding total omissions.
             on_reject(line_number)
             continue
-        names=[v.strip().lower() for v in row]
+        names = [v.strip().lower() for v in row]
         if 'sha256_hash' in names:
-            if header is not None or len(set(names))!=len(names):
+            if header is not None or len(set(names)) != len(names):
                 raise ValueError('Duplicate or ambiguous CSV header')
-            header=names
+            header = names
             continue
-        if comment: continue
-        if header is None or len(row)!=len(header):
+        if comment:
+            continue
+        if header is None or len(row) != len(header):
             raise ValueError('Unexpected CSV structure')
-        item=dict(zip(header,(v.strip() for v in row)))
-        digest=item['sha256_hash'].lower()
-        if not re.fullmatch(r'[0-9a-f]{64}',digest):
+        item = dict(zip(header, (v.strip() for v in row)))
+        digest = item['sha256_hash'].lower()
+        if not re.fullmatch(r'[0-9a-f]{64}', digest):
             raise ValueError(f'Invalid SHA-256 at data row {rows+1}')
-        label=item.get('signature','')
-        if len(label)>200 or any(ord(c)<32 for c in label):
+        label = item.get('signature', '')
+        if len(label) > 200 or any(ord(c) < 32 for c in label):
             raise ValueError('Invalid threat classification label')
-        label=label if label and label.lower() not in ('n/a','none','null') else 'Reported malware'
-        first_seen=item.get('first_seen_utc','')
-        file_type=item.get('file_type_guess','')
-        if len(first_seen)>64 or len(file_type)>64:
+        label = (
+            label if label and label.lower() not in ('n/a', 'none', 'null') else 'Reported malware'
+        )
+        first_seen = item.get('first_seen_utc', '')
+        file_type = item.get('file_type_guess', '')
+        if len(first_seen) > 64 or len(file_type) > 64:
             raise ValueError('Invalid CSV metadata')
-        rows+=1
-        if rows>MAX_ROWS: raise ValueError('CSV exceeds row limit')
-        yield bytes.fromhex(digest),label,first_seen,file_type
+        rows += 1
+        if rows > MAX_ROWS:
+            raise ValueError('CSV exceeds row limit')
+        yield bytes.fromhex(digest), label, first_seen, file_type
 
 
-def import_archive(archive,output,activate=False,progress=lambda count:None):
+def import_archive(archive, output, activate=False, progress=lambda count: None):
     # Preserve the previous no-output behavior for malformed archive structure.
     """Import a MalwareBazaar full.csv ZIP into a new hash-database snapshot, optionally activating it,
     while holding the update lock.
     """
     with ZipFile(archive) as zipped:
-        members=zipped.infolist()
-        if len(members)!=1 or members[0].filename!='full.csv' or members[0].flag_bits&1:
+        members = zipped.infolist()
+        if len(members) != 1 or members[0].filename != 'full.csv' or members[0].flag_bits & 1:
             raise ValueError('Expected one unencrypted member named full.csv')
     from sentinelav.updates.definition_updates import update_lock
+
     with update_lock(output):
-        return _import_archive(archive,output,activate,progress)
+        return _import_archive(archive, output, activate, progress)
 
 
-def _import_archive(archive,output,activate=False,progress=lambda count:None):
+def _import_archive(archive, output, activate=False, progress=lambda count: None):
     """Do the actual import: stream the CSV into a new SQLite file, apply existing revocations,
     integrity-check it and write its candidate manifest.
 
     If anything fails, the partial database is deleted.
     """
-    archive,output=Path(archive).resolve(),Path(output).absolute()
-    for part in [output,*output.parents]:
+    archive = Path(archive).resolve()
+    output = Path(output).absolute()
+    for part in [output, *output.parents]:
         if part.is_symlink() or part.is_junction():
             raise ValueError('Output cannot contain linked path components')
     # Parse no paths from the archive onto the filesystem.
     with ZipFile(archive) as zipped:
-        members=zipped.infolist()
-        if len(members)!=1 or members[0].filename!='full.csv' or members[0].flag_bits&1:
+        members = zipped.infolist()
+        if len(members) != 1 or members[0].filename != 'full.csv' or members[0].flag_bits & 1:
             raise ValueError('Expected one unencrypted member named full.csv')
-        info=members[0]
-        if not 0<info.file_size<=MAX_CSV:
+        info = members[0]
+        if not 0 < info.file_size <= MAX_CSV:
             raise ValueError('CSV exceeds supported size limit')
-        archive_hash=checksum(archive)
-        output.mkdir(parents=True,exist_ok=True)
-        identity=uuid.uuid4().hex
-        database=output/f'hashes-{identity}.sqlite'
-        db=sqlite3.connect(database)
-        started=time.monotonic()
-        rows=0
-        complete=False
-        rejected=[]
+        archive_hash = checksum(archive)
+        output.mkdir(parents=True, exist_ok=True)
+        identity = uuid.uuid4().hex
+        database = output / f'hashes-{identity}.sqlite'
+        db = sqlite3.connect(database)
+        started = time.monotonic()
+        rows = 0
+        complete = False
+        rejected = []
+
         def reject(line):
             """Remember a malformed CSV line, giving up after 1000 of them."""
             rejected.append(line)
-            if len(rejected)>1000:
+            if len(rejected) > 1000:
                 raise ValueError('Too many malformed CSV records')
+
         try:
-            db.executescript('PRAGMA user_version=1; PRAGMA journal_mode=DELETE; PRAGMA cache_size=-8192; '
+            db.executescript(
+                'PRAGMA user_version=1; PRAGMA journal_mode=DELETE; PRAGMA cache_size=-8192; '
                 'CREATE TABLE hashes(sha256 BLOB PRIMARY KEY,first_seen TEXT NOT NULL,file_type TEXT NOT NULL) WITHOUT ROWID; '
                 'CREATE TABLE labels(sha256 BLOB NOT NULL,label TEXT NOT NULL,PRIMARY KEY(sha256,label)) WITHOUT ROWID; '
-                'CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);')
-            batch=[]
+                'CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);'
+            )
+            batch = []
+
             def write_batch():
                 """Insert the current batch of rows and commit."""
-                db.executemany('INSERT OR IGNORE INTO hashes VALUES (?,?,?)',((h,s,t) for h,l,s,t in batch))
-                db.executemany('INSERT OR IGNORE INTO labels VALUES (?,?)',((h,l) for h,l,s,t in batch))
+                db.executemany(
+                    'INSERT OR IGNORE INTO hashes VALUES (?,?,?)',
+                    ((h, s, t) for h, l, s, t in batch),
+                )
+                db.executemany(
+                    'INSERT OR IGNORE INTO labels VALUES (?,?)', ((h, l) for h, l, s, t in batch)
+                )
                 db.commit()
+
             with zipped.open(info) as raw:
-                with io.TextIOWrapper(raw,encoding='utf-8-sig',newline=None) as text:
-                    for record in records(text,reject):
-                        if time.monotonic()-started>900:
+                with io.TextIOWrapper(raw, encoding='utf-8-sig', newline=None) as text:
+                    for record in records(text, reject):
+                        if time.monotonic() - started > 900:
                             raise ValueError('Import exceeded its 15-minute limit')
                         batch.append(record)
-                        rows+=1
-                        if len(batch)>=10000:
+                        rows += 1
+                        if len(batch) >= 10000:
                             write_batch()
                             batch.clear()
                             progress(rows)
-                    if batch: write_batch()
-            if rows==0: raise ValueError('No hash records found')
-            if len(rejected)>max(1,rows//1000):
+                    if batch:
+                        write_batch()
+            if rows == 0:
+                raise ValueError('No hash records found')
+            if len(rejected) > max(1, rows // 1000):
                 raise ValueError('Malformed CSV records exceed the 0.1 percent quality limit')
             # Zip CRC is verified when the member is fully consumed. Also ensure
             # that the supplied archive did not change during processing.
-            if checksum(archive)!=archive_hash:
+            if checksum(archive) != archive_hash:
                 raise ValueError('Archive changed during import')
-            raw_unique=db.execute('SELECT COUNT(*) FROM hashes').fetchone()[0]
-            revoked_omissions=0
-            if (output/'active.json').exists():
+            raw_unique = db.execute('SELECT COUNT(*) FROM hashes').fetchone()[0]
+            revoked_omissions = 0
+            if (output / 'active.json').exists():
                 from sentinelav.updates.definition_updates import load_active
-                previous=load_active(output,verify=True)
-                prior=sqlite3.connect((output/previous['database']).resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
+
+                previous = load_active(output, verify=True)
+                prior = sqlite3.connect(
+                    (output / previous['database']).resolve().as_uri() + '?mode=ro&immutable=1',
+                    uri=True,
+                )
                 try:
-                    if prior.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='revocations'").fetchone():
-                        db.execute('CREATE TABLE revocations(sha256 BLOB PRIMARY KEY,reason TEXT NOT NULL) WITHOUT ROWID')
-                        db.executemany('INSERT INTO revocations VALUES (?,?)',prior.execute('SELECT sha256,reason FROM revocations'))
-                        revoked_omissions=db.execute('SELECT COUNT(*) FROM hashes WHERE sha256 IN (SELECT sha256 FROM revocations)').fetchone()[0]
-                        db.execute('DELETE FROM hashes WHERE sha256 IN (SELECT sha256 FROM revocations)')
-                        db.execute('DELETE FROM labels WHERE sha256 IN (SELECT sha256 FROM revocations)')
-                finally: prior.close()
-            count=db.execute('SELECT COUNT(*) FROM hashes').fetchone()[0]
-            if count<1: raise ValueError('All imported hashes were revoked; refusing an empty active feed')
-            metadata=dict(schema=1,database=database.name,source='MalwareBazaar',scope='User-supplied full CSV export',
-                imported_utc=datetime.now(timezone.utc).isoformat(),unique_sha256=count,data_rows=rows,
-                duplicate_rows=rows-raw_unique,revoked_omissions=revoked_omissions,archive_sha256=archive_hash,csv_bytes=info.file_size,
-                skipped_malformed_rows=len(rejected),skipped_physical_lines=rejected,
-                csv_crc32=f'{info.CRC:08x}',samples_downloaded=False,provider_labels_independently_verified=False)
-            db.executemany('INSERT INTO metadata VALUES (?,?)',((k,json.dumps(v)) for k,v in metadata.items()))
+                    if prior.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='revocations'"
+                    ).fetchone():
+                        db.execute(
+                            'CREATE TABLE revocations(sha256 BLOB PRIMARY KEY,reason TEXT NOT NULL) WITHOUT ROWID'
+                        )
+                        db.executemany(
+                            'INSERT INTO revocations VALUES (?,?)',
+                            prior.execute('SELECT sha256,reason FROM revocations'),
+                        )
+                        revoked_omissions = db.execute(
+                            'SELECT COUNT(*) FROM hashes WHERE sha256 IN (SELECT sha256 FROM revocations)'
+                        ).fetchone()[0]
+                        db.execute(
+                            'DELETE FROM hashes WHERE sha256 IN (SELECT sha256 FROM revocations)'
+                        )
+                        db.execute(
+                            'DELETE FROM labels WHERE sha256 IN (SELECT sha256 FROM revocations)'
+                        )
+                finally:
+                    prior.close()
+            count = db.execute('SELECT COUNT(*) FROM hashes').fetchone()[0]
+            if count < 1:
+                raise ValueError('All imported hashes were revoked; refusing an empty active feed')
+            metadata = dict(
+                schema=1,
+                database=database.name,
+                source='MalwareBazaar',
+                scope='User-supplied full CSV export',
+                imported_utc=datetime.now(timezone.utc).isoformat(),
+                unique_sha256=count,
+                data_rows=rows,
+                duplicate_rows=rows - raw_unique,
+                revoked_omissions=revoked_omissions,
+                archive_sha256=archive_hash,
+                csv_bytes=info.file_size,
+                skipped_malformed_rows=len(rejected),
+                skipped_physical_lines=rejected,
+                csv_crc32=f'{info.CRC:08x}',
+                samples_downloaded=False,
+                provider_labels_independently_verified=False,
+            )
+            db.executemany(
+                'INSERT INTO metadata VALUES (?,?)',
+                ((k, json.dumps(v)) for k, v in metadata.items()),
+            )
             db.commit()
-            if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok':
+            if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                 raise ValueError('Database integrity check failed')
             db.close()
-            db=None
-            metadata['database_sha256']=checksum(database)
-            candidate=output/f'candidate-{identity}.json'
-            candidate.write_text(json.dumps(metadata,indent=2),encoding='utf-8')
-            complete=True
+            db = None
+            metadata['database_sha256'] = checksum(database)
+            candidate = output / f'candidate-{identity}.json'
+            candidate.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+            complete = True
             if activate:
                 from sentinelav.updates.definition_updates import activate_snapshot
-                metadata=activate_snapshot(output,metadata)
+
+                metadata = activate_snapshot(output, metadata)
             return metadata
         except BaseException:
-            if db is not None: db.close()
+            if db is not None:
+                db.close()
             # Delete only the newly created UUID-owned partial database.
-            if not complete and database.exists(): database.unlink()
+            if not complete and database.exists():
+                database.unlink()
             raise
 
 
 def main():
     """Command-line entry point: import an archive and print the resulting metadata."""
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('archive',type=Path)
-    parser.add_argument('--activate',action='store_true')
-    args=parser.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('archive', type=Path)
+    parser.add_argument('--activate', action='store_true')
+    args = parser.parse_args()
     from sentinelav.detection.definition_paths import signature_data_dir
-    metadata=import_archive(args.archive,signature_data_dir(RESOURCE_ROOT),args.activate,
-                            lambda n:print(f'Validated {n:,} rows...',flush=True))
-    print(json.dumps(metadata,indent=2))
-    print('Activated for new source-app scans.' if args.activate else 'Candidate only; not activated.')
+
+    metadata = import_archive(
+        args.archive,
+        signature_data_dir(RESOURCE_ROOT),
+        args.activate,
+        lambda n: print(f'Validated {n:,} rows...', flush=True),
+    )
+    print(json.dumps(metadata, indent=2))
+    print(
+        'Activated for new source-app scans.' if args.activate else 'Candidate only; not activated.'
+    )
 
 
-if __name__=='__main__': main()
+if __name__ == '__main__':
+    main()

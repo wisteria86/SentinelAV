@@ -9,6 +9,7 @@ Nothing legitimate should open them, so a read, change, rename or deletion is
 strong evidence of data theft or ransomware. They are hidden and excluded from
 indexing and from SentinelAV's own scans. Processes are never stopped here.
 """
+
 import hashlib
 import os
 import secrets
@@ -27,20 +28,45 @@ CREDENTIAL_DECOYS = (
 )
 # Named to sort first, so encryption sweeps reach it early.
 TRAP_FOLDER = '!000 Archive'
-TRAP_FILES = ('000 budget.docx', '001 invoice.pdf', '002 contracts.xlsx', '003 family photo.jpg', '004 notes.txt',
-    '005 tax return.pdf', '006 payroll.xlsx', '007 scan.png', '008 letter.docx', '009 backup.zip')
-HIDDEN, NOT_INDEXED = 0x2, 0x2000
+TRAP_FILES = (
+    '000 budget.docx',
+    '001 invoice.pdf',
+    '002 contracts.xlsx',
+    '003 family photo.jpg',
+    '004 notes.txt',
+    '005 tax return.pdf',
+    '006 payroll.xlsx',
+    '007 scan.png',
+    '008 letter.docx',
+    '009 backup.zip',
+)
+HIDDEN = 0x2
+NOT_INDEXED = 0x2000
 DEFAULT_PORTS = (23, 2323, 5900)
-WORDS = ('river', 'candle', 'orbit', 'velvet', 'harbor', 'lemon', 'quartz', 'meadow', 'pilot', 'echo', 'tundra', 'saddle')
+WORDS = (
+    'river',
+    'candle',
+    'orbit',
+    'velvet',
+    'harbor',
+    'lemon',
+    'quartz',
+    'meadow',
+    'pilot',
+    'echo',
+    'tundra',
+    'saddle',
+)
 
 
 def _content(kind):
-    """Build the text of a decoy file of the given kind: the visible marker plus obviously fake values.
-    """
+    """Build the text of a decoy file of the given kind: the visible marker plus obviously fake values."""
     token = secrets.token_hex(8)
     body = {
         'credentials': f'email: decoy.{token}@example.invalid\npassword: Decoy-{token}\nbank pin: 0000\n',
-        'crypto_wallet': 'seed: ' + ' '.join(secrets.choice(WORDS) for _ in range(12)) + f'\nwallet id: decoy-{token}\n',
+        'crypto_wallet': 'seed: '
+        + ' '.join(secrets.choice(WORDS) for _ in range(12))
+        + f'\nwallet id: decoy-{token}\n',
         'ssh_key': f'-----BEGIN DECOY KEY-----\n{secrets.token_hex(48)}\n-----END DECOY KEY-----\n',
         'cloud_credentials': f'[default]\naws_access_key_id = DECOY{token.upper()}\naws_secret_access_key = decoy/{secrets.token_hex(16)}\n',
         'ransomware_trap': f'decoy document {token}\n' + secrets.token_hex(256) + '\n',
@@ -52,14 +78,21 @@ def _hide(path):
     """Mark a file as hidden and excluded from Windows Search indexing."""
     if os.name == 'nt':
         import ctypes
+
         ctypes.windll.kernel32.SetFileAttributesW(str(path), HIDDEN | NOT_INDEXED)
 
 
 def _record(path, kind, content):
     """Remember a decoy's path, kind, hash and timestamps, so later changes can be detected."""
     info = path.stat()
-    return dict(path=str(path), kind=kind, sha256=hashlib.sha256(content).hexdigest(), atime_ns=info.st_atime_ns,
-        mtime_ns=info.st_mtime_ns, size=info.st_size)
+    return dict(
+        path=str(path),
+        kind=kind,
+        sha256=hashlib.sha256(content).hexdigest(),
+        atime_ns=info.st_atime_ns,
+        mtime_ns=info.st_mtime_ns,
+        size=info.st_size,
+    )
 
 
 def deploy(home=None, trap=True):
@@ -67,7 +100,11 @@ def deploy(home=None, trap=True):
     # SENTINELAV_DECOY_HOME lets tests and evaluations place decoys somewhere other than the real profile.
     home = Path(home or os.environ.get('SENTINELAV_DECOY_HOME') or Path.home())
     entries = []
-    targets = [(home / folder / name, kind) for folder, name, kind in CREDENTIAL_DECOYS if (home / folder).is_dir()]
+    targets = [
+        (home / folder / name, kind)
+        for folder, name, kind in CREDENTIAL_DECOYS
+        if (home / folder).is_dir()
+    ]
     if trap and (home / 'Documents').is_dir():
         folder = home / 'Documents' / TRAP_FOLDER
         folder.mkdir(exist_ok=True)
@@ -99,7 +136,9 @@ def remove(entries):
         except OSError:
             pass
         kept.append(entry)
-    for folder in {Path(entry['path']).parent for entry in entries if entry['kind'] == 'ransomware_trap'}:
+    for folder in {
+        Path(entry['path']).parent for entry in entries if entry['kind'] == 'ransomware_trap'
+    }:
         try:
             folder.rmdir()
         except OSError:
@@ -110,15 +149,23 @@ def remove(entries):
 def holders(path, budget=2.0):
     """Processes that currently have the decoy open, within a time budget."""
     import psutil
+
     target = os.path.normcase(str(path))
-    found, deadline = [], time.monotonic() + budget
+    found = []
+    deadline = time.monotonic() + budget
     for process in psutil.process_iter(['pid', 'name', 'exe', 'create_time']):
         if time.monotonic() > deadline:
             break
         try:
             if any(os.path.normcase(item.path) == target for item in process.open_files()):
-                found.append(dict(pid=process.info['pid'], name=process.info['name'] or '', exe=process.info['exe'] or '',
-                    create_time=process.info['create_time']))
+                found.append(
+                    dict(
+                        pid=process.info['pid'],
+                        name=process.info['name'] or '',
+                        exe=process.info['exe'] or '',
+                        create_time=process.info['create_time'],
+                    )
+                )
         except (psutil.Error, OSError):
             continue
     return found
@@ -132,7 +179,10 @@ class HoneypotWatcher:
         indicators, and find_holders and clock can be replaced in tests.
         """
         self.entries = [dict(entry) for entry in entries]
-        self.emit, self.behavior, self.find_holders, self.clock = emit, behavior, find_holders, clock
+        self.emit = emit
+        self.behavior = behavior
+        self.find_holders = find_holders
+        self.clock = clock
         self.reported = {}
 
     def paths(self):
@@ -156,7 +206,11 @@ class HoneypotWatcher:
             except OSError:
                 return 'locked after a change'
             # Reading it here updated the access time; re-baseline so this check is not reported as a read.
-            entry['mtime_ns'], entry['size'], entry['atime_ns'] = info.st_mtime_ns, info.st_size, path.stat().st_atime_ns
+            # Read the new access time first: if stat() fails, the entry must stay untouched.
+            accessed = path.stat().st_atime_ns
+            entry['mtime_ns'] = info.st_mtime_ns
+            entry['size'] = info.st_size
+            entry['atime_ns'] = accessed
             if changed:
                 entry['sha256'] = ''
                 return 'modified'
@@ -181,7 +235,9 @@ class HoneypotWatcher:
                 touched.append((entry, state))
         if not touched:
             return []
-        traps = [item for item in touched if item[0]['kind'] == 'ransomware_trap' and item[1] != 'read']
+        traps = [
+            item for item in touched if item[0]['kind'] == 'ransomware_trap' and item[1] != 'read'
+        ]
         events = []
         for entry, state in touched:
             key = (entry['path'], state)
@@ -189,21 +245,50 @@ class HoneypotWatcher:
             if now - self.reported.get(key, -1e9) < 60:
                 continue
             self.reported[key] = now
-            found = self.find_holders(entry['path']) if state in ('read', 'locked after a change') else []
+            found = (
+                self.find_holders(entry['path'])
+                if state in ('read', 'locked after a change')
+                else []
+            )
             severe = state != 'read' or entry['kind'] != 'ransomware_trap'
-            label = 'Ransomware trap' if entry['kind'] == 'ransomware_trap' else 'Decoy ' + entry['kind'].replace('_', ' ')
-            who = ', '.join(f"{item['name']} (PID {item['pid']})" for item in found) or 'process not identified'
+            label = (
+                'Ransomware trap'
+                if entry['kind'] == 'ransomware_trap'
+                else 'Decoy ' + entry['kind'].replace('_', ' ')
+            )
+            who = (
+                ', '.join(f"{item['name']} (PID {item['pid']})" for item in found)
+                or 'process not identified'
+            )
             details = f'{label} {state}: {Path(entry["path"]).name}. Accessed by: {who}.'
             if len(traps) >= 3:
-                details += f' {len(traps)} trap files changed at once, which is how ransomware behaves.'
-            event = dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), kind='Honeypot triggered', details=details, source='Honeypot',
-                level='Alert' if severe else 'Warning', path=entry['path'], decoy=entry['kind'], state=state, processes=found)
+                details += (
+                    f' {len(traps)} trap files changed at once, which is how ransomware behaves.'
+                )
+            event = dict(
+                time=time.strftime('%Y-%m-%d %H:%M:%S'),
+                kind='Honeypot triggered',
+                details=details,
+                source='Honeypot',
+                level='Alert' if severe else 'Warning',
+                path=entry['path'],
+                decoy=entry['kind'],
+                state=state,
+                processes=found,
+            )
             events.append(event)
             self.emit(event)
             if self.behavior:
                 for item in found:
                     entity = f"process:{item['pid']}:{item['create_time']}"
-                    self.behavior.indicator(entity, 'decoy_access', 70, f'{label} {state} by this process', pid=item['pid'], path=item['exe'])
+                    self.behavior.indicator(
+                        entity,
+                        'decoy_access',
+                        70,
+                        f'{label} {state} by this process',
+                        pid=item['pid'],
+                        path=item['exe'],
+                    )
         return events
 
 
@@ -212,8 +297,14 @@ class NetworkHoneypot:
 
     def __init__(self, emit, ports=DEFAULT_PORTS, host='0.0.0.0', limit=256):
         """Prepare listeners for the given ports (they are opened by start())."""
-        self.emit, self.ports, self.host, self.limit = emit, tuple(ports), host, limit
-        self.sockets, self.skipped, self.stop_event, self.records = [], [], threading.Event(), []
+        self.emit = emit
+        self.ports = tuple(ports)
+        self.host = host
+        self.limit = limit
+        self.sockets = []
+        self.skipped = []
+        self.stop_event = threading.Event()
+        self.records = []
 
     def start(self):
         """Open a listener on each port that is free (ports already in use are skipped) and return the
@@ -226,13 +317,18 @@ class NetworkHoneypot:
                     server.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
                 server.bind((self.host, port))
                 server.listen(16)
-                server.settimeout(.5)
+                server.settimeout(0.5)
             except OSError:
                 server.close()
                 self.skipped.append(port)  # In use by something real; never take it over.
                 continue
             self.sockets.append(server)
-            threading.Thread(target=self._serve, args=(server, server.getsockname()[1]), daemon=True, name=f'honeypot-{port}').start()
+            threading.Thread(
+                target=self._serve,
+                args=(server, server.getsockname()[1]),
+                daemon=True,
+                name=f'honeypot-{port}',
+            ).start()
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
@@ -251,12 +347,24 @@ class NetworkHoneypot:
                 except OSError:
                     first = b''
             local = address.startswith('127.') or address == '::1'
-            record = dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), port=port, address=address, peer_port=peer_port,
-                first_bytes=first[:64].hex())
-            self.records = (self.records + [record])[-self.limit:]
-            self.emit(dict(record, kind='Network honeypot contacted', source='Honeypot',
-                level='Warning' if local else 'Alert', details=f'{address}:{peer_port} connected to decoy port {port}. '
-                'Nothing legitimate uses this port here, so this is likely a scan or an attempt to spread.'))
+            record = dict(
+                time=time.strftime('%Y-%m-%d %H:%M:%S'),
+                port=port,
+                address=address,
+                peer_port=peer_port,
+                first_bytes=first[:64].hex(),
+            )
+            self.records = (self.records + [record])[-self.limit :]
+            self.emit(
+                dict(
+                    record,
+                    kind='Network honeypot contacted',
+                    source='Honeypot',
+                    level='Warning' if local else 'Alert',
+                    details=f'{address}:{peer_port} connected to decoy port {port}. '
+                    'Nothing legitimate uses this port here, so this is likely a scan or an attempt to spread.',
+                )
+            )
 
     def stop(self):
         """Stop all listeners."""

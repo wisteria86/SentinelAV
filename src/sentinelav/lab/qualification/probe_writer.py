@@ -11,6 +11,7 @@ class ProbeWriter:
     """Controls a helper process that writes one known file on demand, so ETW collection can be checked
     against a write we know happened.
     """
+
     def __init__(self, root, collector):
         """Start the collector in probe-writer mode and wait until it says it is ready."""
         self.path = root / ('SentinelAVLabProbe-' + uuid.uuid4().hex + '.txt')
@@ -18,8 +19,11 @@ class ProbeWriter:
         self.start = self.path.with_suffix('.start')
         self.stop = self.path.with_suffix('.stop')
         env = dict(os.environ, SENTINELAV_PROBE_FILE=str(self.path))
-        self.process = subprocess.Popen([str(collector), '--lab-probe-writer'],
-                                        env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+        self.process = subprocess.Popen(
+            [str(collector), '--lab-probe-writer'],
+            env=env,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
         try:
             self.wait_for(self.ready)
         except BaseException:
@@ -34,7 +38,7 @@ class ProbeWriter:
                 raise RuntimeError('Dedicated ETW probe writer exited')
             if path.exists():
                 return
-            time.sleep(.05)
+            time.sleep(0.05)
         raise TimeoutError('Dedicated ETW probe writer did not reach ' + path.suffix)
 
     def write(self):

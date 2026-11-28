@@ -12,6 +12,7 @@ but not Malicious, and counts only capabilities that legitimate software rarely
 combines: code injection, recovery sabotage, keylogging, credential theft,
 sandbox evasion, persistence and remote control. Their total is capped.
 """
+
 import json
 import os
 import subprocess
@@ -26,15 +27,57 @@ INPUT_LIMIT = 8 * 1024 * 1024
 
 # (namespace prefix, code, weight, category, explanation). The first matching prefix wins for each rule.
 STRONG = (
-    ('host-interaction/process/inject', 'capa_process_injection', 25, 'Injector', 'Can write and run code inside another process.'),
-    ('impact/inhibit-system-recovery', 'capa_inhibits_recovery', 30, 'Ransomware', 'Can delete shadow copies or disable system recovery.'),
-    ('impact/', 'capa_destructive_impact', 20, 'Destructive', 'Has code to wipe, encrypt or otherwise damage data.'),
+    (
+        'host-interaction/process/inject',
+        'capa_process_injection',
+        25,
+        'Injector',
+        'Can write and run code inside another process.',
+    ),
+    (
+        'impact/inhibit-system-recovery',
+        'capa_inhibits_recovery',
+        30,
+        'Ransomware',
+        'Can delete shadow copies or disable system recovery.',
+    ),
+    (
+        'impact/',
+        'capa_destructive_impact',
+        20,
+        'Destructive',
+        'Has code to wipe, encrypt or otherwise damage data.',
+    ),
     ('collection/keylog', 'capa_keylogging', 20, 'Spyware', 'Can record keystrokes.'),
     ('collection/screenshot', 'capa_screen_capture', 12, 'Spyware', 'Can capture the screen.'),
-    ('anti-analysis/anti-vm', 'capa_sandbox_evasion', 15, 'Evasion', 'Checks whether it runs in a virtual machine or sandbox.'),
-    ('anti-analysis/anti-av', 'capa_security_evasion', 20, 'Evasion', 'Looks for or interferes with security software.'),
-    ('persistence/', 'capa_persistence', 15, 'Persistence', 'Can install itself to start automatically.'),
-    ('communication/c2/', 'capa_remote_control', 20, 'Backdoor', 'Has command-and-control handling for remote instructions.'),
+    (
+        'anti-analysis/anti-vm',
+        'capa_sandbox_evasion',
+        15,
+        'Evasion',
+        'Checks whether it runs in a virtual machine or sandbox.',
+    ),
+    (
+        'anti-analysis/anti-av',
+        'capa_security_evasion',
+        20,
+        'Evasion',
+        'Looks for or interferes with security software.',
+    ),
+    (
+        'persistence/',
+        'capa_persistence',
+        15,
+        'Persistence',
+        'Can install itself to start automatically.',
+    ),
+    (
+        'communication/c2/',
+        'capa_remote_control',
+        20,
+        'Backdoor',
+        'Has command-and-control handling for remote instructions.',
+    ),
 )
 # Credential theft is named by ATT&CK tactic rather than one namespace.
 CREDENTIAL_TACTIC = 'Credential Access'
@@ -43,6 +86,7 @@ CREDENTIAL_TACTIC = 'Credential Access'
 def locate():
     """capa.exe from SENTINELAV_CAPA, a `capa` folder beside the application, then the work drive's tool area."""
     from sentinelav.paths import PROJECT_ROOT
+
     if os.environ.get('SENTINELAV_CAPA'):
         path = Path(os.environ['SENTINELAV_CAPA'])
         return path if path.is_file() else None
@@ -63,7 +107,12 @@ def run(path, program=None):
     if program is None:
         raise FileNotFoundError('capa is not installed')
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    process = subprocess.Popen([str(program), '-j', str(path)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, creationflags=flags)
+    process = subprocess.Popen(
+        [str(program), '-j', str(path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        creationflags=flags,
+    )
     try:
         output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
@@ -80,8 +129,12 @@ def run(path, program=None):
 def _end_tree(process):
     """Forcefully stop a process together with every child process it started."""
     if os.name == 'nt':
-        subprocess.run(['taskkill', '/T', '/F', '/PID', str(process.pid)], capture_output=True,
-            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=30)
+        subprocess.run(
+            ['taskkill', '/T', '/F', '/PID', str(process.pid)],
+            capture_output=True,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+            timeout=30,
+        )
     else:
         process.kill()
     try:
@@ -133,8 +186,16 @@ def indicators(report):
         # recognised by its ATT&CK tactic instead.
         chosen = next((entry for entry in STRONG if namespace.startswith(entry[0])), None)
         if chosen is None and CREDENTIAL_TACTIC in tactics:
-            chosen = ('', 'capa_credential_theft', 25, 'Stealer', 'Can read stored passwords or other credentials.')
+            chosen = (
+                '',
+                'capa_credential_theft',
+                25,
+                'Stealer',
+                'Can read stored passwords or other credentials.',
+            )
         if chosen and chosen[1] not in found:
             _, code, weight, category, explanation = chosen
-            found[code] = indicator(code, 'capa', weight, f'capa: {explanation} (rule "{name}")', 'capa', category, name)
+            found[code] = indicator(
+                code, 'capa', weight, f'capa: {explanation} (rule "{name}")', 'capa', category, name
+            )
     return list(found.values())

@@ -14,3 +14,10 @@ dependencies = {file = ["requirements/requirements.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Code layout: one statement per line, 100-character lines.
+# Run with: .venv/Scripts/python.exe -m black .
+[tool.black]
+line-length = 100
+skip-string-normalization = true
+target-version = ['py312']

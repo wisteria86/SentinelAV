@@ -28,17 +28,26 @@ class MonitoringHealth:
     def status(self):
         """Summarise every failure and loss for the status display."""
         reasons = [f'{source}: {reason}' for source, reason in self.failures.items()]
-        reasons += [f'{source}: {count} observations lost or unattributed' for source, count in self.losses.items()]
-        return dict(telemetry_error='; '.join(reasons),
-                    telemetry_failures=dict(self.failures), telemetry_losses=dict(self.losses))
+        reasons += [
+            f'{source}: {count} observations lost or unattributed'
+            for source, count in self.losses.items()
+        ]
+        return dict(
+            telemetry_error='; '.join(reasons),
+            telemetry_failures=dict(self.failures),
+            telemetry_losses=dict(self.losses),
+        )
 
 
 def verified_network_processes(connections, snapshot, exclusions, excluded):
     """Correlate only still-live PID/creation-time pairs after capturing connections."""
     verified = {}
     omitted = 0
-    pids = {connection.pid for connection in connections
-            if connection.status == 'ESTABLISHED' and connection.raddr}
+    pids = {
+        connection.pid
+        for connection in connections
+        if connection.status == 'ESTABLISHED' and connection.raddr
+    }
     for pid in pids:
         info = snapshot.get(pid)
         if not info or not info.get('create_time'):

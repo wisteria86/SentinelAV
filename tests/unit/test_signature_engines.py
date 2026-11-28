@@ -2,6 +2,7 @@
 # Works with: detection.clamav_engine, detection.rule_packs, detection.threat_score
 
 """Verify the ClamAV client, third-party rule packs and how their evidence is scored."""
+
 import json
 import os
 import socket
@@ -48,7 +49,9 @@ class FakeClamd:
                         break
                     data.extend(self.read(connection, size))
                 found = self.verdict(bytes(data))
-                connection.sendall((f'stream: {found} FOUND' if found else 'stream: OK').encode() + b'\0')
+                connection.sendall(
+                    (f'stream: {found} FOUND' if found else 'stream: OK').encode() + b'\0'
+                )
 
     @staticmethod
     def read(connection, size):
@@ -74,17 +77,32 @@ class ClamAVClientTests(unittest.TestCase):
     def test_endpoint_file_is_used_only_while_clamd_answers(self):
         with tempfile.TemporaryDirectory() as folder:
             database = Path(folder)
-            (database / clamav_engine.ENDPOINT_FILE).write_text(json.dumps(dict(port=self.fake.endpoint[1])), encoding='utf-8')
+            (database / clamav_engine.ENDPOINT_FILE).write_text(
+                json.dumps(dict(port=self.fake.endpoint[1])), encoding='utf-8'
+            )
             self.assertEqual(clamav_engine.read_endpoint(database), self.fake.endpoint)
             self.fake.close()
             self.assertIsNone(clamav_engine.read_endpoint(database))
 
     def test_engine_reports_signature_and_heuristic_separately(self):
         from sentinelav.detection.engine import Scanner
-        fake = FakeClamd(lambda data: 'Heuristics.Encrypted.Zip' if b'ZIPPY' in data else 'Doc.Dropper.Agent-1' if b'MARKER' in data else None)
+
+        fake = FakeClamd(
+            lambda data: (
+                'Heuristics.Encrypted.Zip'
+                if b'ZIPPY' in data
+                else 'Doc.Dropper.Agent-1' if b'MARKER' in data else None
+            )
+        )
         self.addCleanup(fake.close)
-        with mock.patch('sentinelav.detection.clamav_engine.read_endpoint', return_value=fake.endpoint):
-            scanner = Scanner(Path('resources/signatures.json'), Path('resources/rules'), options=dict(rule_packs=False))
+        with mock.patch(
+            'sentinelav.detection.clamav_engine.read_endpoint', return_value=fake.endpoint
+        ):
+            scanner = Scanner(
+                Path('resources/signatures.json'),
+                Path('resources/rules'),
+                options=dict(rule_packs=False),
+            )
         self.assertEqual(scanner.analyze_bytes(b'xx MARKER')[0], ['ClamAV: Doc.Dropper.Agent-1'])
         names, matches, _ = scanner.analyze_bytes(b'ZIPPY')
         self.assertEqual(names, [])
@@ -92,8 +110,15 @@ class ClamAVClientTests(unittest.TestCase):
 
     def test_lost_service_becomes_one_warning_not_per_file_errors(self):
         from sentinelav.detection.engine import Scanner
-        with mock.patch('sentinelav.detection.clamav_engine.read_endpoint', return_value=('127.0.0.1', 1)):
-            scanner = Scanner(Path('resources/signatures.json'), Path('resources/rules'), options=dict(rule_packs=False))
+
+        with mock.patch(
+            'sentinelav.detection.clamav_engine.read_endpoint', return_value=('127.0.0.1', 1)
+        ):
+            scanner = Scanner(
+                Path('resources/signatures.json'),
+                Path('resources/rules'),
+                options=dict(rule_packs=False),
+            )
         _, _, errors = scanner.analyze_bytes(b'anything')
         self.assertEqual(errors, [])
         self.assertIsNone(scanner.clamav)
@@ -114,11 +139,20 @@ class ClamAVScoringTests(unittest.TestCase):
         self.assertFalse(automatic_eligible(assessed))
 
     def test_heuristic_alone_stays_below_malicious(self):
-        match = dict(rule='Heuristics.Phishing', code='clamav_heuristic', scope='generic', layer='clamav_heuristic',
-            group='clamav_heuristic', weight=40, description='ClamAV heuristic')
+        match = dict(
+            rule='Heuristics.Phishing',
+            code='clamav_heuristic',
+            scope='generic',
+            layer='clamav_heuristic',
+            group='clamav_heuristic',
+            weight=40,
+            description='ClamAV heuristic',
+        )
         assessed = score(signature_items([], [match]))
         self.assertEqual(assessed['verdict'], 'Suspicious')
-        self.assertEqual(arm_scores(signature_items([], [match]))['generalized']['verdict'], 'Suspicious')
+        self.assertEqual(
+            arm_scores(signature_items([], [match]))['generalized']['verdict'], 'Suspicious'
+        )
 
 
 PACK = '''
@@ -131,28 +165,55 @@ rule MAL_Disabled { meta: score = 90 strings: $a = "NOISYBYTES" condition: $a }
 
 class RulePackTests(unittest.TestCase):
     def test_family_rules_decide_and_technique_rules_add_capped_weight(self):
-        with tempfile.TemporaryDirectory() as folder, mock.patch.dict(os.environ, SENTINELAV_DEFINITIONS=folder):
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            mock.patch.dict(os.environ, SENTINELAV_DEFINITIONS=folder),
+        ):
             source = Path(folder) / 'source.yar'
             source.write_text(PACK, encoding='utf-8')
-            rule_packs.install('yara-forge', source, 'test', 'local', '0' * 64, disabled={'MAL_Disabled': 'false positive'})
+            rule_packs.install(
+                'yara-forge',
+                source,
+                'test',
+                'local',
+                '0' * 64,
+                disabled={'MAL_Disabled': 'false positive'},
+            )
             pack = rule_packs.RulePack('yara-forge')
             again = rule_packs.RulePack('yara-forge')
             self.assertEqual(again.count, 4)
-            kinds = {item['rule']: item['kind'] for item in pack.match(b'FAMILYBYTES TRAITBYTES LOWBYTES NOISYBYTES')}
-        self.assertEqual(kinds, {'MAL_Example_Family': 'family', 'SUSP_Example_Trait': 'technique', 'MAL_Low_Score': 'technique'})
+            kinds = {
+                item['rule']: item['kind']
+                for item in pack.match(b'FAMILYBYTES TRAITBYTES LOWBYTES NOISYBYTES')
+            }
+        self.assertEqual(
+            kinds,
+            {
+                'MAL_Example_Family': 'family',
+                'SUSP_Example_Trait': 'technique',
+                'MAL_Low_Score': 'technique',
+            },
+        )
 
     def test_tampered_pack_is_refused(self):
-        with tempfile.TemporaryDirectory() as folder, mock.patch.dict(os.environ, SENTINELAV_DEFINITIONS=folder):
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            mock.patch.dict(os.environ, SENTINELAV_DEFINITIONS=folder),
+        ):
             source = Path(folder) / 'source.yar'
             source.write_text(PACK, encoding='utf-8')
             manifest = rule_packs.install('yara-forge', source, 'test', 'local', '0' * 64)
-            (Path(folder) / 'yara-forge' / manifest['file']).write_text(PACK + '\n// changed', encoding='utf-8')
+            (Path(folder) / 'yara-forge' / manifest['file']).write_text(
+                PACK + '\n// changed', encoding='utf-8'
+            )
             packs, warnings = rule_packs.load_packs()
         self.assertEqual(packs, [])
         self.assertIn('pinned digest', warnings[0])
 
     def test_several_technique_rules_cannot_reach_malicious(self):
-        items = signature_items([], [rule_packs.classify(f'SUSP_Trait_{n}', dict(score=80)) for n in range(6)])
+        items = signature_items(
+            [], [rule_packs.classify(f'SUSP_Trait_{n}', dict(score=80)) for n in range(6)]
+        )
         self.assertLess(score(items)['score'], 70)
 
 

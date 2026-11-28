@@ -3,18 +3,22 @@
 # Used by: ui.design
 
 """Reference-inspired desktop components; all icons are resolution-independent SVGs."""
+
 from PySide6.QtWidgets import QLabel, QPushButton, QHBoxLayout
 from .design_components import icon
 
 
 class ReportsPageMixin:
     """Builds the Reports page."""
+
     def reports_page(self):
         """Build the Reports page: report tabs, export button and the history table."""
-        layout = self.page('Reports', 'View your scan history, detected threats, and system activity.')
+        layout = self.page(
+            'Reports', 'View your scan history, detected threats, and system activity.'
+        )
         row = QHBoxLayout()
         self.report_tabs = []
-        for i, title in enumerate(['Scan History','Threats','Protection Events']):
+        for i, title in enumerate(['Scan History', 'Threats', 'Protection Events']):
             b = QPushButton(title, objectName='tab')
             b.setCheckable(True)
             b.setChecked(i == 0)
@@ -25,7 +29,9 @@ class ReportsPageMixin:
         b = self.action(row, 'Export Report', self.export)
         b.setIcon(icon('report'))
         layout.addLayout(row)
-        self.history_table = self.table(['Date','Scan Type','Files Scanned','Threats Found','Result'])
+        self.history_table = self.table(
+            ['Date', 'Scan Type', 'Files Scanned', 'Threats Found', 'Result']
+        )
         self.history_table.setMinimumHeight(220)
         self.history_table.setMaximumHeight(360)
         layout.addWidget(self.history_table, 1)
