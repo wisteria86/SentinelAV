@@ -38,6 +38,9 @@ def validated_native_build():
 
 
 def control_flow_guard_enabled():
+    """Tell whether Windows Control Flow Guard is enabled for this process (some emulator builds crash
+    under it).
+    """
     if os.name!='nt': return False
     kernel=ctypes.WinDLL('kernel32',use_last_error=True)
     kernel.GetCurrentProcess.restype=wintypes.HANDLE
@@ -50,6 +53,11 @@ def control_flow_guard_enabled():
 
 
 def compatibility(version):
+    """Decide whether the Unicorn emulator can run safely in this process.
+
+    If Control Flow Guard is on, only the validated, bundled build is allowed. Returns {'available':
+    bool, 'reason': ..., 'cfg_enabled': bool}.
+    """
     numbers=re.match(r'^(\d+)\.(\d+)\.(\d+)',version)
     if numbers is None: return dict(available=False,reason='Unrecognized emulator version')
     try: cfg=control_flow_guard_enabled()

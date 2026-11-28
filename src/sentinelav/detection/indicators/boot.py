@@ -29,6 +29,7 @@ KB_TO_SEGMENT = re.compile(rb'\xc1\xe0\x06|\xb1\x06\xd3\xe0')
 
 
 def is_boot_sector(data):
+    """Tell whether the data starts with a boot sector (512 bytes ending in the 55 AA signature)."""
     return len(data) >= SECTOR and bytes(data[510:512]) == b'\x55\xaa'
 
 
@@ -44,6 +45,12 @@ def _sectors(data):
 
 
 def indicators(data, kind='boot'):
+    """Look for the tell-tale tricks of a boot virus in the boot sectors of a disk image.
+
+    Each trick (reserving memory, hooking the disk interrupt, copying itself high, writing sectors)
+    adds one indicator. Several of them together are what separates a boot virus from an ordinary
+    boot loader.
+    """
     found = []
     seen = set()
     for offset, sector in _sectors(data):

@@ -9,7 +9,10 @@ from .design_components import icon, art
 
 
 class DashboardMixin:
+    """Builds the Dashboard page and keeps its numbers and the reports table up to date."""
     def dashboard(self):
+        """Build the Dashboard: status card, four metric cards, and the Quick/Custom scan buttons.
+        """
         layout = self.page('Dashboard', 'Your system security at a glance')
         frame = QFrame(objectName='card')
         frame.setMaximumHeight(150)
@@ -91,6 +94,7 @@ class DashboardMixin:
         layout.addStretch()
 
     def refresh(self):
+        """Update the dashboard metrics and refill the Reports table for the selected report tab."""
         history = self.store.history()
         values = ['Never' if not history else history[0]['started'][5:16],
                   f"{sum(s['scanned'] for s in history):,}",

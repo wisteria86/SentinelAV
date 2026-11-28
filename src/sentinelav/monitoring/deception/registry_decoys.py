@@ -23,16 +23,22 @@ TEST_ROOT = r'Software\SentinelAV-Test-Decoys'
 
 def default_base():
     # Tests and evaluations set a decoy home; their registry decoys then stay under a throwaway key, never real app keys.
+    """Return the registry key decoys go under: a throwaway test key when a test decoy home is set,
+    otherwise the normal Software key.
+    """
     return TEST_ROOT if os.environ.get('SENTINELAV_DECOY_HOME') else APP_ROOT
 
 
 def _write(root, path, values):
+    """Create a registry key and write the given values (numbers as DWORD, everything else as text).
+    """
     with winreg.CreateKeyEx(root, path, 0, winreg.KEY_WRITE) as key:
         for name, value in values.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_DWORD if isinstance(value, int) else winreg.REG_SZ, value)
 
 
 def _read(root, path):
+    """Return all values of a registry key as a dict, or None if the key does not exist."""
     try:
         with winreg.OpenKey(root, path) as key:
             values, index = {}, 0
@@ -48,6 +54,7 @@ def _read(root, path):
 
 
 def _exists(root, path):
+    """Tell whether a registry key exists."""
     try:
         winreg.OpenKey(root, path).Close()
         return True
@@ -88,6 +95,7 @@ def changed(record, root=None):
 
 
 def _delete_tree(root, path):
+    """Delete a registry key together with all its subkeys."""
     try:
         with winreg.OpenKey(root, path, 0, winreg.KEY_ALL_ACCESS) as key:
             while True:
@@ -102,6 +110,7 @@ def _delete_tree(root, path):
 
 
 def _empty(root, path):
+    """Tell whether a registry key exists and has no subkeys and no values."""
     try:
         with winreg.OpenKey(root, path) as key:
             subkeys, values, _ = winreg.QueryInfoKey(key)

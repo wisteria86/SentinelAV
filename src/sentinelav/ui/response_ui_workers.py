@@ -9,14 +9,18 @@ from sentinelav.response.response import ResponseService
 
 
 class ResponseWorker(QThread):
+    """Background thread that calls one ResponseService method with its own database connection."""
     completed = Signal(dict)
     failed = Signal(str)
 
     def __init__(self,path,root,method,args):
+        """Remember the database path, resources folder, the method name and its arguments."""
         super().__init__()
         self.path,self.root,self.method,self.args = path,root,method,args
 
     def run(self):
+        """Call the method and emit completed(result), or audit the failure and emit failed(message).
+        """
         store = None
         try:
             store = Store(self.path)

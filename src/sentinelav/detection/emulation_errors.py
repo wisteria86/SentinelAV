@@ -9,4 +9,8 @@ Unsupported semantics stop analysis instead of fabricating successful execution.
 """
 
 
-class UnsupportedAPI(ValueError): pass
+class UnsupportedAPI(ValueError):
+    """Raised when an emulated program calls a Windows function we do not model, which ends that
+    emulation run.
+    """
+    pass

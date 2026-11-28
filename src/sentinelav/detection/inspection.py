@@ -48,13 +48,32 @@ def merge_results(first,second):
 
 
 class IndexInfo:
-    def __init__(self,count,metadata): self.count,self.metadata=count,metadata
-    def __len__(self): return self.count
-    def close(self): pass
+    """Small stand-in for the signature index, holding only the count and metadata reported by the
+    worker.
+    """
+    def __init__(self,count,metadata):
+        """Remember how many signatures the worker loaded and their metadata."""
+        self.count,self.metadata=count,metadata
+    def __len__(self):
+        """Return the number of signatures."""
+        return self.count
+    def close(self):
+        """Nothing to close; the real index lives in the worker."""
+        pass
 
 
 class IsolatedScanner:
+    """Runs the real Scanner in a separate worker process and talks to it over JSON lines.
+
+    If a hostile file crashes or hangs the scanner, only the worker dies; the app keeps running, the
+    stuck file is reported, and the scan resumes after it in a fresh worker. On Windows the worker
+    is also placed in a job object that caps its memory and process count. This is fault isolation,
+    not a full security sandbox.
+    """
     def __init__(self,signatures,rules_dir,max_mb=100,exclusions=(),trusted_hashes=(),options=None,persistent=False):
+        """Remember the scan configuration and start the worker. With persistent=True the worker is
+        kept alive between scans instead of being closed after each one.
+        """
         self.config=dict(signatures=str(Path(signatures).resolve()),rules=str(Path(rules_dir).resolve()),
                          max_mb=max_mb,exclusions=list(map(str,exclusions)),trusted_hashes=list(trusted_hashes),options=options or {})
         self.process=None
@@ -65,6 +84,9 @@ class IsolatedScanner:
         self.start()
 
     def start(self):
+        """Launch the worker process with a trimmed-down environment, apply the job limits, start the
+        thread that reads its replies, and send it the initial configuration.
+        """
         if getattr(sys,'frozen',False): command=[sys.executable,'--inspection-worker']
         else: command=[str(Path(sys.executable).with_name('python.exe') if os.name=='nt' else Path(sys.executable)),str((PROJECT_ROOT/'app.py')),'--inspection-worker']
         environment={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','PROGRAMDATA','PROGRAMFILES','PROGRAMFILES(X86)','SYSTEMDRIVE',
@@ -92,6 +114,9 @@ class IsolatedScanner:
             errors=[]
             self.transport_errors=errors
             def read():
+                """Background thread: read JSON lines from the worker and queue them, killing the
+                worker if it sends anything malformed or oversized.
+                """
                 try:
                     while True:
                         line=process.stdout.readline(MAX_LINE+1)
@@ -112,16 +137,25 @@ class IsolatedScanner:
             raise
 
     def excluded(self,path):
+        """Tell whether a path is inside one of the excluded folders."""
         resolved=Path(path).resolve()
         return any(resolved==p or p in resolved.parents for p in self.exclusions)
 
     def exchange(self,message,cancelled,progress,timeout):
+        """Send one request to the worker and wait for its final result, handling progress messages on
+        the way.
+
+        While waiting, partial findings and progress updates are collected so that if the worker
+        dies, hangs or the user cancels, we can still return everything found so far, together with
+        the position where it stopped.
+        """
         raw=json.dumps(dict(protocol=1,**message)).encode()+b'\n'
         if len(raw)>(MAX_REQUEST if message.get('command')=='buffer' else 128*1024): raise ValueError('Inspection request exceeds limit')
         if self.process is None or self.process.poll() is not None: raise RuntimeError('Inspection worker is not running')
         process=self.process
         write_errors=[]
         def write_request():
+            """Write the request in a separate thread so a stuck worker cannot block us."""
             try:
                 process.stdin.write(raw)
                 process.stdin.flush()
@@ -137,6 +171,7 @@ class IsolatedScanner:
         suspicious=[]
         position=dict(index=0,path='')
         def incomplete(status,error):
+            """Build a partial scan result from what has been collected so far."""
             return dict(started=time.strftime('%Y-%m-%d %H:%M:%S'),scanned=max(checked,len({d.get('path','') for d in partial})),skipped=0,errors=[error] if error else [],
                 detections=partial,suspicious=suspicious,status=status,elapsed=round(time.monotonic()-began,2),resume_index=position['index'],stuck_path=position['path'],
                 warnings=['Partial worker result; coverage is incomplete'],yara=getattr(self,'rule_summary',{}))
@@ -191,6 +226,9 @@ class IsolatedScanner:
             return reply['result']
 
     def scan(self,roots,cancelled,progress):
+        """Scan files and folders in the worker, restarting it and skipping the problem file whenever
+        it stops part-way (up to 64 times).
+        """
         single=len(roots)==1 and Path(roots[0]).is_file()
         timeout=PER_FILE_SECONDS
         restarted=False
@@ -215,11 +253,13 @@ class IsolatedScanner:
             if not self.keep_alive: self.close()
 
     def scan_memory(self,pid,creation,cancelled=lambda:False):
+        """Ask the worker to scan the memory of a running process."""
         try: return self.exchange(dict(command='memory',pid=pid,creation=creation),cancelled,lambda *a:None,12)
         finally:
             if not self.keep_alive: self.close()
 
     def scan_buffer(self,content,cancelled=lambda:False):
+        """Ask the worker to scan a block of bytes (at most 1 MiB)."""
         from sentinelav.detection.buffer_scan import MAX_BUFFER
         try:
             if not isinstance(content,bytes): raise TypeError('Buffer content must be bytes')
@@ -232,6 +272,7 @@ class IsolatedScanner:
             if not self.keep_alive: self.close()
 
     def close(self):
+        """Stop the worker process (if any) and release its job object and pipes."""
         process=self.process
         self.process=None
         if self.job: self.job.close(); self.job=None
@@ -245,4 +286,5 @@ class IsolatedScanner:
                     except OSError: pass
 
     def __del__(self):
+        """Make sure the worker is stopped when this object is garbage-collected."""
         if getattr(self,'process',None) is not None: self.close()

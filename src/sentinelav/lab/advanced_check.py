@@ -11,6 +11,11 @@ from sentinelav.detection.inspection import IsolatedScanner
 
 
 def exit_fixture():
+    """Build a tiny, harmless Windows program by hand whose only instruction is to call ExitProcess(0).
+
+    It is never run by Windows; it only gives the emulator something real to step through during the
+    self-test.
+    """
     data=bytearray(1536); data[:2]=b'MZ'
     struct.pack_into('<I',data,0x3c,64); data[64:68]=b'PE\0\0'
     struct.pack_into('<HH',data,68,0x14c,1); struct.pack_into('<H',data,84,224)
@@ -29,6 +34,12 @@ def exit_fixture():
 
 
 def check_advanced(directory):
+    """Self-test the advanced analysis in the packaged build.
+
+    First a Base64-encoded test marker must be found by content decoding; then, if the emulator is
+    available, the hand-built program must be emulated and its single ExitProcess call observed.
+    Returns PASS or PARTIAL with details.
+    """
     marker=b'SENTINELAV_DEMO_THREAT_7C23A'
     encoded=directory/'encoded-fixture.ps1'; encoded.write_bytes(base64.b64encode(marker))
     scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',options={'advanced':True,'documents':False})

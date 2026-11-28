@@ -32,11 +32,14 @@ BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
 
 def wallet_kind(text):
+    """Return which kind of crypto wallet address the text is ('bitcoin', 'ethereum', ...), or None.
+    """
     text = (text or '').strip()
     return next((kind for kind, pattern in WALLET.items() if pattern.match(text)), None)
 
 
 def decoy_address():
+    """Generate a random, legacy-style Bitcoin address to use as bait (it belongs to nobody)."""
     return '1' + ''.join(secrets.choice(BASE58) for _ in range(33))
 
 
@@ -44,6 +47,7 @@ class WindowsClipboard:
     """Text, change counter, owner process and last-input time through the Windows API."""
 
     def __init__(self):
+        """Load the Windows clipboard functions with the right argument and return types."""
         import ctypes
         from ctypes import wintypes
         self.ctypes, self.user32, self.kernel32 = ctypes, ctypes.windll.user32, ctypes.windll.kernel32
@@ -54,9 +58,13 @@ class WindowsClipboard:
         self.user32.GetClipboardOwner.restype = wintypes.HWND
 
     def sequence(self):
+        """Return the clipboard's change counter, which goes up every time its contents change."""
         return self.user32.GetClipboardSequenceNumber()
 
     def text(self):
+        """Return the clipboard's text (up to 512 characters), '' if it holds no text, or None if it is
+        busy.
+        """
         if not self.user32.OpenClipboard(None):
             return None
         try:
@@ -72,6 +80,7 @@ class WindowsClipboard:
             self.user32.CloseClipboard()
 
     def set_text(self, value):
+        """Replace the clipboard's contents with the given text."""
         import win32clipboard
         win32clipboard.OpenClipboard()
         try:
@@ -81,6 +90,7 @@ class WindowsClipboard:
             win32clipboard.CloseClipboard()
 
     def owner(self):
+        """Return the process that owns the clipboard's current contents, or None."""
         from ctypes import wintypes
         window = self.user32.GetClipboardOwner()
         if not window:
@@ -95,20 +105,28 @@ class WindowsClipboard:
             return dict(pid=pid.value, name='unknown', exe='', create_time=0) if pid.value else None
 
     def last_input(self):
+        """Return the tick count of the user's last keyboard or mouse input."""
         from ctypes import wintypes
 
         class Info(self.ctypes.Structure):
+            """LASTINPUTINFO structure for GetLastInputInfo."""
             _fields_ = [('cbSize', wintypes.UINT), ('dwTime', wintypes.DWORD)]
         info = Info(self.ctypes.sizeof(Info), 0)
         self.user32.GetLastInputInfo(self.ctypes.byref(info))
         return info.dwTime
 
     def idle_seconds(self):
+        """Return how many seconds have passed since the user's last keyboard or mouse input."""
         return (self.kernel32.GetTickCount() - self.last_input()) / 1000
 
 
 class ClipboardGuard:
+    """Detects programs that swap a copied crypto address for another one."""
     def __init__(self, emit, behavior=None, clipboard=None, bait=False, window=4.0, idle_for=600, clock=time.monotonic):
+        """Set up the guard. window is how quickly (seconds) a swap must follow the copy, idle_for is
+        how long the user must be away before bait is placed, and clipboard and clock can be
+        replaced in tests.
+        """
         self.emit, self.behavior, self.bait, self.window, self.idle_for, self.clock = emit, behavior, bait, window, idle_for, clock
         self.clipboard = clipboard or (WindowsClipboard() if os.name == 'nt' else None)
         self.seen, self.last = None, None  # last: (address, kind, time, last input tick, was bait)
@@ -118,10 +136,15 @@ class ClipboardGuard:
 
     def poll(self):
         # The change listener and the monitor's poll both call this; one check at a time.
+        """Check the clipboard once (thread-safe) and return an alert event if a swap was detected.
+        """
         with self.lock:
             return self._check()
 
     def _check(self):
+        """Compare the current clipboard with the last address seen and raise an alert if it was
+        swapped without user input.
+        """
         if not self.clipboard:
             return None
         number = self.clipboard.sequence()
@@ -157,12 +180,16 @@ class ClipboardGuard:
         return self
 
     def _listen(self):
+        """Background thread: create a hidden message window that Windows notifies on every clipboard
+        change.
+        """
         import win32api
         import win32con
         import win32gui
         WM_CLIPBOARDUPDATE = 0x031D
 
         def handle(window, message, wparam, lparam):
+            """Window procedure: check the clipboard whenever Windows says it changed."""
             if message == WM_CLIPBOARDUPDATE:
                 try:
                     self.poll()
@@ -182,6 +209,7 @@ class ClipboardGuard:
         win32gui.PumpMessages()
 
     def stop(self):
+        """Stop the listener thread by closing its message loop."""
         if getattr(self, 'window', None):
             import win32con
             import win32gui
@@ -189,6 +217,9 @@ class ClipboardGuard:
 
     def _maybe_bait(self):
         # Only when the user is away and the clipboard is empty, so nothing they copied is ever replaced.
+        """Place a decoy wallet address on the clipboard, but only when bait is enabled, the user has
+        been away long enough, and the clipboard is empty.
+        """
         if not self.bait or self.baited or self.clipboard.idle_seconds() < self.idle_for or self.clipboard.text():
             return
         self.baited = decoy_address()

@@ -17,7 +17,16 @@ from sentinelav.platform.integrity import verify_windows_acl
 
 
 class KernelFileEvents:
+    """Receives file-write events from the kernel (ETW) through a small native collector program.
+
+    The collector must live under Program Files with locked-down permissions, so ordinary users
+    cannot swap it out. Every event names the writing process; we verify that process by id and
+    exact start time before trusting it.
+    """
     def __init__(self,executable,probe_pid=None):
+        """Check the collector's location and permissions, map device names to drive letters, and start
+        the collector with a reader thread.
+        """
         path=Path(executable).resolve()
         program_files=Path(os.environ.get('ProgramFiles','C:/Program Files')).resolve()
         if not path.is_relative_to(program_files): raise ValueError('ETW collector must be deployed under protected Program Files')
@@ -45,6 +54,9 @@ class KernelFileEvents:
         self.thread.start()
 
     def read(self):
+        """Background thread: read JSON lines from the collector, track its health counters and queue
+        file-write events.
+        """
         try:
             while True:
                 raw=self.process.stdout.readline(65537)
@@ -75,6 +87,9 @@ class KernelFileEvents:
             if not self.error: self.error='Collector exited; kernel file coverage unavailable'
 
     def poll(self):
+        """Return up to 128 queued file-write events whose process identity and path could be verified
+        (others are counted as dropped).
+        """
         events=[]
         for _ in range(128):
             try: event=self.queue.get_nowait()
@@ -100,6 +115,7 @@ class KernelFileEvents:
     def close(self):
         # Task cancellation ends this owned collector only. Its session uses a
         # unique name; no unrelated ETW session or security service is stopped.
+        """Ask the collector to stop, forcing its ETW session closed if it does not exit in time."""
         if self.process.poll() is None:
             try: self.process.stdin.write(b'stop\n'); self.process.stdin.flush()
             except OSError: pass

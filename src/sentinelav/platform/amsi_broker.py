@@ -26,20 +26,30 @@ HEADER = struct.Struct('<III')
 
 
 def response_status(result):
+    """Turn a buffer scan result into the AMSI reply code: 1 detected, 0 clean, 2 incomplete or failed.
+    """
     if result.get('kind') != 'buffer': return 2
     if result.get('detected') is True: return 1
     return 0 if result.get('complete') is True else 2
 
 
 class PipeAPI:
+    """Thin wrapper around the Windows named-pipe functions, using overlapped (non-blocking) I/O so
+    every wait can time out or be cancelled.
+    """
     def __init__(self, stop):
+        """Load the Windows functions and structure definitions. `stop` is an Event that interrupts any
+        wait.
+        """
         self.stop = stop
         self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         self.advapi = ctypes.WinDLL('advapi32', use_last_error=True)
         class Overlapped(ctypes.Structure):
+            """OVERLAPPED structure for asynchronous pipe I/O."""
             _fields_ = [('internal',ctypes.c_size_t),('internal_high',ctypes.c_size_t),
                         ('offset',wintypes.DWORD),('offset_high',wintypes.DWORD),('event',wintypes.HANDLE)]
         class Security(ctypes.Structure):
+            """SECURITY_ATTRIBUTES structure that carries the pipe's access list."""
             _fields_ = [('length',wintypes.DWORD),('descriptor',ctypes.c_void_p),('inherit',wintypes.BOOL)]
         self.Overlapped, self.Security = Overlapped, Security
         declarations = {
@@ -59,6 +69,9 @@ class PipeAPI:
         self.advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(wintypes.DWORD)]
 
     def create(self,name):
+        """Create the named pipe with a strict access list: SYSTEM, administrators and LocalService get
+        full access, signed-in users may only read and write data.
+        """
         descriptor=ctypes.c_void_p()
         # AU: generic read + write-data only. No create-pipe-instance, ACL or ownership rights.
         sddl='D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;0x12008b;;;AU)'
@@ -75,6 +88,9 @@ class PipeAPI:
         finally: self.kernel.LocalFree(descriptor)
 
     def operation(self,handle,kind,data=None,length=0,timeout=3):
+        """Perform one 'connect', 'read' or 'write' on the pipe, waiting at most `timeout` seconds
+        (None waits until stopped).
+        """
         event=self.kernel.CreateEventW(None,True,False,None)
         if not event: raise ctypes.WinError(ctypes.get_last_error())
         overlapped=self.Overlapped(); overlapped.event=event
@@ -107,6 +123,7 @@ class PipeAPI:
             self.kernel.CloseHandle(event)
 
     def read_exact(self,handle,size):
+        """Read exactly `size` bytes from the pipe within three seconds."""
         result=bytearray(); deadline=time.monotonic()+3
         while len(result)<size:
             remaining=deadline-time.monotonic()
@@ -118,7 +135,17 @@ class PipeAPI:
 
 
 class AmsiBroker:
+    """Local service that scans script content sent by the SentinelAV AMSI provider DLL.
+
+    Windows hands scripts (PowerShell, JScript, VBA macros, ...) to AMSI providers before running
+    them. Our provider forwards each buffer here over a named pipe; the broker scans it in an
+    isolated worker and replies with clean, detected, or incomplete. Content is never logged or
+    saved.
+    """
     def __init__(self,resources,pipe_name=PIPE_NAME):
+        """Prepare the broker. The real pipe may only be served by the packaged app running as
+        LocalService; tests must use a random test pipe name.
+        """
         if os.name!='nt': raise RuntimeError('AMSI broker requires Windows')
         if pipe_name==PIPE_NAME:
             from sentinelav.platform.windows_identity import current_sid
@@ -133,12 +160,17 @@ class AmsiBroker:
         self.thread=threading.Thread(target=self.run,name='amsi-buffer-broker',daemon=True)
 
     def start(self):
+        """Start the broker thread and wait (up to 35 seconds) until it is ready to accept requests.
+        """
         self.thread.start()
         if not self.ready.wait(35): self.close(); raise TimeoutError('AMSI broker startup timed out')
         if self.error: raise RuntimeError(self.error)
         return self
 
     def run(self):
+        """Broker thread: accept one request per connection, scan the buffer, send the reply, and
+        repeat until stopped. A crashed scan worker is replaced automatically.
+        """
         scanner=None; handle=None
         try:
             api=PipeAPI(self.stop)
@@ -176,6 +208,7 @@ class AmsiBroker:
             if scanner: scanner.close()
 
     def close(self):
+        """Stop the broker and wait for its thread to finish."""
         self.stop.set()
         if self.thread.ident is not None: self.thread.join(15)
         if self.thread.is_alive(): raise RuntimeError('AMSI broker has not stopped')

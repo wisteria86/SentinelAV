@@ -9,7 +9,13 @@ from sentinelav.platform.windows_service import read_health
 
 
 class DefensePagesMixin:
+    """Adds the Defense tab to Settings: layer status, inspection options, analysis-data feeds and the
+    automatic response policy.
+    """
     def settings_page(self):
+        """Build the Defense tab and its four sub-tabs (Layers, Inspection, Analysis Data, Response
+        Policy).
+        """
         super().settings_page()
         outer_tabs=self.stack.widget(5).findChild(QTabWidget)
         wrapper=QWidget(); wrapper_layout=QVBoxLayout(wrapper); wrapper_layout.setContentsMargins(0,0,0,0)
@@ -111,6 +117,9 @@ class DefensePagesMixin:
         self.refresh_defense_layers()
 
     def refresh_defense_layers(self):
+        """Fill the Layers table with an honest description of each protection layer's current state
+        and its limits.
+        """
         service=read_health()
         active=self.last_protection_state
         policy=self.store.get('auto_response',{})
@@ -128,6 +137,7 @@ class DefensePagesMixin:
         self.fill(self.layer_table,[(r['layer'],r['state']) for r in self.layer_details])
 
     def show_layer_details(self,row,column):
+        """Show a dialog with the full details of the double-clicked layer."""
         if 0<=row<len(self.layer_details):
             item=self.layer_details[row]
             box=QMessageBox(self); box.setWindowTitle(item['layer']); box.setText(item['state'])

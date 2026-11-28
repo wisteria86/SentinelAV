@@ -23,6 +23,11 @@ MAX_VIEW=4*1024*1024
 
 
 def publish_view(folder,journal,owner,errors):
+    """Write the service's recent change records to an encrypted file that the deployment owner can
+    read.
+
+    The view is kept under 4 MB (older rows are dropped and noted) and replaced atomically.
+    """
     rows=[];used=0;truncated=False
     for row in journal.changes(500):
         size=len(canonical(row))
@@ -40,6 +45,9 @@ def publish_view(folder,journal,owner,errors):
 
 
 def load_view(fresh=False):
+    """Read the service's change view, checking permissions, owner and age. With fresh=True a view
+    older than 90 seconds is refused.
+    """
     from sentinelav.platform.windows_service import service_paths
     from sentinelav.platform.windows_identity import current_sid
     base,data=service_paths();target=unlinked(data/'app-changes-view.bin')

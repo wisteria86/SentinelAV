@@ -26,6 +26,16 @@ def policy_for(saved,folders=()):
 
 
 def eligibility(event,policy):
+    """Decide whether a detection may be quarantined automatically, without asking a person.
+
+    Think of this as a long checklist where every item must pass. The finding has to come from a
+    trusted verdict (an approved exact hash, a calibrated model policy, or a high-confidence
+    malicious verdict), point at a real absolute path on a local drive, avoid symbolic links and
+    junctions, and sit inside one of the folders the policy covers. The first failed check wins.
+
+    Returns a pair (allowed, reason): allowed is True or False, and reason is a short sentence
+    explaining the decision, suitable for showing to the user.
+    """
     if not isinstance(policy,dict) or policy.get('enabled') is not True: return False,'Policy disabled'
     if event.get('automatic_response_eligible') is False: return False,'This finding requires manual response'
     digest=event.get('sha256','')
@@ -53,7 +63,20 @@ def eligibility(event,policy):
 
 
 class AutoResponder:
+    """Background worker that quarantines approved detections on its own.
+
+    Detections are handed in with submit() and processed one at a time on a separate thread. Several
+    safety brakes keep it from running away: a small queue, a limit of three actions per minute, a
+    five-minute cooldown per file, and a circuit breaker that pauses everything after three failures
+    in a row. It never kills processes; it only moves files into quarantine.
+    """
     def __init__(self,data_dir,root,policy,emit):
+        """Remember the settings and start the worker thread straight away.
+
+        data_dir holds the database, root is the installation folder, policy is the starting
+        response policy, and emit is a callback that receives event dictionaries for the activity
+        log.
+        """
         self.data_dir,self.root,self.policy,self.emit=Path(data_dir),Path(root),policy,emit
         self.queue=queue.Queue(maxsize=8)
         self.stopping=threading.Event()
@@ -67,22 +90,38 @@ class AutoResponder:
         self.thread.start()
 
     def report(self,kind,details,level='Info'):
+        """Send one entry to the activity log through the emit callback."""
         self.emit(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'),kind=kind,details=details,source='Response policy',level=level))
 
     def submit(self,detection):
+        """Queue a detection for automatic quarantine if the policy allows it.
+
+        Ineligible findings are silently ignored (they stay for manual review). If the queue is
+        full, a warning is logged instead of blocking the caller.
+        """
         allowed,_=eligibility(detection,self.policy)
         if not allowed or self.stopping.is_set(): return
         try: self.queue.put_nowait(dict(detection))
         except queue.Full: self.report('Automatic response backlog','Queue full; finding left for manual review','Warning')
 
     def run(self):
+        """Main loop of the worker thread.
+
+        Opens its own database connection, then repeatedly: reloads the latest saved policy, takes
+        the next queued detection, re-checks eligibility, applies the rate limits, and finally
+        quarantines the file. Any unexpected error stops the worker and is reported.
+        """
         store=None
         try:
             store=Store(self.data_dir/'sentinelav.db')
             responder=ResponseService(store,self.root)
             self.ready=True
             while not self.stopping.is_set():
+                # Re-read the saved policy every round, so changes made in the settings page take
+                # effect without a restart.
                 latest=policy_for(store.get('auto_response',None),self.policy.get('roots',[])) if self.policy.get('high_confidence') else store.get('auto_response',{})
+                # Saving the policy again gives it a new reset_id; that is how a person clears a
+                # tripped circuit breaker.
                 if isinstance(latest,dict) and latest.get('reset_id')!=self.reset_id:
                     self.reset_id=latest.get('reset_id');self.failures=0;self.circuit_open=False
                 self.enabled=isinstance(latest,dict) and latest.get('enabled') is True and not self.circuit_open
@@ -92,6 +131,8 @@ class AutoResponder:
                 if not allowed or self.circuit_open: continue
                 now=time.monotonic()
                 key=(detection['path'],detection['sha256'])
+                # Rate limiting: forget attempts older than a minute, then refuse if three already
+                # happened, or if this same file was handled in the last five minutes.
                 self.attempts=deque(t for t in self.attempts if now-t<60)
                 if len(self.attempts)>=3 or now-self.seen.get(key,-1000)<300:
                     self.report('Automatic response deferred','Rate limit/cooldown reached; review finding manually','Warning')
@@ -103,6 +144,8 @@ class AutoResponder:
                     self.report('Automatic response skipped','This file was restored by a person; review it manually: '+detection['path'],'Warning')
                     continue
                 try:
+                    # Clean up autorun entries first, while the file is still in place to be matched
+                    # against them.
                     self.persistence(detection,latest,store,responder)
                     record=responder.quarantine_file(detection,require_automatic=detection.get('verdict')=='Malicious' and latest.get('high_confidence') is True and detection['sha256'] not in latest.get('approved_hashes',[]))
                     self.failures=0
@@ -110,6 +153,8 @@ class AutoResponder:
                 except Exception as error:
                     self.report('Automatic response failed',str(error),'Warning')
                     self.failures+=1
+                    # Circuit breaker: three failures in a row usually mean something is wrong with
+                    # the environment, so stop acting until someone looks.
                     if self.failures>=3:
                         self.circuit_open=True;self.enabled=False
                         self.report('Automatic response paused','Three consecutive failures; review the cause and save the response policy to reset.','Warning')
@@ -122,12 +167,21 @@ class AutoResponder:
             if store: store.db.close()
 
     def close(self):
+        """Ask the worker to stop and wait until it has really finished."""
         self.stopping.set()
         # Fresh verification/response is bounded by the isolated scan worker;
         # do not report monitoring stopped while an owned action is unfinished.
         self.thread.join()
 
     def persistence(self,detection,policy,store,responder):
+        """Undo recent autorun registry entries that point at the detected file.
+
+        Malware often adds itself to the current user's Run keys so it starts again at the next
+        logon. When this optional feature is on, we look for verified registry changes from the last
+        minute that reference the detected file, plan a cleanup, and carry it out. Each change is
+        re-verified by a fresh scan before anything is undone. It quietly does nothing when the
+        feature is off or the signed policy does not permit automatic action.
+        """
         if not policy.get('auto_persistence') or not store.get('watch_app_changes',False):return
         from sentinelav.updates.artifacts import active
         from sentinelav.detection.fusion import gates
@@ -137,11 +191,14 @@ class AutoResponder:
         options=store.get('inspection_options',{})
         folder=options.get('analysis_store',str(store.path.parent/'analysis-data'))
         trust=options.get('analysis_trust',str(self.root/'trusted-update-keys.json'))
+        # Automatic cleanup is only allowed when the active, signed detection policy says so.
         signed,_=active(folder,trust,'policy')
         if not gates(signed)['automatic']:return
         if detection.get('fusion_policy_id') and detection['fusion_policy_id']!=fingerprint(signed):raise ValueError('Automatic persistence policy changed')
         journal=ChangeJournal(self.data_dir/'app-changes')
         try:
+            # Collect up to 16 matching changes: verified, current-user registry edits made in the
+            # last 60 seconds that reference the detected file.
             selected=[]
             for record in journal.changes():
                 resource=record['resource']
@@ -153,7 +210,11 @@ class AutoResponder:
             from sentinelav.detection.inspection import IsolatedScanner
             scanner=IsolatedScanner(self.root/'signatures.json',self.root/'rules',options=options,persistent=True)
             try:
-                def verify(path):return scanner.scan([path],lambda:False,lambda *a:None)['detections']
+                def verify(path):
+                    """Re-scan one file and return its detections."""
+                    return scanner.scan([path],lambda:False,lambda *a:None)['detections']
+                # The remediator re-scans each referenced file with verify() before undoing
+                # anything, so a clean file is never touched.
                 engine=Remediator(journal,WindowsRemediationBackend(),verify,responder)
                 plan=engine.plan(selected,with_related=False)
                 plan.update(automatic=True,authorized_policy=fingerprint(signed));journal.operation(plan)

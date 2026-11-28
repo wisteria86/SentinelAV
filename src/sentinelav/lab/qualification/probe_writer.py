@@ -8,7 +8,11 @@ import uuid
 
 
 class ProbeWriter:
+    """Controls a helper process that writes one known file on demand, so ETW collection can be checked
+    against a write we know happened.
+    """
     def __init__(self, root, collector):
+        """Start the collector in probe-writer mode and wait until it says it is ready."""
         self.path = root / ('SentinelAVLabProbe-' + uuid.uuid4().hex + '.txt')
         self.ready = self.path.with_suffix('.ready')
         self.start = self.path.with_suffix('.start')
@@ -23,6 +27,7 @@ class ProbeWriter:
             raise
 
     def wait_for(self, path):
+        """Wait up to 10 seconds for a signal file to appear, failing if the helper exits."""
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
@@ -33,10 +38,12 @@ class ProbeWriter:
         raise TimeoutError('Dedicated ETW probe writer did not reach ' + path.suffix)
 
     def write(self):
+        """Ask the helper to write the probe file and wait until it exists."""
         self.start.touch(exist_ok=False)
         self.wait_for(self.path)
 
     def close(self):
+        """Stop the helper and delete all its signal files."""
         try:
             if self.process.poll() is None:
                 self.stop.touch(exist_ok=True)

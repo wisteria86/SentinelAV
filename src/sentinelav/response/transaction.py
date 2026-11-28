@@ -10,11 +10,18 @@ from sentinelav.workspace import unlinked
 
 
 class RemediationBusy(RuntimeError):
+    """Raised when another clean-up or recovery already holds the lock."""
     pass
 
 
 @contextmanager
 def exclusive_file(path,create=None,verify=None):
+    """Hold an exclusive lock on a small lock file for the duration of a `with` block.
+
+    If the lock is already taken, RemediationBusy is raised straight away. The operating system
+    releases the lock automatically if the holder crashes. `create` and `verify` let the caller
+    control how the lock file is created and checked.
+    """
     path=unlinked(Path(path))
     if not path.exists():
         try:

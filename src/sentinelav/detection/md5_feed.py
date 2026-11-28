@@ -24,7 +24,11 @@ BATCH = 200_000
 
 
 class Md5Feed:
+    """Read-only lookup into the installed MD5 malware-hash database."""
     def __init__(self, folder=None):
+        """Open the database that active.json points to, in read-only mode. Raises FileNotFoundError if
+        no feed is installed.
+        """
         folder = folder or definitions_dir('md5-feed')
         pointer = folder / 'active.json'
         if not pointer.is_file():
@@ -37,14 +41,19 @@ class Md5Feed:
         self.sources = dict(self.db.execute('SELECT id,name FROM sources'))
 
     def get(self, digest):
+        """Return the name of the list that contains this MD5 hash (for example 'VirusShare'), or None
+        if it is not listed.
+        """
         row = self.db.execute('SELECT source FROM md5 WHERE md5=?', (bytes.fromhex(digest),)).fetchone()
         return self.sources.get(row[0], 'Unknown') if row else None
 
     def close(self):
+        """Close the database."""
         self.db.close()
 
 
 def _virusshare(path):
+    """Yield every MD5 hash from a VirusShare hash-list file."""
     with open(path, encoding='ascii', errors='ignore') as stream:
         for line in stream:
             value = line.strip().lower()
@@ -53,6 +62,7 @@ def _virusshare(path):
 
 
 def _bazaar(path):
+    """Yield every MD5 hash from the MalwareBazaar full export (a CSV inside a ZIP)."""
     with zipfile.ZipFile(path) as archive, archive.open('full.csv') as raw:
         text = io.TextIOWrapper(raw, encoding='utf-8-sig', errors='replace')
         header = None
@@ -109,6 +119,8 @@ def build(virusshare_dir=None, bazaar_zip=None, progress=print):
                 db.commit()
             counts[name] = total
             progress(f'{name}: {total:,} rows')
+        # Build the final table de-duplicated and sorted by hash, then throw away the raw import
+        # table.
         # Inserting in key order keeps building the primary-key index fast.
         db.executescript('CREATE TABLE md5(md5 BLOB PRIMARY KEY, source INTEGER NOT NULL) WITHOUT ROWID; '
             'INSERT OR IGNORE INTO md5 SELECT md5, MIN(source) FROM raw GROUP BY md5 ORDER BY md5; DROP TABLE raw;')

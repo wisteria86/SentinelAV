@@ -9,6 +9,12 @@ MAX_BUFFER = 1024 * 1024
 
 
 def inspect_buffer(scanner, content):
+    """Scan a block of bytes in memory (at most 1 MiB) and return a small verdict dictionary.
+
+    Used for content handed to us directly, for example by the Windows AMSI interface that lets
+    antivirus check scripts before they run. The content is never written to disk or treated as a
+    path.
+    """
     if not isinstance(content, bytes):
         raise TypeError('Buffer content must be bytes')
     if len(content) > MAX_BUFFER:

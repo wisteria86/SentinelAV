@@ -12,6 +12,9 @@ ARMS = (('full', 'A. Full product'), ('generalized', 'B. Generalized: no hashes 
 
 
 def validate_batch(case, measurements):
+    """Check a batch result really belongs to its frozen case, covers every archive in order, and gives
+    each detection or miss a sample identity and per-arm verdicts.
+    """
     parameters = case['parameters']
     groups = measurements['zoo_groups']
     if (measurements.get('zoo_revision') != parameters['revision'] or
@@ -36,10 +39,12 @@ def validate_batch(case, measurements):
 
 
 def _rate(part, whole):
+    """Format part/whole as 'part/whole (xx.x%)'."""
     return f'{part}/{whole} ({100*part/whole:.1f}%)' if whole else '0/0'
 
 
 def _arm_verdict(row, arm):
+    """Return the verdict an arm gave a row ('Clean' if it has none)."""
     value = row.get('arms', {}).get(arm)
     return value[1] if value else 'Clean'
 
@@ -52,6 +57,7 @@ def _tally(rows, arm):
 
 
 def _archives(ledger, arm):
+    """Count, per arm, how many archives had at least one member rated malicious or flagged."""
     grouped = defaultdict(list)
     for row in ledger:
         grouped[row['archive']].append(row)
@@ -61,6 +67,7 @@ def _archives(ledger, arm):
 
 
 def _response_totals(ledger):
+    """Summarise the quarantine cycles and real-time checks recorded in the ledger."""
     cycles = [row['response_cycle'] for row in ledger if 'response_cycle' in row]
     checks = [row['realtime'] for row in ledger if 'realtime' in row]
     latency = sorted(item['seconds_to_detect'] for item in checks if 'seconds_to_detect' in item)
@@ -71,6 +78,9 @@ def _response_totals(ledger):
 
 
 def summarize(ledger, counts, results, cases):
+    """Summarise the whole ledger: outcome counts and per-arm detection rates for binaries and source
+    archives.
+    """
     binaries = [row for row in ledger if '/Source/' not in row['archive']]
     source = [row for row in ledger if '/Source/' in row['archive']]
     arms = {}
@@ -82,6 +92,7 @@ def summarize(ledger, counts, results, cases):
 
 
 def _breakdown(rows, key, arm='generalized'):
+    """Tally Arm B results grouped by a key such as file type or family."""
     grouped = defaultdict(list)
     for row in rows:
         if row['outcome'] != 'not_applicable':
@@ -90,6 +101,9 @@ def _breakdown(rows, key, arm='generalized'):
 
 
 def render(store):
+    """Write the corpus report: detection rates per arm, source archives, outcomes, per-type and per-
+    family breakdowns, and response checks.
+    """
     from .reporting import _text, escape
     from .store import write_json
     cases = store.manifest['cases']

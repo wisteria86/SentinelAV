@@ -10,7 +10,11 @@ from urllib.parse import urlsplit
 
 
 class ReputationIndex:
+    """In-memory lookup table for a signed reputation feed of file hashes and web domains."""
     def __init__(self,payload,manifest):
+        """Validate every entry of the feed and index it by (kind, value). Any malformed or duplicate
+        entry rejects the whole feed.
+        """
         rows=payload.get('entries')
         if payload.get('schema')!=1 or not isinstance(rows,list) or len(rows)>100000: raise ValueError('Invalid reputation payload')
         self.rows={}
@@ -34,6 +38,9 @@ class ReputationIndex:
             self.rows[kind,value]=row
 
     def lookup(self,sha256,content=b''):
+        """Return the unexpired reputation entries for a file's hash and for any web domains mentioned
+        inside its content.
+        """
         keys=[('sha256',sha256)]
         for raw in re.findall(rb'https?://[^\s<>"\x00]{1,512}',content[:2*1024*1024])[:128]:
             try:
@@ -44,6 +51,7 @@ class ReputationIndex:
                 if key in self.rows and self.rows[key]['expires']>time.time()]
 
     def lookup_domain(self,domain):
+        """Return the unexpired reputation entry for one domain name, or None."""
         try: domain=domain.rstrip('.').encode('idna').decode('ascii').lower()
         except (UnicodeError,AttributeError): return None
         row=self.rows.get(('domain',domain))

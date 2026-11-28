@@ -14,7 +14,18 @@ from sentinelav.updates.artifacts import active
 
 
 class AdvancedPipeline:
+    """The optional, deeper layer of analysis that runs after the basic signature checks.
+
+    It combines many independent sources of evidence: decoded (de-obfuscated) script content, files
+    inside containers, Office macros, embedded HTML/RTF content, a signed reputation feed, machine-
+    learning models for Windows programs, and optional emulation. Each source adds facts; at the end
+    decide() weighs all the facts into one verdict. The same pipeline is shared by the desktop app,
+    the background engine and the protected service.
+    """
     def __init__(self,store=None,options=None):
+        """Prepare the pipeline. `store` is the folder of signed analysis assets (models, reputation,
+        policy), and `options` switches individual analysis layers on or off.
+        """
         self.options=dict(options or {})
         self.store=Path(store) if store else RESOURCE_ROOT/'analysis-data'
         self.trust=Path(self.options.get('analysis_trust',RESOURCE_ROOT/'trusted-update-keys.json'))
@@ -22,6 +33,9 @@ class AdvancedPipeline:
         self._reload_assets()
 
     def _stamp(self):
+        """Return a small fingerprint (inode, size, modification time) of the asset index and trust
+        file, used to notice when they change on disk.
+        """
         result=[]
         for path in (self.store/'active.json',self.trust):
             try:
@@ -30,6 +44,11 @@ class AdvancedPipeline:
         return tuple(result)
 
     def _reload_assets(self):
+        """Load the signed model, reputation feed and fusion policy that the options ask for.
+
+        Each asset's signature is verified on load. Anything missing or invalid is recorded as an
+        omission instead of stopping the scan.
+        """
         self.assets={}
         self.omissions=[]
         for kind in ('model','reputation','policy'):
@@ -56,6 +75,7 @@ class AdvancedPipeline:
 
     def _load_confirm(self,folder):
         # Optional second model that must agree before the primary model's conviction stands.
+        """Load the optional second 'confirmation' model, if the asset index lists one."""
         try:
             from sentinelav.updates.artifacts import bounded_json
             if 'confirm_model' in bounded_json(folder/'active.json',65536):self.assets['confirm_model']=active(folder,self.trust,'confirm_model')
@@ -63,12 +83,25 @@ class AdvancedPipeline:
             self.omissions.append('confirm_model unavailable: '+str(error)[:160])
 
     def inspect(self,data,path,sha,analysis,format_info,analyze,cancelled,emulation=False):
+        # Pick up new or updated assets automatically if they changed on disk since the last scan.
+        """Run every enabled analysis layer on one file and return the combined decision.
+
+        data is the file content, path its location, sha its SHA-256, analysis the result of the
+        basic static analysis, and format_info describes the detected file format. analyze is a
+        callback that scans a piece of content with the signature and YARA engines, and cancelled()
+        tells us to stop early. emulation turns on the slow emulation step for Windows programs.
+
+        Returns the decision dictionary from decide(), with an extra 'coverage' entry describing
+        which layers actually ran.
+        """
         if self._stamp()!=self._asset_stamp: self._reload_assets()
         from sentinelav.detection.content_analysis import normalized_variants,inspect_containers,SCRIPT_SUFFIXES
         facts=[]; omissions=list(self.omissions); coverage={'model':dict(status='Unavailable' if self.options.get('model') else 'Disabled')}
         for signal in analysis.get('signals',[]):
             facts.append(Evidence('static',signal['code'],signal['explanation']))
         suffix=Path(path).suffix.lower()
+        # Scripts are often obfuscated. Decode them in several ways and scan each decoded version
+        # with the normal rules.
         if self.options.get('content',True) and (suffix in SCRIPT_SUFFIXES or data.startswith((b'\xff\xfe',b'\xfe\xff'))):
             variants,errors=normalized_variants(data,suffix)
             coverage['normalization_variants']=len(variants)
@@ -85,6 +118,7 @@ class AdvancedPipeline:
         omissions.extend(errors)
         for item in nested:
             facts.append(Evidence('container','embedded_content','Embedded content matches detection patterns',confirmed=True,details=item))
+        # Office documents: extract macro source code and scan it as text.
         from sentinelav.detection.documents import macro_sources
         macros,errors=macro_sources(data) if self.options.get('documents',True) else ([],[])
         omissions.extend(errors)
@@ -92,6 +126,8 @@ class AdvancedPipeline:
             reasons,matches,errors=analyze(source)
             omissions.extend(errors)
             if reasons: facts.append(Evidence('macro','macro_content','Extracted macro source matches detection patterns',confirmed=True,details=dict(member=name,reasons=reasons,yara_matches=matches)))
+        # RTF and HTML: scan embedded objects and inline scripts (decoding the HTML ones as
+        # JavaScript too).
         from sentinelav.detection.active_content import active_sources
         sources,errors=active_sources(data,suffix) if self.options.get('documents',True) else ([],[])
         omissions.extend(errors); coverage['active_content_sources']=len(sources)
@@ -106,6 +142,7 @@ class AdvancedPipeline:
                 if reasons: facts.append(Evidence('active-document','embedded_content',
                     'Extracted active-document content matches detection patterns',confirmed=True,
                     details=dict(member=name,transform=transform,reasons=reasons,yara_matches=matches)))
+        # Reputation: look the file up in the signed list of known good and bad files.
         if self.reputation:
             if time.time()>=self.assets['reputation'][1]['expires']:
                 omissions.append('Signed reputation feed expired; reputation coverage unavailable')
@@ -114,6 +151,7 @@ class AdvancedPipeline:
             for row in reputation_rows:
                 if row['verdict']!='benign': facts.append(Evidence('reputation','threat_intelligence',
                     'Signed reputation entry: '+row['verdict'],details=row))
+        # Windows programs: ask the learned model how much the file resembles known malware.
         if format_info.get('format')=='PE' and 'model' in self.assets:
             from sentinelav.detection.classifier import predict
             try:
@@ -138,6 +176,8 @@ class AdvancedPipeline:
                 if neural['review']:facts.append(Evidence('neural','byte_sequence_classification',f"Raw-byte neural model score {neural['model_score']:.1%} requests review",details=neural))
             except Exception as error:
                 coverage['neural']=dict(status='Unavailable',reason=str(error)[:200]);omissions.append('Neural inference unavailable: '+str(error)[:200])
+        # Emulation: run the program in a simulated Windows environment and watch what it tries to
+        # do.
         if emulation and format_info.get('format')=='PE':
             from sentinelav.detection.emulation import emulate
             output=emulate(data,format_info,analyze,self.options.get('emulation_backend','speakeasy'),self.options.get('emulation_profile','background'))
@@ -146,6 +186,8 @@ class AdvancedPipeline:
             omissions.extend(output['omissions'])
             events=output.get('api_events',[])
             kinds={event['kind'] for event in events}
+            # A classic malware pattern: write a file, add itself to the Run key so it starts at
+            # logon, and contact the network.
             persistence=any(event['kind']=='registry_write' and re.search(
                 r'\\currentversion\\(?:run|runonce)(?:\\|$)',event.get('path','').casefold().replace('/','\\')) for event in events)
             if persistence and {'file_write','network_intent'}<=kinds:
@@ -154,6 +196,7 @@ class AdvancedPipeline:
                     details=dict(events=events[:32],scope='Modeled API intentions, not observed host effects')))
             for item in output['findings']:
                 facts.append(Evidence('emulation','concealed_content','Emulated changed executable page matches detection patterns',confirmed=True,details=item))
+        # Finally, weigh all the gathered facts together into one verdict.
         policy=self.assets.get('policy')
         if policy and time.time()>=policy[1]['expires']:omissions.append('Fusion policy expired');policy=None
         result=decide(facts,omissions,policy[0] if policy else None)

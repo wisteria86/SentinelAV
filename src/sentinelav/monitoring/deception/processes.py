@@ -30,6 +30,9 @@ RUNTIME_FILES = ('python3.dll', f'python{sys.version_info[0]}{sys.version_info[1
 
 
 def _link(source, target):
+    """Make `target` a hard link to `source` (no extra disk space), or a copy if linking is not
+    possible.
+    """
     target.unlink(missing_ok=True)
     try:
         os.link(source, target)
@@ -38,6 +41,7 @@ def _link(source, target):
 
 
 def running_names():
+    """Return the lower-case names of every running process."""
     import psutil
     return {(process.info['name'] or '').casefold() for process in psutil.process_iter(['name'])}
 
@@ -63,11 +67,17 @@ def host_command(name, folder, role, status, parent):
 
 
 def _present(markers):
+    """Tell whether any of the given program paths exists (meaning the real program is installed).
+    """
     return any(Path(os.path.expandvars(marker)).exists() for marker in markers)
 
 
 class DecoyProcesses:
+    """Starts and watches the decoy processes."""
     def __init__(self, emit, folder, bait=True, analysis=False, credentials=None):
+        """Plan which decoys to run (skipping names whose real program is installed). credentials, if
+        given, are planted in memory by one extra decoy.
+        """
         self.emit, self.folder = emit, Path(folder)
         self.plan = ([(name, 'bait') for name, markers in BAIT if not _present(markers)] if bait else []) + \
                     ([(name, 'analysis') for name, markers in ANALYSIS if not _present(markers)] if analysis else [])
@@ -75,6 +85,9 @@ class DecoyProcesses:
         self.status = self.folder / 'decoy-status.jsonl'
 
     def start(self):
+        """Start every planned decoy whose real program is not already running, and return the names
+        started.
+        """
         self.folder.mkdir(parents=True, exist_ok=True)
         self.status.touch()
         self.offset = self.status.stat().st_size
@@ -105,6 +118,8 @@ class DecoyProcesses:
             self.emit(event('Fake credentials not planted', str(error)[:200], level='Warning'))
 
     def poll(self):
+        """Read new findings from the decoys' status file and raise an alert for each injection found.
+        """
         try:
             with self.status.open('r', encoding='utf-8') as stream:
                 stream.seek(self.offset)
@@ -125,6 +140,7 @@ class DecoyProcesses:
         return events
 
     def stop(self):
+        """Stop every decoy process and remove the named links created beside the packaged app."""
         for name, child in self.children:
             try:
                 if hasattr(child, 'terminate'):
@@ -146,4 +162,5 @@ class DecoyProcesses:
 
 
 def fake_credentials():
+    """Make up a fake service account and password to plant in memory as bait."""
     return dict(user='svc_backup', domain='CORP-FILES', password='Decoy-' + secrets.token_urlsafe(12))

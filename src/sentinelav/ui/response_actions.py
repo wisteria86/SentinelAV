@@ -9,7 +9,11 @@ import psutil
 
 
 class ResponseActionsMixin:
+    """Button handlers for acting on detected and quarantined files. Every action asks for confirmation
+    first.
+    """
     def quarantine_selected(self):
+        """Quarantine the selected detected file after confirmation."""
         if not self.ready_for_response():
             return
         detection = self.selected_detection()
@@ -17,6 +21,7 @@ class ResponseActionsMixin:
             self.launch_response('quarantine_file',detection)
 
     def remove_selected(self):
+        """Permanently delete the selected detected file after confirmation."""
         if not self.ready_for_response():
             return
         detection = self.selected_detection()
@@ -24,6 +29,9 @@ class ResponseActionsMixin:
             self.launch_response('remove_file',detection)
 
     def restore_selected(self,trust):
+        """Restore the selected quarantined file to a new location; with trust=True its hash is also
+        trusted afterwards.
+        """
         if not self.ready_for_response():
             return
         record = self.selected_quarantine()
@@ -34,6 +42,7 @@ class ResponseActionsMixin:
             self.launch_response('restore',record['id'],target,trust_hash=record['sha256'] if trust else None)
 
     def delete_selected(self):
+        """Permanently delete the selected quarantined copy after confirmation."""
         if not self.ready_for_response():
             return
         record = self.selected_quarantine()
@@ -41,6 +50,7 @@ class ResponseActionsMixin:
             self.launch_response('delete',record['id'])
 
     def recover_selected(self):
+        """Finish or tidy up an interrupted quarantine action."""
         if not self.ready_for_response():
             return
         record = self.selected_quarantine()
@@ -48,6 +58,7 @@ class ResponseActionsMixin:
             self.launch_response('recover',record['id'])
 
     def trust_hash(self,sha):
+        """Add a SHA-256 to the trusted list so that exact content is no longer flagged."""
         hashes = self.store.get('trusted_hashes',[])
         if sha not in hashes:
             hashes.append(sha)
@@ -56,6 +67,7 @@ class ResponseActionsMixin:
             self.audit_response('Exact hash trusted',sha)
 
     def trust_selected(self):
+        """Trust the selected detected file's exact content after confirmation."""
         if not self.ready_for_response():
             return
         detection = self.selected_detection()
@@ -64,6 +76,7 @@ class ResponseActionsMixin:
             self.refresh()
 
     def exclude_selected(self):
+        """Exclude the selected file's path from future scans after confirmation."""
         if not self.ready_for_response():
             return
         detection = self.selected_detection()
@@ -77,6 +90,7 @@ class ResponseActionsMixin:
             self.refresh()
 
     def remove_trust(self):
+        """Remove the selected hash from the trusted list."""
         if not self.ready_for_response():
             return
         row = self.trusted_list.currentRow()
@@ -89,6 +103,8 @@ class ResponseActionsMixin:
             self.refresh()
 
     def terminate_selected(self):
+        """Find running processes of the selected detected program and stop the one the user picks.
+        """
         if not self.ready_for_response():
             return
         detection = self.selected_detection()

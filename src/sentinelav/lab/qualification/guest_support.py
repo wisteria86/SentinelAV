@@ -20,6 +20,9 @@ from .guest_context import BASE, ps, options
 
 
 def projection(row,mode,versions):
+    """Shrink one evaluation row to the compact measurement record the host keeps (identity, coverage,
+    verdicts, model scores, emulation summary).
+    """
     scan=row.get('scan',{});model=row.get('candidate_model',{});nn=row.get('candidate_neural',{})
     emu=scan.get('advanced_analysis',{}).get('coverage',{}).get('emulation',{})
     compact={k:emu.get(k) for k in ('status','api_attempts','instructions_observed','termination_reason')}
@@ -36,6 +39,9 @@ def projection(row,mode,versions):
 
 
 def prepare(context,group):
+    """Record the signature status of the benign control files, then prepare the fixed sealed corpus
+    for a group (without scanning yet). Returns the manifest path.
+    """
     from sentinelav.lab.static_corpus import main,BENIGN_NAMES
     controls=[]
     for name in BENIGN_NAMES:
@@ -51,6 +57,8 @@ def prepare(context,group):
 
 
 def functional(modules):
+    """Run approved bundled unit-test modules inside the guest and report how many ran and failed.
+    """
     from .catalog import FUNCTIONAL
     allowed={n for names in FUNCTIONAL.values() for n in names}
     if not modules or set(modules)-allowed:raise ValueError('Unapproved functional test module')
@@ -63,12 +71,18 @@ def functional(modules):
 
 
 def selftest(root):
+    """Run the packaged app's --self-test inside the guest and report whether it passed."""
     p=subprocess.run([sys.executable,'--self-test','--data-dir',str(root/'selftest')],timeout=180,creationflags=subprocess.CREATE_NO_WINDOW)
     result=json.loads((root/'selftest/self-test.json').read_text())
     return dict(selftest_passed=p.returncode==0 and result.get('status')=='PASS',response_journal_probe=result.get('response',{}),synthetic=True)
 
 
 def start_engine(root,mode,context,filesystem_only=False):
+    """Configure and start the background engine in the guest, watching a fresh folder, and wait until
+    it accepts commands.
+
+    Returns (process, data folder, watched folder, Qt app).
+    """
     from sentinelav.data.storage import Store
     from sentinelav.monitoring.background import request
     from sentinelav.platform.runtime import launch_command

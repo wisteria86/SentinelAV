@@ -21,10 +21,20 @@ from .inspection_protocol import MAX_LINE, MAX_REQUEST
 
 
 def worker_main():
+    """Main loop of the isolated scan worker process.
+
+    It reads one JSON request per line from standard input and writes JSON replies to standard
+    output. Supported commands are 'initialize' (load the Scanner), 'scan' (scan paths, streaming
+    progress and findings), 'buffer' (scan raw bytes) and 'memory' (scan a process's memory). Every
+    request is strictly validated, and any error is sent back as an 'error' reply instead of
+    crashing the worker.
+    """
     from sentinelav.detection.engine import Scanner
     scanner=None
     input_stream=getattr(sys.stdin,'buffer',None)
     output_stream=getattr(sys.stdout,'buffer',None)
+    # When started without a console (for example from the packaged app), get the raw standard
+    # input/output handles from Windows directly.
     if (input_stream is None or output_stream is None) and os.name=='nt':
         import msvcrt
         kernel=ctypes.WinDLL('kernel32',use_last_error=True)
@@ -35,6 +45,7 @@ def worker_main():
         if output_stream is None:
             output_stream=os.fdopen(msvcrt.open_osfhandle(int(kernel.GetStdHandle(wintypes.DWORD(-11))),os.O_WRONLY|os.O_BINARY),'wb')
     def send(kind,**fields):
+        """Write one JSON reply line, replacing it with an error if it is too large."""
         data=json.dumps(dict(protocol=1,type=kind,**fields)).encode()+b'\n'
         if len(data)>MAX_LINE: data=json.dumps(dict(protocol=1,type='error',error='Inspection result exceeded limit; coverage is incomplete')).encode()+b'\n'
         output_stream.write(data)
@@ -68,6 +79,8 @@ def worker_main():
                     last=[0.]
                     sent=[0]
                     def progress(path,scanned,threats):
+                        """Forward new findings straight away, and progress at most ten times a second.
+                        """
                         detections=scanner.current_scan_result['detections']
                         for finding in detections[sent[0]:]: send('finding',finding=finding)
                         sent[0]=len(detections)

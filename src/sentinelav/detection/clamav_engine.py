@@ -28,14 +28,18 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 class ClamAVUnavailable(RuntimeError):
+    """Raised when ClamAV cannot be used: not installed, no signatures, not running, or a scan error.
+    """
     pass
 
 
 def has_definitions(database):
+    """Tell whether the database folder contains ClamAV signature files."""
     return database.is_dir() and any(item.suffix in DATABASE_SUFFIXES for item in database.iterdir())
 
 
 def _free_port():
+    """Ask the operating system for a free TCP port on the local machine."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(('127.0.0.1', 0))
         return probe.getsockname()[1]
@@ -43,6 +47,7 @@ def _free_port():
 
 def _config(database, port):
     # Limits keep one hostile file from exhausting clamd. PUA detection stays off to avoid flagging ordinary tools.
+    """Build the text of a clamd configuration file for the given database folder and port."""
     return '\n'.join([
         f'DatabaseDirectory "{database}"', f'TCPSocket {port}', 'TCPAddr 127.0.0.1', 'Foreground yes',
         'MaxThreads 8', 'StreamMaxLength 256M', 'MaxScanSize 512M', 'MaxFileSize 256M', 'MaxRecursion 12',
@@ -53,12 +58,14 @@ def _config(database, port):
 
 
 def _request(endpoint, command, timeout=10):
+    """Send one command to clamd and return its text reply."""
     with socket.create_connection(tuple(endpoint), timeout=timeout) as connection:
         connection.sendall(b'z' + command + b'\0')
         return _reply(connection)
 
 
 def _reply(connection):
+    """Read clamd's reply up to the terminating zero byte (64 KB at most)."""
     data = bytearray()
     while not data.endswith(b'\0'):
         chunk = connection.recv(4096)
@@ -71,6 +78,7 @@ def _reply(connection):
 
 
 def alive(endpoint):
+    """Tell whether clamd answers a PING at this endpoint."""
     try:
         return _request(endpoint, b'PING', 3) == 'PONG'
     except OSError:
@@ -104,6 +112,8 @@ def scan_bytes(endpoint, data, timeout=SCAN_TIMEOUT):
     if len(data) > STREAM_LIMIT:
         raise ClamAVUnavailable('Larger than the ClamAV stream limit')
     view = memoryview(data)
+    # INSTREAM protocol: send the data in chunks, each prefixed with its 4-byte length, then a zero
+    # length to finish.
     with socket.create_connection(tuple(endpoint), timeout=timeout) as connection:
         connection.sendall(b'zINSTREAM\0')
         for start in range(0, len(view), CHUNK):
@@ -123,15 +133,23 @@ class ClamdService:
     """One clamd per database directory, shared by every scan on the machine."""
 
     def __init__(self, home=None, database=None):
+        """Prepare (but do not start) a clamd service for the given install folder and database."""
         self.home = home
         self.database = database or database_dir()
         self.runtime = runtime_dir(self.database)
         self.process = None
 
     def endpoint(self):
+        """Return the address of a running clamd for our database, or None."""
         return read_endpoint(self.database)
 
     def ensure_running(self, timeout=START_TIMEOUT):
+        """Return the endpoint of a running clamd, starting one first if needed.
+
+        Starting clamd means writing its config, launching it in the background and waiting (up to
+        `timeout` seconds) until it answers. Once it is ready, its port is written to an endpoint
+        file so other processes can find and share it.
+        """
         current = self.endpoint()
         if current:
             return current
@@ -162,11 +180,15 @@ class ClamdService:
         raise ClamAVUnavailable('clamd did not start in time')
 
     def reload(self):
+        """Ask clamd to reload its signatures, for example after an update."""
         endpoint = self.endpoint()
         if endpoint:
             _request(endpoint, b'RELOAD', 10)
 
     def stop(self):
+        """Shut down the clamd process we started (politely first, forcefully if needed) and remove the
+        endpoint file.
+        """
         if self.process and self.process.poll() is None:
             try:
                 _request(('127.0.0.1', self._port()), b'SHUTDOWN', 5)
@@ -177,6 +199,7 @@ class ClamdService:
         (self.runtime / ENDPOINT_FILE).unlink(missing_ok=True)
 
     def _port(self):
+        """Return the port written in the endpoint file, or 0 if there is none."""
         try:
             return int(json.loads((self.runtime / ENDPOINT_FILE).read_text(encoding='utf-8'))['port'])
         except (OSError, ValueError, KeyError):
@@ -201,6 +224,7 @@ def update_definitions(home=None, database=None, timeout=1800):
 
 
 def definitions_summary(database=None):
+    """Describe the installed ClamAV signature files (name, size, date) for display in the app."""
     database = database or database_dir()
     if not has_definitions(database):
         return dict(status='Missing', files=[])
@@ -222,4 +246,5 @@ def ensure_service(enabled=True):
 
 
 def environment_ready():
+    """Tell whether ClamAV can be used on this machine: Windows, installed, and with signatures."""
     return os.name == 'nt' and binaries() is not None and has_definitions(database_dir())

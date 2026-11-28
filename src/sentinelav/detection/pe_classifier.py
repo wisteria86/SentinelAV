@@ -18,6 +18,9 @@ def extractor_class():
     # inference and consume memory needed by the bounded virtual emulator.
     # Load only the exact pinned upstream feature module, without changing its
     # feature semantics or introducing a reduced substitute extractor.
+    """Load the pinned EMBER feature extractor straight from its source file and return its
+    PEFeatureExtractor class.
+    """
     import importlib.util
     from pathlib import Path
     package=importlib.util.find_spec('thrember')
@@ -33,6 +36,9 @@ def extractor_class():
 
 
 def validate(model):
+    """Check that a single LightGBM PE model is complete and untampered (its text matches its recorded
+    hash), raising ValueError if not.
+    """
     if model.get('schema')!=2 or model.get('algorithm')!='lightgbm-pe-v1':raise ValueError('Unsupported PE classifier')
     if model.get('extractor')!='ember2024-v3' or model.get('extractor_revision')!=FEATURE_REVISION:raise ValueError('Feature extractor mismatch')
     text=model.get('model_text')
@@ -46,6 +52,9 @@ def validate(model):
 
 
 def features(data):
+    """Turn a Windows program into the EMBER feature vector (a long list of numbers describing its
+    structure).
+    """
     import numpy as np
     if len(data)>100*1024*1024:raise ValueError('Feature extraction input cap')
     vector=extractor_class()().feature_vector(bytes(data))
@@ -54,6 +63,12 @@ def features(data):
 
 
 def predict(model,data):
+    """Score a Windows program with the single LightGBM model.
+
+    First works out whether it is 32-bit, 64-bit or .NET (the model may not cover every type), then
+    extracts features and asks the model. If the model includes Platt calibration, the raw score is
+    adjusted to behave more like a real probability.
+    """
     validate(model)
     import pefile
     image=pefile.PE(data=bytes(data),fast_load=True)

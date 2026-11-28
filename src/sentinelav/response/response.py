@@ -34,26 +34,43 @@ def exclusive_file(path,attempts=8):
 
 
 class ResponseService:
+    """Carries out response actions on threats: quarantine, restore, delete, and stopping processes.
+
+    Every action re-scans the file first (nothing happens on stale evidence), refuses linked paths
+    and protected system or program folders, and records an audit event. Quarantined files are
+    encrypted for the current Windows user and kept in a locked-down folder.
+    """
     def __init__(self,store,root):
+        """Use `store` for records and audit events, and `root` (the resources folder) to build fresh
+        scanners.
+        """
         self.store,self.root = store,Path(root)
         self.vault = store.path.parent/'quarantine'
 
     def audit(self,kind,details,level='Info',**extra):
+        """Save one response audit event to the activity log."""
         self.store.save_event(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'),kind=kind,
                                    details=details,source='Response',level=level,**extra))
 
     def plan_process_tree(self,pid,creation):
+        """Plan stopping a process and its children (nothing is stopped yet) and log that a plan was
+        made.
+        """
         from sentinelav.response.containment import plan_tree
         plan=plan_tree(pid,creation)
         self.audit('Process-tree plan created',f"PID {pid}; {len(plan['processes'])} eligible processes")
         return dict(state='Plan ready',process_tree_plan=plan)
 
     def respond_process_tree(self,plan,approved_hashes):
+        """Carry out an approved process-tree plan and summarise the result."""
         from sentinelav.response.containment import execute_plan
         result=execute_plan(self,plan,approved_hashes)
         return dict(state='Completed' if result['complete'] else 'Partial — review per-process results',process_tree_result=result)
 
     def secure_vault(self):
+        """Create the quarantine folder (if needed) and restrict its permissions to the current user
+        and SYSTEM. Refuses linked paths.
+        """
         if self.vault.is_symlink() or self.vault.is_junction():
             raise ValueError('Quarantine path must not be a link')
         self.vault.mkdir(exist_ok=True)
@@ -68,6 +85,13 @@ class ResponseService:
                        capture_output=True,text=True,check=True,creationflags=subprocess.CREATE_NO_WINDOW)
 
     def quarantine_file(self,detection,require_automatic=False):
+        """Move a detected file into encrypted quarantine.
+
+        The file is scanned again and must still be flagged with the same hash. It is then encrypted
+        into the vault while held open exclusively, the encrypted copy is verified, and only then is
+        the original deleted. With require_automatic=True the fresh scan must also still allow
+        automatic action. Returns the quarantine record.
+        """
         path = checked_path(detection['path'])
         if not path.is_file():
             raise ValueError('Detected file no longer exists')
@@ -114,6 +138,9 @@ class ResponseService:
         return self.delete(record['id'])
 
     def record(self,identity):
+        """Look up a quarantine record by id and return (record, path of its encrypted file), checking
+        the item is in a state that allows actions.
+        """
         if len(identity)!=32 or any(c not in '0123456789abcdef' for c in identity):
             raise ValueError('Invalid quarantine identity')
         record = next((r for r in self.store.quarantine() if r['id']==identity),None)
@@ -128,6 +155,9 @@ class ResponseService:
         return record,blob
 
     def restore(self,identity,destination):
+        """Decrypt a quarantined file to `destination` (which must not exist yet), verify the written
+        copy, and then remove the encrypted copy.
+        """
         record,blob = self.record(identity)
         target = checked_path(destination)
         if target.exists():
@@ -157,6 +187,9 @@ class ResponseService:
         return record
 
     def recover(self,identity):
+        """Finish or tidy up a quarantine, restore or delete that was interrupted part-way (for example
+        by a crash).
+        """
         record,blob = self.record(identity)
         if record['state']=='Preparing':
             if Path(record['original']).exists():
@@ -180,6 +213,7 @@ class ResponseService:
         return record
 
     def delete(self,identity):
+        """Permanently delete a quarantined file's encrypted copy."""
         record,blob = self.record(identity)
         record['state']='Delete pending'
         self.store.save_quarantine(record)
@@ -191,6 +225,12 @@ class ResponseService:
         return record
 
     def terminate(self,pid,created,detection):
+        """Stop one running process, but only if a fresh scan says its program is malicious.
+
+        The process is identified by id and start time, and must belong to the current user. System
+        processes, Windows critical processes, SentinelAV itself and its parents are always refused.
+        It asks the process to end and does not force-kill it if it refuses.
+        """
         if pid in (0,4,os.getpid(),os.getppid()):
             raise ValueError('System, SentinelAV, and parent processes cannot be terminated')
         path = checked_path(detection['path'])

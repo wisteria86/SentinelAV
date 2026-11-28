@@ -6,6 +6,11 @@
 
 
 def summary(changes,receipts):
+    """Build a shareable summary of recorded app changes and remediation receipts.
+
+    Only ids, kinds, hashes and outcomes are included; contents, paths, command lines and error text
+    are left out so the export cannot leak private data.
+    """
     observations=[]
     for row in changes:
         target=row['resource']

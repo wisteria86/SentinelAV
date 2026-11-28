@@ -17,6 +17,9 @@ HOST_NAMES=re.compile(rb'command\.com|comspec=',re.I)
 
 
 def indicators(data,kind):
+    """Look for the classic routines of old DOS file-infecting viruses: searching for programs, writing
+    to the disk directly, jumping to the end of the file, and staying resident in memory.
+    """
     view=bytes(data[:2*1024*1024]);found=[]
     if FILE_MASK.search(view) and DOS_CALL in view:
         found.append(indicator('searches_for_programs','replication',40,'Searches for .COM or .EXE files using DOS calls, the core of a file-infecting virus.',category='Virus',evidence=FILE_MASK.search(view).group().rstrip(b'\0').decode('ascii','replace')))

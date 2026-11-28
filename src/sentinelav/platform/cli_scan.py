@@ -11,7 +11,9 @@ from sentinelav.paths import RESOURCE_ROOT
 
 
 def summary(result):
+    """Shrink a full scan result to the parts worth printing on the command line."""
     def row(finding):
+        """Keep only the useful fields of one finding."""
         return {key:finding.get(key) for key in ('path','verdict','score','confidence','threat_name','reasons','member_chain','sha256') if key in finding}
     return dict(status=result['status'],scanned=result['scanned'],skipped=result['skipped'],elapsed=result['elapsed'],
         detections=[row(item) for item in result['detections']],suspicious=[row(item) for item in result.get('suspicious',[])],

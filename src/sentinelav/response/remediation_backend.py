@@ -15,8 +15,16 @@ from sentinelav.response.response import checked_path, locked_file, delete_locke
 from .remediation_resources import MUTATE_SCRIPT,referenced_paths,task_disabled
 
 class WindowsRemediationBackend:
-    def __init__(self,inventory=None):self.inventory=inventory or WindowsInventory()
+    """Reads and changes the Windows resources that remediation works on: processes, files, Run keys,
+    tasks, services and setting files.
+    """
+    def __init__(self,inventory=None):
+        """Use the given inventory (or a default WindowsInventory) to read autostart locations."""
+        self.inventory=inventory or WindowsInventory()
     def read(self,target):
+        """Return the current state of a resource: a process's identity, a file's hash, or an autostart
+        entry's value.
+        """
         if target['kind']=='process':
             import psutil
             try:
@@ -38,6 +46,9 @@ class WindowsRemediationBackend:
             except FileNotFoundError:return dict(exists=False)
         return self.inventory.read(target)
     def verify_incident(self,plan):
+        """After a cleanup, check whether any active autostart still points at one of the incident's
+        files, and list gaps in the inventory.
+        """
         inventory=self.inventory.collect();remnants=[];gaps=list(inventory['errors'])
         known={os.path.normcase(os.path.abspath(d['path'])) for item in plan['actions'] for d in item['evidence']}
         for target,state in inventory['rows']:
@@ -58,6 +69,12 @@ class WindowsRemediationBackend:
             scope='Current supported persistence references to incident files; no reboot or global absence guarantee')
 
     def apply(self,target,action,state,expected=None):
+        """Change one resource: disable or restore a Run-key value, task or service, or restore a
+        setting/startup file.
+
+        Every change first confirms the resource still looks exactly as expected, so a change made
+        in the meantime is never overwritten.
+        """
         if expected is not None and fingerprint(self.read(target))!=fingerprint(expected):raise ValueError('Resource changed before mutation')
         if target['kind']=='registry':
             import winreg

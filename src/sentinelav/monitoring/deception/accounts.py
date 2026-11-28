@@ -21,6 +21,9 @@ LOGON_EVENTS = (4625, 4648, 4771, 4776)  # failed logon, explicit credentials, K
 
 
 def create_account(name=ACCOUNT):
+    """Create the decoy Windows account: disabled, with a random password nobody knows, and marked with
+    our remark. Needs administrator rights.
+    """
     import win32net
     import win32netcon
     flags = win32netcon.UF_ACCOUNTDISABLE | win32netcon.UF_SCRIPT | win32netcon.UF_DONT_EXPIRE_PASSWD
@@ -30,6 +33,9 @@ def create_account(name=ACCOUNT):
 
 
 def remove_account(name=ACCOUNT):
+    """Delete the decoy account, but only if it still carries our remark. Returns True if it was
+    removed.
+    """
     import win32net
     try:
         if win32net.NetUserGetInfo(None, name, 1).get('comment') == REMARK:
@@ -41,6 +47,9 @@ def remove_account(name=ACCOUNT):
 
 
 def create_share(folder, name=SHARE):
+    """Share a folder of decoy files read-only on the network under the given name. Needs administrator
+    rights.
+    """
     import win32net
     import win32netcon
     win32net.NetShareAdd(None, 2, dict(netname=name, type=win32netcon.STYPE_DISKTREE, remark=REMARK, permissions=win32netcon.ACCESS_READ,
@@ -49,6 +58,8 @@ def create_share(folder, name=SHARE):
 
 
 def remove_share(name=SHARE):
+    """Remove the decoy share, but only if it still carries our remark. Returns True if it was removed.
+    """
     import win32net
     try:
         if win32net.NetShareGetInfo(None, name, 2).get('remark') == REMARK:
@@ -63,10 +74,14 @@ class LogonWatcher:
     """Reads new Security-log logon events that name a decoy account. Reading that log needs administrator rights."""
 
     def __init__(self, emit, names, query=None):
+        """Watch for logon events that name any of `names`. query can be replaced in tests."""
         self.emit, self.names, self.query = emit, {name.casefold() for name in names}, query or self._query
         self.last, self.available = None, True
 
     def _query(self, after):
+        """Read logon events from the Security log: only the newest one on the first call, then up to
+        64 newer than `after`.
+        """
         import win32evtlog
         ids = ' or '.join(f'EventID={number}' for number in LOGON_EVENTS)
         xpath = f'*[System[({ids})' + (f' and EventRecordID>{after}' if after is not None else '') + ']]'
@@ -78,6 +93,12 @@ class LogonWatcher:
         return rows
 
     def poll(self):
+        """Report new logon attempts that use a decoy account name.
+
+        The first call only finds where the log ends, so old history is not reported. If the log
+        cannot be read (it needs administrator rights), a warning is emitted once and the watcher
+        goes quiet.
+        """
         if not self.available:
             return []
         import re

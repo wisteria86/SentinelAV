@@ -13,6 +13,9 @@ from sentinelav.workspace import unlinked
 
 
 def load_inventory(work,name):
+    """Load an approved evaluation inventory by name, checking it has approval, a reviewer, provenance
+    and a role.
+    """
     identifier(name);root=unlinked(Path(work)/'lab/qualification/inventories');path=unlinked(root/(name+'.json'))
     if not path.exists():raise FileNotFoundError('Approved inventory required: '+str(path))
     if path.stat().st_size>32*1024*1024:raise ValueError('Inventory metadata exceeds 32 MiB')
@@ -24,6 +27,8 @@ def load_inventory(work,name):
 
 
 def frozen(work):
+    """Return {name: {hash, role}} for every inventory, so a run records exactly which ones it used.
+    """
     root=Path(work)/'lab/qualification/inventories'
     result={}
     for path in root.glob('*.json'):
@@ -32,6 +37,12 @@ def frozen(work):
 
 
 def feature_qualification(work,fmt,cancelled,progress,resource_root=None):
+    """Score an untouched, time-separated holdout set for one PE format with the active model.
+
+    Every row must be newer than the training cutoff, unseen in earlier datasets, and (if claimed)
+    from families not used in training. Reports recall, false positives with a 95% upper bound, and
+    per-week and per-family breakdowns.
+    """
     from sentinelav.paths import RESOURCE_ROOT
     from sentinelav.detection.pe_classifier import extractor_class
     from sentinelav.detection.pe_ensemble import predict_vector

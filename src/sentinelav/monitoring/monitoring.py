@@ -28,7 +28,19 @@ RETRY_LIMIT=5
 
 
 class Monitor(MonitorLoopMixin):
+    """Real-time protection: watches folders, processes, network activity and other sources, and scans
+    what they turn up.
+
+    It only observes and reports; it never deletes files or kills processes itself (an optional
+    AutoResponder may quarantine approved detections). The main loop lives in
+    MonitorLoopMixin.run(); this class holds the state and the handlers for each kind of
+    observation.
+    """
     def __init__(self, config, emit, status):
+        """Set up all monitoring state. config is the configuration from
+        agent_protocol.configuration(), emit receives events, and status receives periodic status
+        summaries.
+        """
         self.config, self.emit, self.status = config, emit, status
         self.stop = threading.Event()
         self.pending = PendingFiles()
@@ -60,6 +72,8 @@ class Monitor(MonitorLoopMixin):
         self.health=MonitoringHealth()
 
     def file_activity(self,kind,path):
+        """Queue a file change for the behaviour engine (counted as dropped if the queue is full).
+        """
         try:
             self.activity.put_nowait((kind,path))
         except queue.Full:
@@ -67,10 +81,17 @@ class Monitor(MonitorLoopMixin):
                 self.pending.dropped += 1
 
     def event(self, kind, details, source, level='Info', **extra):
+        """Emit one timestamped activity event."""
         self.emit(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), kind=kind,
                        details=details, source=source, level=level, **extra))
 
     def processes(self):
+        """Take a snapshot of running processes, check them for suspicious behaviour, and queue newly
+        started programs for scanning.
+
+        Returns how many processes could not be fully inspected (access denied), or None if
+        stopping.
+        """
         current = set()
         new = []
         denied = 0
@@ -113,6 +134,9 @@ class Monitor(MonitorLoopMixin):
         return denied
 
     def process_event(self,event):
+        """Handle a process-start notification from WMI: verify the process by its start time, work out
+        its parent chain, check its behaviour and queue its program for scanning.
+        """
         try:
             process=psutil.Process(event['pid'])
             info=process.as_dict(attrs=['pid','ppid','name','exe','create_time','cmdline'])
@@ -141,6 +165,9 @@ class Monitor(MonitorLoopMixin):
             self.event('Short-lived/unavailable process observed',f"{event['name']} · PID {event['pid']}; executable could not be verified",'WMI process events','Warning',pid=event['pid'])
 
     def sysmon_event(self,row):
+        """Handle one Sysmon event: log it, feed the behaviour-sequence detectors, and check DNS
+        lookups against the reputation feed.
+        """
         if self.change_monitor:self.change_monitor.observe_sysmon(row)
         self.event(f'Sysmon event {row["Id"]}',(row.get('Message') or '')[:4000],
                    'Sysmon',record_id=row['RecordId'])
@@ -165,6 +192,12 @@ class Monitor(MonitorLoopMixin):
             self.event('Sysmon correlation omitted',str(error),'Sysmon','Warning')
 
     def inspect(self, scanner, path, source):
+        """Scan one queued file and report what was found.
+
+        Files that are busy (locked by another program or still changing) are retried later with
+        growing waits. Unchanged files are not rescanned, and the same detection is not reported
+        more than once a minute.
+        """
         if source == 'Filesystem' and not any(Path(path).resolve().is_relative_to(r) for r in self.allowed_roots):
             return
         if not Path(path).is_file() or scanner.excluded(Path(path)):

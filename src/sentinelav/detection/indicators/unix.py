@@ -36,6 +36,9 @@ _MACHO=[(*rule[:6],re.compile(rule[6],re.I|re.S)) for rule in MACHO_RULES]
 
 
 def _apply(rules,text):
+    """Run a list of string rules over extracted text and return an indicator for each rule with enough
+    distinct matches.
+    """
     found=[]
     for code,group,weight,category,explanation,minimum,pattern in rules:
         hits={m.group().strip() for _,m in zip(range(64),pattern.finditer(text))}
@@ -44,6 +47,7 @@ def _apply(rules,text):
 
 
 def _packed(data):
+    """Detect UPX packing or very high overall entropy, both signs that the code is hidden."""
     found=[]
     if b'UPX!' in bytes(data[:4096]) or b'UPX!' in bytes(data[-4096:]):
         found.append(indicator('upx_packed','packing',20,'The file is packed with UPX, hiding its code from static inspection.',category='Packed'))
@@ -54,6 +58,8 @@ def _packed(data):
 
 
 def _elf_header(data):
+    """Look for structural tricks in a Linux (ELF) program header, such as a missing section table.
+    """
     found=[]
     if len(data)<52:return [indicator('truncated_elf','structure',10,'The ELF header is truncated.',category='Trojan')]
     wide=data[4]==2;order='<' if data[5]==1 else '>'
@@ -71,12 +77,18 @@ def _elf_header(data):
 
 
 def elf_indicators(data):
+    """Collect every warning sign for a Linux (ELF) program: header oddities, packing and botnet,
+    rootkit or backdoor strings.
+    """
     text=extract(data)
     from sentinelav.detection.indicators.strings import indicators as generic
     return _elf_header(data)+_packed(data)+_apply(_ELF,text)+[item for item in generic(data,'elf',text) if item['group'] in ('ransomware','remote_control')]
 
 
 def macho_indicators(data):
+    """Collect every warning sign for a macOS (Mach-O) program: packing, suspicious strings and a
+    missing Developer ID signature.
+    """
     text=extract(data)
     found=_packed(data)+_apply(_MACHO,text)
     if b'__LINKEDIT' in bytes(data[:65536]) and b'Apple Root CA' not in bytes(data) and b'Developer ID' not in bytes(data):

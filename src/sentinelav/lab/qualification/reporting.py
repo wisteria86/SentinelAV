@@ -18,6 +18,9 @@ from .store import write_json
 
 
 def redact(value):
+    """Recursively hide secrets in a value: keys that look like passwords, tokens or command lines, and
+    secret-looking text inside strings.
+    """
     if isinstance(value,dict):
         return {str(k):('[REDACTED]' if re.search(r'(?i)(password|secret|transfer.key|private.key|auth.token|credential|commandline|authorization|api.?key|^token$|cookie)',str(k)) else redact(v)) for k,v in value.items()}
     if isinstance(value,list):return [redact(v) for v in value[:10000]]
@@ -31,12 +34,21 @@ def redact(value):
 
 
 def escape(value):
+    """Make a value safe to place in a Markdown table (redacted, HTML-escaped, Markdown characters
+    neutralised).
+    """
     text=html.escape(str(redact(value))).replace('|','&#124;').replace('`','&#96;').replace('\n',' ')
     for c in ('[',']','(',')','*','_','!'):text=text.replace(c,'\\'+c)
     return text
 
 
 def render(store):
+    """Write all report files for a run: the Markdown report, results, failure backlog, telemetry
+    health, per-sample CSV, per-track summaries and a hash list.
+
+    Every evidence reference is checked to be a real file inside the run folder. Returns the
+    qualification summary.
+    """
     if store.manifest['profile'] in ('zoo-static','zoo-quick','zoo-dev','zoo-holdout','bazaar-dev','bazaar-holdout'):
         from .zoo_reporting import render as render_zoo
         return render_zoo(store)
@@ -122,11 +134,13 @@ def render(store):
 
 
 def _csv(value):
+    """Prefix a value with a quote if a spreadsheet might treat it as a formula."""
     value=str(value)
     return "'"+value if value.lstrip(' \t\r\n\ufeff').startswith(('=','+','-','@')) or value.startswith(('\t','\r')) else value
 
 
 def _text(path,text):
+    """Write a text file atomically (temp file plus rename), within a 64 MB budget."""
     from pathlib import Path
     import os,uuid
     if len(text.encode())>64*1024*1024:raise ValueError('Rendered report exceeds budget')

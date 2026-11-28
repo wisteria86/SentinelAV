@@ -8,11 +8,20 @@ from sentinelav.detection.pe_image import PEImage
 
 
 def describe(data,metadata):
+    """Describe the extra parts of a Windows program: exported functions, resources, relocations, .NET
+    (CLR) metadata, an attached signature and TLS callbacks.
+
+    Each part is read with strict size limits. A damaged part is noted in 'omissions' and marks the
+    result Incomplete, but never stops the others from being read.
+    """
     if metadata.get('format')!='PE':return dict(status='Not applicable')
     result=dict(status='Complete',omissions=[])
     try:image=PEImage(data,metadata)
     except ValueError as error:return dict(status='Incomplete',omissions=[str(error)])
     def string(rva,cap=512):
+        """Read a zero-terminated ASCII string at a virtual address inside the image (at most `cap`
+        characters).
+        """
         value=bytearray()
         for index in range(cap):
             character=data[image.locate(rva+index,1)]

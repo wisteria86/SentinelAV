@@ -20,6 +20,12 @@ def byte_statistics(data):
 
 
 def pe_metadata(data):
+    """Read the basic structure of a Windows program (PE file) without running or unpacking it.
+
+    Returns the CPU type, the list of sections (name, size, location, permissions and byte
+    statistics), the entry point, any overlapping sections, and how many extra bytes trail after the
+    last section. Non-PE content gives {'format': 'Other'}; a broken header raises ValueError.
+    """
     if not data.startswith(b'MZ'): return dict(format='Other')
     if len(data)<64: raise ValueError('Truncated DOS/PE header')
     offset=struct.unpack_from('<I',data,0x3c)[0]
@@ -46,9 +52,11 @@ def pe_metadata(data):
     if optional_size>=20:
         magic=struct.unpack_from('<H',data,offset+24)[0]
         if magic in (0x10b,0x20b): entrypoint=struct.unpack_from('<I',data,offset+40)[0]
+    # Which section(s) contain the entry point? Normal programs start inside their code section.
     entry_sections=[i for i,s in enumerate(result) if entrypoint is not None and
         s['virtual_address']<=entrypoint<s['virtual_address']+max(s['virtual_bytes'],s['raw_bytes'])]
     overlaps=[]
+    # Sections whose file data overlap each other are a sign of a deliberately malformed file.
     ranges=sorted((s['raw_offset'],s['raw_offset']+s['raw_bytes'],i)
                   for i,s in enumerate(result) if s['raw_bytes'])
     for index,(begin,end,section) in enumerate(ranges):

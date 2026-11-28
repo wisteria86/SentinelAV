@@ -13,10 +13,14 @@ import sys
 
 
 def digest(data):
+    """Return the SHA-256 hex digest of some bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def checked_path(path):
+    """Resolve a path for a response action, refusing it if it contains links, lies inside Windows,
+    Program Files or SentinelAV's own folders, or names an alternate data stream.
+    """
     original = Path(path).absolute()
     for part in [original,*original.parents]:
         if part.is_symlink() or part.is_junction():
@@ -32,10 +36,16 @@ def checked_path(path):
 
 
 class Blob(ctypes.Structure):
+    """DATA_BLOB structure used by the Windows DPAPI functions."""
     _fields_ = [('size',wintypes.DWORD),('data',ctypes.POINTER(ctypes.c_ubyte))]
 
 
 def dpapi(data, decrypt=False, machine=False):
+    """Encrypt (or, with decrypt=True, decrypt) bytes with Windows DPAPI.
+
+    DPAPI ties the encryption to the current Windows user (or, with machine=True, to this computer),
+    so only that user can decrypt it later.
+    """
     if os.name != 'nt':
         raise RuntimeError('Protected quarantine requires Windows DPAPI')
     crypt = ctypes.WinDLL('crypt32',use_last_error=True)
@@ -81,8 +91,12 @@ def locked_file(path,create=False):
 
 
 def delete_locked(stream):
+    """Delete the exact file behind an open exclusive handle, so a swapped-in file can never be deleted
+    by mistake.
+    """
     import msvcrt
     class Disposition(ctypes.Structure):
+        """FILE_DISPOSITION_INFO structure that marks a file for deletion."""
         _fields_ = [('delete',ctypes.c_ubyte)]
     kernel = ctypes.WinDLL('kernel32',use_last_error=True)
     kernel.SetFileInformationByHandle.argtypes = [wintypes.HANDLE,ctypes.c_int,ctypes.c_void_p,wintypes.DWORD]
@@ -93,6 +107,7 @@ def delete_locked(stream):
 
 
 def is_critical_process(pid):
+    """Tell whether Windows marks a process as critical (ending it would crash the system)."""
     kernel = ctypes.WinDLL('kernel32',use_last_error=True)
     kernel.OpenProcess.argtypes = [wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
     kernel.OpenProcess.restype = wintypes.HANDLE

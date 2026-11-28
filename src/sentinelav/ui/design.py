@@ -10,4 +10,7 @@ from .design_reports import ReportsPageMixin
 from .design_settings import SettingsPageMixin
 
 class DesignMixin(DesignShellMixin, DashboardMixin, ScanPageMixin, ReportsPageMixin, SettingsPageMixin):
+    """Bundles the visual building blocks of the window: page shell, dashboard, scan page, reports page
+    and settings page.
+    """
     pass

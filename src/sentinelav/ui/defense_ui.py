@@ -23,7 +23,13 @@ from .defense_settings import DefenseSettingsMixin
 class DefenseMixin(DefensePagesMixin, DefenseSettingsMixin):
 
 
+    """Everything on the Defense tab: page layout, settings, and the manual memory and pre-execution
+    inspections.
+    """
     def begin_bounded_inspection(self,kind):
+        """Start a manual inspection: kind 'memory' asks for a process id, 'file' asks for a file to
+        check before running it.
+        """
         if self.inspection_worker or self.worker or self.response_worker or self.definition_worker:
             self.inspection_note.setText('Wait for the active scan/update/response operation first.'); return
         if kind=='memory':
@@ -45,6 +51,7 @@ class DefenseMixin(DefensePagesMixin, DefenseSettingsMixin):
         self.inspection_worker.start()
 
     def bounded_inspection_done(self,result):
+        """Show the inspection result, save it to history and the activity log."""
         self.last_inspection=result
         if 'verdict' in result: message=result['verdict']['decision']+' — '+result['verdict']['reason']+'. No file was launched.'
         elif result.get('status')=='Cancelled': message='Inspection cancelled; coverage is incomplete.'
@@ -64,34 +71,41 @@ class DefenseMixin(DefensePagesMixin, DefenseSettingsMixin):
         except Exception: self.inspection_note.setText(message+' Audit recording failed.')
 
     def bounded_inspection_finished(self):
+        """Tidy up after an inspection and re-enable its buttons."""
         self.inspection_worker.deleteLater(); self.inspection_worker=None
         self.memory_button.setEnabled(True); self.prelaunch_button.setEnabled(True)
 
     def show_inspection_details(self):
+        """Show the full JSON result of the last inspection."""
         if self.last_inspection:
             box=QMessageBox(self); box.setWindowTitle('Bounded inspection result'); box.setText(self.inspection_note.text())
             box.setDetailedText(json.dumps(self.last_inspection,indent=2)); box.exec()
 
     def receive_status(self,state):
+        """Remember the latest protection status so the Layers table can describe it."""
         self.last_protection_state=dict(state)
         super().receive_status(state)
 
     def ready_for_response(self):
+        """Block response actions while a manual inspection is running."""
         if self.inspection_worker:
             self.response_status.setText('Wait for the manual inspection to finish.')
             return False
         return super().ready_for_response()
 
     def protection_finished(self):
+        """Forget the protection status when monitoring stops and refresh the Layers table."""
         self.last_protection_state={}
         super().protection_finished()
         self.refresh_defense_layers()
 
     def navigate(self,index):
+        """Refresh the Layers table whenever the Settings page is opened."""
         super().navigate(index)
         if index==5 and hasattr(self,'layer_table'): self.refresh_defense_layers()
 
     def closeEvent(self,event):
+        """Interrupt a running inspection and close once it has stopped."""
         if self.inspection_worker:
             self.inspection_worker.requestInterruption(); event.ignore(); QTimer.singleShot(100,self.close); return
         super().closeEvent(event)

@@ -21,11 +21,15 @@ SERVICE_NAME='SentinelAVProtection'
 
 
 def service_paths():
+    """Return (base folder, data folder) of the protected Windows service under ProgramData."""
     base=Path(os.environ.get('ProgramData','C:/ProgramData'))/'SentinelAVProtection'
     return base,base/'data'
 
 
 def query_service():
+    """Ask Windows for the protection service's state (Running, Stopped, Not installed, ...) without
+    needing admin rights.
+    """
     if os.name!='nt': return dict(state='Unavailable',detail='Windows service requires Windows')
     advapi=ctypes.WinDLL('advapi32',use_last_error=True)
     advapi.OpenSCManagerW.argtypes=[wintypes.LPCWSTR,wintypes.LPCWSTR,wintypes.DWORD]
@@ -34,6 +38,7 @@ def query_service():
     advapi.OpenServiceW.restype=wintypes.HANDLE
     advapi.CloseServiceHandle.argtypes=[wintypes.HANDLE]
     class Status(ctypes.Structure):
+        """SERVICE_STATUS_PROCESS structure."""
         _fields_=[(n,wintypes.DWORD) for n in ('kind','state','accepts','exit','specific','checkpoint','hint','pid','flags')]
     advapi.QueryServiceStatusEx.argtypes=[wintypes.HANDLE,ctypes.c_int,ctypes.c_void_p,wintypes.DWORD,ctypes.POINTER(wintypes.DWORD)]
     manager=advapi.OpenSCManagerW(None,None,1)
@@ -55,6 +60,9 @@ def query_service():
 
 
 def read_health():
+    """Combine the service's Windows state with its own heartbeat file, flagging a missing or stale
+    heartbeat.
+    """
     result=query_service()
     _,data=service_paths()
     status=data/'status.json'
@@ -71,6 +79,14 @@ def read_health():
 
 
 def run_service():
+    """Entry point when Windows starts the protection service (`--windows-service`).
+
+    It refuses to run unless it is the packaged app, installed under Program Files, running as
+    LocalService. It then hands control to the Windows service dispatcher, which calls main() below.
+    main() verifies the installation and the admin-owned policy, optionally starts the AMSI broker,
+    and runs a Monitor with the policy's settings, writing a heartbeat status file every couple of
+    seconds.
+    """
     if os.name!='nt' or not getattr(sys,'frozen',False):
         raise RuntimeError('The Windows service requires the packaged executable in a protected installation')
     from sentinelav.platform.windows_identity import current_sid
@@ -87,10 +103,13 @@ def run_service():
     if not base.is_dir() or not data.is_dir(): raise ValueError('Run the protected service installer first')
     advapi=ctypes.WinDLL('advapi32',use_last_error=True)
     class Status(ctypes.Structure):
+        """SERVICE_STATUS structure."""
         _fields_=[(n,wintypes.DWORD) for n in ('kind','state','accepts','exit','specific','checkpoint','hint')]
     handler_type=ctypes.WINFUNCTYPE(wintypes.DWORD,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,ctypes.c_void_p)
     main_type=ctypes.WINFUNCTYPE(None,wintypes.DWORD,ctypes.POINTER(wintypes.LPWSTR))
-    class Entry(ctypes.Structure): _fields_=[('name',wintypes.LPWSTR),('main',main_type)]
+    class Entry(ctypes.Structure):
+        """SERVICE_TABLE_ENTRYW structure for the service dispatcher."""
+        _fields_=[('name',wintypes.LPWSTR),('main',main_type)]
     advapi.RegisterServiceCtrlHandlerExW.argtypes=[wintypes.LPCWSTR,handler_type,ctypes.c_void_p]
     advapi.RegisterServiceCtrlHandlerExW.restype=wintypes.HANDLE
     advapi.SetServiceStatus.argtypes=[wintypes.HANDLE,ctypes.POINTER(Status)]
@@ -100,6 +119,7 @@ def run_service():
     status_lock=threading.RLock()
     startup_done=threading.Event()
     def publish_status(code,error=0):
+        """Report the service state (2 starting, 3 stopping, 4 running, 1 stopped) to Windows."""
         with status_lock:
             if code==2 and state['current']!=2: return
             state['current']=code
@@ -108,6 +128,7 @@ def run_service():
             if state['handle']: advapi.SetServiceStatus(state['handle'],ctypes.byref(status))
     @handler_type
     def control(code,event_type,event_data,context):
+        """Service control handler: on stop or shutdown, ask everything to stop."""
         if code in (1,5):
             publish_status(3); stop.set()
             if state['monitor']: state['monitor'].stop.set()
@@ -115,10 +136,14 @@ def run_service():
         return 0
     @main_type
     def main(count,args):
+        """Service main function: verify, configure and run the monitor until stopped."""
         state['handle']=advapi.RegisterServiceCtrlHandlerExW(SERVICE_NAME,control,None)
         if not state['handle']: return
         publish_status(2)
         def startup_heartbeat():
+            """Keep telling Windows we are still starting until the first status arrives, so startup is
+            not timed out.
+            """
             while not startup_done.wait(2): publish_status(2)
         heartbeat=threading.Thread(target=startup_heartbeat,name='service-startup',daemon=True)
         heartbeat.start()
@@ -165,12 +190,16 @@ def run_service():
             inbox=__import__('queue').Queue(maxsize=1024)
             dropped=[0]
             def event(item):
+                """Queue a monitor event for saving (counted as dropped if the queue is full)."""
                 try: inbox.put_nowait(item)
                 except __import__('queue').Full: dropped[0]+=1
             store=Store(data/'sentinelav.db')
             from collections import deque
             recent_alerts=deque(maxlen=10)
             def status(stats):
+                """Save queued events and write the heartbeat status file; called by the monitor every
+                couple of seconds.
+                """
                 while not inbox.empty():
                     item=inbox.get_nowait()
                     store.save_event(item)

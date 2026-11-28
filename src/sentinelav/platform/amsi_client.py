@@ -10,6 +10,12 @@ from pathlib import Path
 
 
 def scan_buffer(data,name='SentinelAV script inspection'):
+    """Ask the antivirus already registered with Windows AMSI (for example Microsoft Defender) to scan
+    a block of bytes.
+
+    Returns the raw AMSI result plus two easy flags: detected, and blocked_by_policy (blocked by
+    administrator policy).
+    """
     if os.name!='nt': raise RuntimeError('AMSI requires Windows')
     if len(data)>4*1024*1024: raise ValueError('AMSI input exceeds 4 MiB cap')
     library=ctypes.WinDLL(str(Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/amsi.dll'),use_last_error=True)

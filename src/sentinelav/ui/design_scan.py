@@ -9,7 +9,11 @@ from .design_components import PathLabel, art
 
 
 class ScanPageMixin:
+    """Builds the Scan page."""
     def scan_page(self):
+        """Build the Scan page: scan type tabs, progress card with live counters, start buttons and the
+        results table.
+        """
         layout = self.page('Scan', 'Scan your files and folders for malware.')
         tabs = QHBoxLayout()
         tabs.setSpacing(0)
@@ -69,6 +73,7 @@ class ScanPageMixin:
         self.selected_scan = 0
 
     def select_scan_tab(self, index):
+        """Switch between Quick, Full and Custom scan and update the button and description text."""
         self.selected_scan = index
         for i, button in enumerate(self.scan_tabs):
             button.setChecked(i == index)
@@ -77,6 +82,7 @@ class ScanPageMixin:
             self.path_label.setText(['Check common malware locations, running programs and startup entries.','Check every file on all fixed drives.','Choose any folder or select individual files.'][index])
 
     def run_selected_scan(self):
+        """Start the scan type of the selected tab."""
         if self.selected_scan == 0:
             self.quick_scan()
         elif self.selected_scan == 1:

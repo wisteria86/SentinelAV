@@ -18,17 +18,40 @@ MIN_HASH_BYTES=1
 
 
 class DisabledSignatures:
+    """Stand-in for the signature database when scanning in signature-free mode: it never matches
+    anything.
+    """
     metadata=dict(status='Disabled',reason='Signature-free evaluation',count=0)
-    def __len__(self):return 0
-    def get(self,sha):return None
-    def close(self):pass
+    def __len__(self):
+        """There are no signatures."""
+        return 0
+    def get(self,sha):
+        """Never find a match."""
+        return None
+    def close(self):
+        """Nothing to close."""
+        pass
 
 
 from .file_analysis import FileAnalysisMixin
 from .scan_flow import ScanFlowMixin
 
 class Scanner(ScanFlowMixin,FileAnalysisMixin):
+    """The core file scanner. It reads files and checks them against every detection layer; it never
+    runs them.
+
+    The layers are: exact hash lists (SHA-256 and optionally MD5), YARA rules (our own plus optional
+    third-party rule packs), ClamAV, and, when enabled, the advanced pipeline (models, decoders,
+    emulation). The scanning loop itself lives in ScanFlowMixin and the scoring of each file in
+    FileAnalysisMixin; this class sets everything up and provides the byte-level checks.
+    """
     def __init__(self, signatures, rules_dir, max_mb=100, exclusions=(), trusted_hashes=(),options=None):
+        """Load every enabled detection layer.
+
+        signatures is the hash database, rules_dir the folder of YARA rules, and max_mb the largest
+        file read in full. exclusions are folders to skip, trusted_hashes are files a person has
+        marked as safe, and options switches the individual layers on or off.
+        """
         from sentinelav.platform.engine_policy import inspection_options
         self.options=inspection_options(options)
         strict=self.options['signature_free']
@@ -62,6 +85,13 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
             if not self.clamav and environment_ready():self.warnings.append('ClamAV signatures unavailable: the ClamAV service is not running')
 
     def analyze_bytes(self,data,sha=None):
+        """Check a block of bytes against the signature layers: hashes, the EICAR test string, YARA
+        rules, rule packs and ClamAV.
+
+        Returns (names, matches, errors): names are decisive identity matches (for example 'YARA:
+        SomeFamily'), matches are detailed rule matches (including weaker 'generic' technique rules
+        that only add weight), and errors describes any layer that failed.
+        """
         if self.options['signature_free']:return [],[],[]
         sha=sha or hashlib.sha256(data).hexdigest()
         if sha in self.trusted_hashes: return [],[],[]
@@ -74,6 +104,8 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         if self.md5 and len(data)>=MIN_HASH_BYTES:
             listed=self.md5.get(hashlib.md5(data).hexdigest())
             if listed and label is None:names.append(f'MD5: listed by {listed}')
+        # The standard EICAR antivirus test string, split in two so this source file itself is not
+        # flagged.
         eicar=b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$'+b'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
         if eicar in data: names.append('EICAR test file (not malware)')
         if self.rules:
@@ -94,6 +126,9 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         return names,matches,errors
 
     def clamav_check(self,data,names,matches,errors):
+        """Send the bytes to ClamAV and add its answer to names (a named signature) or matches (a
+        heuristic hint).
+        """
         from sentinelav.detection.clamav_engine import STREAM_LIMIT,scan_bytes
         if len(data)>STREAM_LIMIT:return
         try:found=scan_bytes(self.clamav,data)
@@ -111,10 +146,17 @@ class Scanner(ScanFlowMixin,FileAnalysisMixin):
         else:names.append('ClamAV: '+found)
 
     def excluded(self, path):
+        """Tell whether a path is inside one of the excluded folders."""
         resolved = path.resolve()
         return any(resolved == p or p in resolved.parents for p in self.exclusions)
 
     def analyze_member(self,data,sha=None):
+        """Like analyze_bytes, but for content extracted from inside another file.
+
+        If the content is a Windows program and the learned models are enabled, it also runs the
+        advanced pipeline on it, within a per-file budget so that an archive full of programs cannot
+        make a scan take forever.
+        """
         reasons,matches,errors=self.analyze_bytes(data,sha)
         if self.advanced and data.startswith(b'MZ') and (self.options['model'] or self.options['neural']):
             digest=sha or hashlib.sha256(data).hexdigest()

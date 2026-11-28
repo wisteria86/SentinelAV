@@ -19,6 +19,8 @@ MAX_INPUT=4000000
 
 @lru_cache(maxsize=1)
 def weights():
+    """Load the MalConv2 network weights, checking their SHA-256 first. Cached after the first call.
+    """
     import numpy as np
     path=RESOURCE_ROOT/'analysis-data/malconv2-state.npz'
     if path.stat().st_size>16*1024*1024 or hashlib.sha256(path.read_bytes()).hexdigest()!=WEIGHTS_SHA256:raise ValueError('MalConv2 artifact integrity failed')
@@ -28,11 +30,18 @@ def weights():
 
 
 def sigmoid(x):
+    """Element-wise logistic function, clipped so large values never overflow."""
     import numpy as np
     return 1/(1+np.exp(-np.clip(x,-80,80)))
 
 
 def pool(tokens,state,context=None,windows=256):
+    """Slide the convolutional network over the byte sequence and keep, for each feature, its strongest
+    response anywhere in the file.
+
+    The file is processed in batches of windows to keep memory bounded. When `context` is given, the
+    second (gated) pass uses it to decide which windows deserve attention.
+    """
     import numpy as np
     if not 1<=windows<=4096:raise ValueError('Invalid neural chunk size')
     if len(tokens)<256:tokens=np.pad(tokens,(0,256-len(tokens)))
@@ -53,6 +62,9 @@ def pool(tokens,state,context=None,windows=256):
 
 
 def logits(data,state,windows=256):
+    """Run the full MalConv2 network on the bytes and return its two raw output scores (benign,
+    malicious).
+    """
     import numpy as np
     from threadpoolctl import threadpool_limits
     tokens=np.frombuffer(data,dtype=np.uint8).astype(np.int64)+1
@@ -63,6 +75,11 @@ def logits(data,state,windows=256):
 
 
 def predict(data):
+    """Score a file with the raw-byte neural network and return a result dictionary.
+
+    Only the first 4,000,000 bytes are examined. A score of 0.99 or more asks for review; the score
+    alone never convicts a file.
+    """
     import numpy as np
     if not data:raise ValueError('Empty neural input')
     used=bytes(data[:MAX_INPUT]);output=logits(used,weights())

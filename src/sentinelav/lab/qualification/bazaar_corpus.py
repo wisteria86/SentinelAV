@@ -30,6 +30,8 @@ PER_FAMILY = 20
 
 
 def auth_key():
+    """Return the abuse.ch API key from the environment (or the user's saved environment on Windows).
+    """
     value = os.environ.get('ABUSECH_AUTH_KEY')
     if not value and os.name == 'nt':
         import winreg
@@ -44,6 +46,7 @@ def auth_key():
 
 
 def corpus_root(name, create=True):
+    """Return the folder of a named corpus inside the managed datasets area."""
     from sentinelav.workspace import Workspace
     if not name.isidentifier():
         raise ValueError('Corpus names are simple identifiers')
@@ -69,10 +72,12 @@ NON_WINDOWS_TYPES = frozenset({'elf', 'macho', 'apk', 'dex', 'dmg', 'sh', 'zsh',
 
 
 def windows_target(file_type):
+    """Tell whether a sample's file type can run on Windows (others are left out of evaluations)."""
     return (file_type or '').casefold() not in NON_WINDOWS_TYPES
 
 
 def family_of(row):
+    """Return a sample's malware family name, or 'unlabeled-<type>' if it has none."""
     signature = (row.get('signature') or '').strip()
     return signature.casefold() if signature and signature.casefold() != 'n/a' else 'unlabeled-' + (row.get('file_type_guess') or 'unknown')
 
@@ -115,6 +120,9 @@ def select(rows, count, seed, per_family=PER_FAMILY):
 
 
 def _download(sha256, key):
+    """Download one sample's password-protected ZIP from MalwareBazaar. Returns (data, None) or (None,
+    problem).
+    """
     from urllib.error import HTTPError, URLError
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
@@ -169,6 +177,9 @@ BATCH_SIZE = 64  # Prepare-TestEnvironment.ps1 stages at most 64 sealed archives
 BATCH_BYTES = 384 * 1024**2
 
 def cases(name, definitions=None):
+    """Split a sealed corpus into evaluation cases of at most 64 samples (and 384 MB) each, one Sandbox
+    guest per case.
+    """
     manifest = json.loads((corpus_root(name, create=False) / 'manifest.json').read_text(encoding='utf-8'))
     password = base64.b64encode(PASSWORD).decode()
     # Development only: re-scan just the file types a fix touched. The full dev and holdout runs never set this.

@@ -21,6 +21,7 @@ from sentinelav.monitoring.honeypots import NetworkHoneypot
 
 
 def free_port(host=DECOY_HOST):
+    """Ask the operating system for a free TCP port on the decoy loopback address."""
     with socket.socket() as probe:
         probe.bind((host, 0))
         return probe.getsockname()[1]
@@ -55,11 +56,13 @@ class DecoyServers:
     """Listens on the decoy ports of 127.0.0.2 and reports every connection with the process that made it."""
 
     def __init__(self, ports, emit, behavior=None, host=DECOY_HOST, owner=connection_owner):
+        """Prepare listeners for the decoy ports ({label: port}); start() opens them."""
         self.labels = {port: name for name, port in ports.items()}
         self.emit, self.behavior, self.host, self.owner = emit, behavior, host, owner
         self.sockets, self.skipped, self.stop_event = [], [], threading.Event()
 
     def start(self):
+        """Open a listener on each decoy port that is free and return the ports actually opened."""
         for port in self.labels:
             server = socket.socket()
             try:
@@ -75,6 +78,8 @@ class DecoyServers:
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
+        """Accept connections on one decoy port, identify the connecting process, and raise an alert.
+        """
         while not self.stop_event.is_set():
             try:
                 connection, (address, peer_port) = server.accept()
@@ -95,6 +100,7 @@ class DecoyServers:
             flag(self.behavior, process, f'Connected to the decoy {label} server')
 
     def stop(self):
+        """Stop all listeners."""
         self.stop_event.set()
         for server in self.sockets:
             server.close()
@@ -107,10 +113,16 @@ class TarpitHoneypot(NetworkHoneypot):
     """Network honeypot that holds each connection open and trickles one byte every few seconds, slowing scanners down."""
 
     def __init__(self, emit, ports, interval=10, hold=600, slots=32, **options):
+        """Like NetworkHoneypot, but hold each connection for up to `hold` seconds, sending a byte
+        every `interval` seconds, with at most `slots` held at once.
+        """
         super().__init__(emit, ports, **options)
         self.interval, self.hold, self.slots = interval, hold, threading.BoundedSemaphore(slots)
 
     def _serve(self, server, port):
+        """Accept connections, report them, and hand each one to a trickle thread (refusing new ones
+        when all slots are busy).
+        """
         while not self.stop_event.is_set():
             try:
                 connection, (address, peer_port) = server.accept()
@@ -123,6 +135,7 @@ class TarpitHoneypot(NetworkHoneypot):
             threading.Thread(target=self._trickle, args=(connection,), daemon=True).start()
 
     def _report(self, port, address, peer_port):
+        """Record and announce one connection to the tarpit."""
         record = dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), port=port, address=address, peer_port=peer_port, first_bytes='')
         self.records = (self.records + [record])[-self.limit:]
         local = address.startswith('127.') or address == '::1'
@@ -130,6 +143,8 @@ class TarpitHoneypot(NetworkHoneypot):
             details=f'{address}:{peer_port} connected to decoy port {port} and is being held in a tarpit.'))
 
     def _trickle(self, connection):
+        """Keep a connection busy by sending a single byte every few seconds until the hold time is up.
+        """
         deadline = time.monotonic() + self.hold
         try:
             with connection:
@@ -142,6 +157,9 @@ class TarpitHoneypot(NetworkHoneypot):
 
 
 def remove(state):
+    """Remove the breadcrumb registry entries and files, returning any files left because their content
+    changed.
+    """
     from sentinelav.monitoring.deception.common import remove_decoys
     registry_decoys.remove(state.get('registry', []))
     return remove_decoys(state.get('entries', []), state.get('created', []))

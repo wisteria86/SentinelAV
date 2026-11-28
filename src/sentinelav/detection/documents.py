@@ -9,6 +9,14 @@ import zipfile
 
 
 def macro_sources(data):
+    """Extract the VBA macro source code from an Office document, entirely in memory.
+
+    Works for both old binary Office files (OLE) and modern .docx/.xlsm style ZIP files. Size, count
+    and time limits protect against hostile documents. Macros are only read as text, never run.
+
+    Returns (sources, omissions): a list of (name, source bytes) pairs and a list of anything we
+    could not inspect.
+    """
     omissions=[]
     ole=data.startswith(bytes.fromhex('d0cf11e0a1b11ae1'))
     office_zip=False

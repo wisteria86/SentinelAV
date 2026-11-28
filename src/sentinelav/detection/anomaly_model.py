@@ -17,6 +17,13 @@ FEATURES=('entropy_bits','zero_fraction','log2_bytes','section_count',
 
 
 def validate(rows):
+    """Check that training rows are well formed before fitting, raising ValueError on the first
+    problem.
+
+    Each row needs a unique hash, a label, a source (provenance), and a split. Rows from the same
+    group (a malware family or software build) must all be in the same split, otherwise the test
+    results would be unrealistically good.
+    """
     if not isinstance(rows,list) or not 1<=len(rows)<=100000:
         raise ValueError('Expected 1..100000 feature rows')
     hashes=set()
@@ -44,6 +51,12 @@ def validate(rows):
 
 
 def score(model,features):
+    """Measure how far a file's features are from the typical benign file.
+
+    Each feature's distance is divided by its normal spread, and the results are combined into one
+    overall distance (like a z-score). A file is flagged for review when the distance is above the
+    model's threshold. This only says 'unusual', never 'malicious'.
+    """
     contributions={}
     for key in FEATURES:
         value=features[key]
@@ -62,6 +75,12 @@ def score(model,features):
 
 
 def fit_evaluate(rows,target_fpr=0.01):
+    """Train the benign baseline, choose its threshold, and measure it on the held-out test rows.
+
+    The centre and spread come from benign training rows. The threshold is then chosen on separate
+    benign calibration rows so that only about target_fpr of normal files would be flagged. Returns
+    (model, report).
+    """
     validate(rows)
     if not 0<target_fpr<1: raise ValueError('Target false-positive fraction must be between 0 and 1')
     train=[r for r in rows if r['split']=='train' and r['label']=='benign']
@@ -76,6 +95,7 @@ def fit_evaluate(rows,target_fpr=0.01):
         training_hashes=[r['sha256'] for r in train],calibration_hashes=[r['sha256'] for r in calibration],
         automatic_response_eligible=False)
     distances=sorted(score(model,r['features'])['distance'] for r in calibration)
+    # Pick the distance that only the top target_fpr share of calibration files exceed.
     model['threshold']=distances[max(0,math.ceil((1-target_fpr)*len(distances))-1)]
     predictions=[dict(sha256=r['sha256'],label=r['label'],**score(model,r['features'])) for r in test]
     metrics={}

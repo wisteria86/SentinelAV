@@ -14,6 +14,8 @@ def collect(data,file_type,metadata=None,analysis=None,malformed='',omissions=No
     kind=file_type['kind']
     omissions=[] if omissions is None else omissions
     found=[]
+    # Pick the analyser(s) that match this kind of file. Scripts and compiled programs also get the
+    # generic string checks.
     runners=[]
     if kind=='pe':runners.append(lambda:pe.indicators(data,metadata,analysis,malformed))
     elif kind in ('dos_mz','com'):runners.append(lambda:dos.indicators(data,kind))

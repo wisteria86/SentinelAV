@@ -23,6 +23,7 @@ MAX_BYTES=8*1024*1024
 
 
 def fingerprint(path):
+    """Return a file's SHA-256 (8 MiB at most), making sure it did not change while being read."""
     digest=hashlib.sha256()
     with path.open('rb') as stream:
         before=os.fstat(stream.fileno())
@@ -42,11 +43,15 @@ def fingerprint(path):
 
 
 def unlinked(path):
+    """Refuse a path if any part of it is a symbolic link or junction."""
     if any(p.is_symlink() or p.is_junction() for p in (path,*path.parents)):
         raise ValueError('Linked input/output path refused')
 
 
 def load_manifest(path,max_files=MAX_FILES):
+    """Load and validate a corpus manifest: each file needs a safe relative path, a SHA-256, a label
+    and a provenance note. Returns (manifest, its SHA-256).
+    """
     path=Path(path).absolute()
     unlinked(path)
     if path.stat().st_size>max_files*2048: raise ValueError('Manifest too large')
@@ -76,6 +81,9 @@ def load_manifest(path,max_files=MAX_FILES):
 
 
 def verified_offline_guest():
+    """Tell whether we are running inside the offline Windows Sandbox test guest (a virtual machine
+    with no active network adapter).
+    """
     if os.name!='nt' or os.environ.get('USERNAME')!='WDAGUtilityAccount': return False
     code="$ErrorActionPreference='Stop'; if((Get-CimInstance Win32_ComputerSystem).Model -ne 'Virtual Machine'){exit 1}; if(@(Get-NetAdapter | Where-Object Status -eq 'Up').Count){exit 2}; exit 0"
     try:
@@ -85,6 +93,14 @@ def verified_offline_guest():
 
 
 def evaluate(manifest,scanner_factory=IsolatedScanner,options=None,signature_path=None,batch_offset=None):
+    """Scan every file listed in a corpus manifest and report what was detected.
+
+    Each file's hash is checked before and after scanning, nothing is executed or extracted, and
+    anything incomplete is reported as 'unavailable', never as clean. Malware or unknown samples are
+    only allowed inside the offline test guest. With signature_free options, only independent (non-
+    signature) evidence may count as a detection. batch_offset evaluates a 64-sample slice of a
+    large manifest.
+    """
     manifest=Path(manifest).absolute()
     data,manifest_hash=load_manifest(manifest,10000 if batch_offset is not None else MAX_FILES)
     # No unsafe-content hash reads on the host. Test/benign labels are caller
@@ -185,6 +201,7 @@ def create_demo(root):
 
 
 def render(report):
+    """Render an evaluation report as a simple HTML page."""
     esc=lambda v:html.escape(str(v),quote=True)
     rows=''.join('<tr>'+''.join('<td>'+esc(r.get(k,''))+'</td>' for k in ('path','label','outcome','seconds','error'))+'</tr>' for r in report['rows'])
     return ('<!doctype html><meta charset="utf-8"><title>SentinelAV static evaluation</title>'
@@ -195,6 +212,9 @@ def render(report):
 
 
 def main(argv=None):
+    """Command-line entry point: evaluate a manifest and write report.json and report.html to a new
+    output folder.
+    """
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest',type=Path)
     parser.add_argument('--output',required=True,type=Path,help='New report directory, outside the corpus')

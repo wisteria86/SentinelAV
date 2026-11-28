@@ -12,6 +12,8 @@ from sentinelav.platform.runtime import VERSION,ZONE
 
 
 def snapshot(store):
+    """Gather everything a report needs from the store (scans, events, quarantine) plus summary counts.
+    """
     scans=store.history()
     events=store.events(5000)
     return dict(version=VERSION,exported=datetime.now(ZONE).isoformat(),scans=scans,
@@ -26,10 +28,15 @@ def snapshot(store):
 
 
 def is_detection(event):
+    """Tell whether a protection event is an actual threat detection (as opposed to a behaviour alert
+    or info message).
+    """
     return event.get('kind') == 'Threat detected' and bool(event.get('sha256'))
 
 
 def render_report(data,kind):
+    """Turn a snapshot into a report in the requested format: 'json', 'csv' or (anything else) 'html'.
+    """
     if kind=='json':
         return json.dumps(data,indent=2)
     if kind=='csv':
@@ -38,6 +45,8 @@ def render_report(data,kind):
         writer.writerow(['Date','Type','Files scanned','Detections','Suspicious','Result'])
         for scan in data['scans']:
             values=[scan['started'],scan.get('kind',''),scan['scanned'],len(scan['detections']),len(scan.get('suspicious',[])),scan['status']]
+            # Spreadsheet programs treat cells starting with = + - @ as formulas; prefixing a quote
+            # stops a malicious file name from running one.
             writer.writerow(["'"+str(v) if str(v).lstrip().startswith(('=','+','-','@')) else str(v) for v in values])
         return out.getvalue()
     esc=lambda value:html.escape(str(value),quote=True)

@@ -30,6 +30,9 @@ SET=re.compile(r'^\s*@?\s*set\s+(?!/[ap]\b)"?([^=\s"]{1,64})=(.*?)"?\s*$',re.I)
 
 
 def _substring(value,spec):
+    """Apply a batch substring or replace modifier to a variable's value, as cmd.exe does for
+    %name:~start,length% and %name:old=new%.
+    """
     if spec.startswith('~'):
         numbers=[int(n) for n in spec[1:].split(',')]
         start=numbers[0]
@@ -46,7 +49,11 @@ def _substring(value,spec):
 
 
 def _expand(text,env,pattern):
+    """Replace every %name% (or !name! for delayed expansion) in a line with the variable's current
+    value.
+    """
     def replace(match):
+        """Work out the replacement text for one matched variable reference."""
         if match.group()=='%%':return '%'
         name=match.group(1)
         if name[:1].isdigit() or name.startswith('~'):return match.group()  # %1, %~f0: arguments stay as they are
@@ -63,6 +70,7 @@ def batch_expand(text):
     delayed=bool(re.search(r'enabledelayedexpansion',text,re.I))
     lines=[]
     for line in text.splitlines()[:LINE_LIMIT]:
+        # A caret escapes the next character in batch files; drop it so ^p^o^w^e^r becomes power.
         line=re.sub(r'\^(.)',r'\1',line)
         expanded=_expand(line,env,EXPANSION)
         out=[]
@@ -83,6 +91,7 @@ REPLACE=re.compile(r"""(['"])([^'"\r\n]{1,4096})\1\s*\)?\s*\.replace\(\s*(['"])(
 
 
 def _number(token):
+    """Turn a decimal or hex character code into the character it stands for."""
     token=token.strip()
     value=int(token,16) if token.lower().startswith('0x') else int(token)
     return chr(value) if 0<value<0x110000 else ''
@@ -93,6 +102,7 @@ def powershell_normalize(text):
     original=text=text[:TEXT_LIMIT]
     # Backticks inside a word, or before a letter that is not an escape such as `n `t `r `a `b `f `v, only break up keywords.
     text=re.sub(r'(?<=[a-z])`(?=[a-z])|`(?=[cdeg-mopqsuw-z])','',text,flags=re.I)
+    # Repeat a few times, because undoing one layer of obfuscation often reveals another.
     for _ in range(3):
         before=text
         text=FORMAT.sub(lambda m:'"'+_format(m.group(2),m.group(3))+'"',text)
@@ -105,8 +115,12 @@ def powershell_normalize(text):
 
 
 def _format(template,arguments):
+    """Evaluate a PowerShell -f format string: fill each {0}, {1}, ... slot with the matching quoted
+    argument.
+    """
     values=[item[1:-1] for item in re.findall(r"""'[^'\r\n]*'|"[^"\r\n]*\"""",arguments)]
     def slot(match):
+        """Return the argument for one {n} slot, or an empty string if there is none."""
         index=int(match.group(1))
         return values[index] if index<len(values) else ''
     return re.sub(r'\{(\d{1,3})(?:,-?\d+)?(?::[^}]*)?\}',slot,template)

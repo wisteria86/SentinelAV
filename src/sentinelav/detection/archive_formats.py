@@ -21,12 +21,22 @@ EXECUTABLE_SUFFIXES=('.exe','.dll','.scr','.com','.pif','.bat','.cmd','.js','.js
 class Member:
     """One archive entry; read(limit) returns at most limit+1 bytes so callers can detect excess."""
     def __init__(self,name,size,read,compressed=None,encrypted=False,unsafe=False):
+        """Describe one entry: its name, uncompressed size (-1 if unknown), a read(limit) function, and
+        flags for compressed size, encryption and unsafe types (such as links).
+        """
         self.name,self.size,self.read=name,size,read
         self.compressed,self.encrypted,self.unsafe=compressed,encrypted,unsafe
 
 
 def _zip_read(archive,info):
+    """Build a read(limit) function for one ZIP entry.
+
+    Encrypted entries are tried with the well-known passwords that malware researchers use to share
+    samples ('infected', 'malware', 'virus').
+    """
     def read(limit):
+        """Read at most limit+1 bytes of the entry, trying the sharing passwords if it is encrypted.
+        """
         passwords=(None,) if not info.flag_bits&1 else SHARING_PASSWORDS
         last=None
         for password in passwords:
@@ -50,6 +60,8 @@ ZIP_METHODS={0,8,12,14,99}
 
 
 def zip_members(data):
+    """List the entries of a ZIP archive. Unusual compression methods are handed to 7-Zip instead.
+    """
     archive=open_zip(data)
     if any(info.compress_type not in ZIP_METHODS for info in archive.infolist()):
         yield from tool_members(data,'.zip');return
@@ -60,19 +72,28 @@ def zip_members(data):
 
 
 def tar_members(data):
+    """List the regular files inside a TAR archive. Links and devices are reported as unsafe and not
+    read.
+    """
     with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as archive:
         for member in archive:
             if member.isdir():continue
             if not member.isfile():
                 yield Member(member.name,0,lambda limit:b'',unsafe=True);continue
             def read(limit,item=member):
+                """Read at most limit+1 bytes of this TAR entry."""
                 with archive.extractfile(item) as stream:return stream.read(limit+1)
             yield Member(member.name,member.size,read)
 
 
 def _stream(decompressor,name):
+    """Make a member reader for single-stream formats (gzip, bzip2, xz), which contain exactly one
+    compressed file.
+    """
     def members(data):
+        """Return the single compressed stream as one member."""
         def read(limit):
+            """Decompress at most limit+1 bytes, so a decompression bomb cannot fill memory."""
             engine=decompressor()
             # The output cap inside the decompressor stops decompression bombs before memory is used.
             return engine.decompress(data,limit+1)
@@ -81,27 +102,50 @@ def _stream(decompressor,name):
 
 
 def _gzip_engine():
+    """Return a gzip decompressor with a decompress(data, limit) method."""
     class Engine:
-        def __init__(self):self.engine=zlib.decompressobj(16+zlib.MAX_WBITS)
-        def decompress(self,data,limit):return self.engine.decompress(data,limit)
+        """Thin wrapper giving zlib's gzip decompressor a decompress(data, limit) method."""
+        def __init__(self):
+            """Create a gzip-mode zlib decompressor."""
+            self.engine=zlib.decompressobj(16+zlib.MAX_WBITS)
+        def decompress(self,data,limit):
+            """Decompress at most `limit` bytes."""
+            return self.engine.decompress(data,limit)
     return Engine()
 
 
 def _bz2_engine():
+    """Return a bzip2 decompressor with a decompress(data, limit) method."""
     class Engine:
-        def __init__(self):self.engine=bz2.BZ2Decompressor()
-        def decompress(self,data,limit):return self.engine.decompress(data,max_length=limit)
+        """Thin wrapper giving the bzip2 decompressor a decompress(data, limit) method."""
+        def __init__(self):
+            """Create a bzip2 decompressor."""
+            self.engine=bz2.BZ2Decompressor()
+        def decompress(self,data,limit):
+            """Decompress at most `limit` bytes."""
+            return self.engine.decompress(data,max_length=limit)
     return Engine()
 
 
 def _xz_engine():
+    """Return an xz/LZMA decompressor with a decompress(data, limit) method."""
     class Engine:
-        def __init__(self):self.engine=lzma.LZMADecompressor()
-        def decompress(self,data,limit):return self.engine.decompress(data,max_length=limit)
+        """Thin wrapper giving the LZMA decompressor a decompress(data, limit) method."""
+        def __init__(self):
+            """Create an xz/LZMA decompressor."""
+            self.engine=lzma.LZMADecompressor()
+        def decompress(self,data,limit):
+            """Decompress at most `limit` bytes."""
+            return self.engine.decompress(data,max_length=limit)
     return Engine()
 
 
 def seven_zip_members(data):
+    """List the entries of a 7z archive, trying no password first and then the common sharing
+    passwords.
+
+    Falls back to the external 7-Zip tool for features the py7zr library cannot handle.
+    """
     try:import py7zr
     except ImportError:raise RuntimeError('7z support unavailable: install py7zr') from None
     from py7zr.io import BytesIOFactory
@@ -112,12 +156,19 @@ def seven_zip_members(data):
                 infos=[item for item in archive.list() if not item.is_directory]
             def read_all(limit,password=password,cache={}):
                 # py7zr decodes solid blocks together; extract only to memory with a total cap per file.
+                """Extract every member to memory at once (7z compresses members together), capped per
+                file.
+                """
                 factory=BytesIOFactory(limit+1)
                 with py7zr.SevenZipFile(io.BytesIO(data),password=password) as archive:archive.extractall(factory=factory)
                 return {name:stream for name,stream in factory.products.items()}
             shared={}
             def member_read(name):
+                """Build a read(limit) function for one named member, extracting the archive on first
+                use.
+                """
                 def read(limit):
+                    """Return at most limit+1 bytes of this member from the shared extraction."""
                     if not shared:shared.update(read_all(limit))
                     stream=shared.get(name)
                     if stream is None:raise RuntimeError('7z member unavailable')
@@ -133,6 +184,8 @@ def seven_zip_members(data):
 
 
 def rar_members(data):
+    """List the entries of a RAR archive. Needs 7-Zip or unrar installed to decompress the contents.
+    """
     try:import rarfile
     except ImportError:raise RuntimeError('RAR support unavailable: install rarfile') from None
     # rarfile reads headers itself; 7-Zip (which reads RAR) only decompresses members.
@@ -147,6 +200,8 @@ def rar_members(data):
     for info in archive.infolist():
         if info.is_dir():continue
         def read(limit,item=info):
+            """Read at most limit+1 bytes of this RAR entry, trying the sharing passwords if needed.
+            """
             passwords=(None,) if not item.needs_password() else tuple(p.decode() for p in SHARING_PASSWORDS)
             last=None
             for password in passwords:
@@ -201,6 +256,7 @@ def msi_members(data):
         # Signature and summary streams and database tables hold no code.
         if '/\x05' in '/'+name or '/!' in '/'+name:continue
         def read(limit,item=path):
+            """Read at most limit+1 bytes of this installer stream."""
             with package.openstream(item) as stream:return stream.read(limit+1)
         result.append(Member(name,package.get_size(path),read))
     try:strings=msi_strings(package)

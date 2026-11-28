@@ -10,28 +10,42 @@ import subprocess
 
 
 class OwnedProcess:
+    """Small Popen-like wrapper around a raw process handle created with a restricted token."""
     def __init__(self,handle,pid,details):
+        """Remember the process handle, id and launch details."""
         self.handle=handle;self.pid=pid;self.evaluation_launch=details
 
     def poll(self):
+        """Return the exit code if the process has finished, otherwise None."""
         import win32event,win32process
         return None if win32event.WaitForSingleObject(self.handle,0)==258 else win32process.GetExitCodeProcess(self.handle)
 
     def wait(self,timeout=None):
+        """Wait for the process to finish (raising TimeoutExpired after `timeout` seconds) and return
+        its exit code.
+        """
         import win32event,win32process
         if win32event.WaitForSingleObject(self.handle,0xFFFFFFFF if timeout is None else int(timeout*1000))==258:
             raise subprocess.TimeoutExpired('owned guest engine',timeout)
         return win32process.GetExitCodeProcess(self.handle)
 
     def kill(self):
+        """Terminate the process if it is still running."""
         import win32process
         if self.poll() is None:win32process.TerminateProcess(self.handle,1)
 
     def __del__(self):
+        """Close the process handle."""
         if getattr(self,'handle',None):self.handle.Close()
 
 
 def launch_engine(data,context):
+    """Start the background engine in the guest without administrator rights.
+
+    If we are an administrator, a restricted copy of our own token is made: same account, but
+    administrative groups disabled and medium integrity. This mirrors how a normal user would run
+    it.
+    """
     from .guest_context import guard,BASE
     from sentinelav.workspace import unlinked
     from sentinelav.platform.runtime import launch_command

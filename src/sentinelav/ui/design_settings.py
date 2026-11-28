@@ -9,7 +9,11 @@ from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QTabWid
 
 
 class SettingsPageMixin:
+    """Builds the basic Settings page (other mixins add more tabs)."""
     def settings_page(self):
+        """Build the Settings page with its General, Scanning, Protection, Notifications and Exclusions
+        tabs.
+        """
         layout = self.page('Settings', 'Configure SentinelAV to suit your needs.')
         tabs = QTabWidget()
         tabs.setFixedHeight(330)
@@ -88,6 +92,7 @@ class SettingsPageMixin:
         layout.addStretch()
 
     def open_settings_tab(self, name):
+        """Switch the Settings page to the tab with the given name."""
         tabs=self.stack.widget(5).findChild(QTabWidget)
         for index in range(tabs.count()):
             if tabs.tabText(index)==name:

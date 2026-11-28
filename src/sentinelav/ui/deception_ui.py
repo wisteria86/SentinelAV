@@ -22,7 +22,10 @@ OPTIONS = (
 
 
 class DeceptionMixin:
+    """Adds the deception options to the Settings page and deploys or removes the decoys."""
     def settings_page(self):
+        """Add the deception checkboxes, status line and remove button to the Advanced settings tab.
+        """
         super().settings_page()
         from sentinelav.monitoring.deception import DEFAULTS
         tabs = self.stack.widget(5).findChild(QTabWidget)
@@ -49,6 +52,7 @@ class DeceptionMixin:
         layout.insertLayout(7, row)
 
     def deception_summary(self):
+        """Describe what is currently deployed and anything that could not be deployed."""
         state = self.store.get('deception_state', {})
         placed = len([store for store in state.get('stores', [])]) if state else 0
         problems = state.get('problems', []) if state else []
@@ -56,6 +60,7 @@ class DeceptionMixin:
         return text + ('. Not available: ' + '; '.join(problems) if problems else '')
 
     def save_settings(self):
+        """Save the deception checkboxes along with the other settings."""
         if hasattr(self, 'deception_boxes'):
             self.store.set('deception_options', {key: box.isChecked() for key, box in self.deception_boxes.items()})
         super().save_settings()
@@ -76,6 +81,9 @@ class DeceptionMixin:
         return state
 
     def honeypot_config(self):
+        """Add the deployed decoy files and deception state to the protection configuration, and
+        exclude the decoys from scanning.
+        """
         config = super().honeypot_config()
         try:
             state = self.ensure_deception()
@@ -96,6 +104,9 @@ class DeceptionMixin:
         return config
 
     def remove_deception(self):
+        """Remove every deployed decoy (only while monitoring is stopped) and switch all deception
+        options off.
+        """
         if self.protection_worker:
             QMessageBox.information(self, 'Monitoring active', 'Stop monitoring before removing decoys.')
             return

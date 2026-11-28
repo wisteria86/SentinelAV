@@ -67,6 +67,12 @@ def file_entries(state):
 
 
 def remove(state):
+    """Remove every deception item described by `state` (stores, breadcrumbs, share, account, sinkhole,
+    marker files).
+
+    Returns the decoy files that were left in place because their content had changed (someone or
+    something edited them).
+    """
     from sentinelav.monitoring.deception import accounts, breadcrumbs, sinkhole, stores, vaccines
     left = stores.remove(state.get('stores', [])) + breadcrumbs.remove(state.get('breadcrumbs', {}))
     if state.get('share'):
@@ -86,16 +92,21 @@ class DeceptionRuntime:
     """The live parts, run by the monitor. Every part is optional and fails on its own without stopping the rest."""
 
     def __init__(self, state, emit, behavior=None, data_dir='.'):
+        """Remember the deployed state; nothing starts until start() is called."""
         self.state, self.emit, self.behavior, self.data_dir = state, emit, behavior, Path(data_dir)
         self.parts, self.notes, self.next_slow = {}, [], 0
 
     def _try(self, name, build):
+        """Build one part, recording a note instead of failing if it cannot start."""
         try:
             self.parts[name] = build()
         except Exception as error:
             self.notes.append(f'{name}: {str(error)[:120]}')
 
     def start(self):
+        """Start every live part the state asks for and announce which ones are running. Returns their
+        names.
+        """
         options = self.state.get('options', {})
         if self.state.get('breadcrumbs'):
             from sentinelav.monitoring.deception.breadcrumbs import DecoyServers
@@ -123,10 +134,14 @@ class DeceptionRuntime:
 
     @staticmethod
     def _started(part):
+        """Start a part and return it (a helper for one-line construction)."""
         part.start()
         return part
 
     def poll(self):
+        """Poll the parts that need regular checks, dropping any part that fails, and run the slow
+        checks once a minute.
+        """
         for name in ('clipboard guard', 'decoy processes', 'logon watcher'):
             if name in self.parts:
                 try:
@@ -139,6 +154,9 @@ class DeceptionRuntime:
             self._slow_checks()
 
     def _slow_checks(self):
+        """Retire decoy stores for apps that have since been installed, and report decoy registry
+        entries that were changed or deleted.
+        """
         from sentinelav.monitoring.deception import registry_decoys, stores
         kept, retired = stores.retire_installed(self.state.get('stores', []))
         if retired:
@@ -152,6 +170,7 @@ class DeceptionRuntime:
                 'Nothing legitimate edits it; a program is tampering with saved sessions.', path=entry['path']))
 
     def stop(self):
+        """Stop every running part, ignoring errors."""
         for part in self.parts.values():
             if hasattr(part, 'stop'):
                 try:

@@ -20,6 +20,7 @@ from sentinelav.monitoring.deception.common import DECOY_HOST, MARKER, profile_d
 
 
 def _token():
+    """Return a short random hex string for fake values."""
     return secrets.token_hex(8)
 
 
@@ -42,21 +43,25 @@ def _login_data():
 
 
 def _text(body):
+    """Return text bytes that start with the decoy marker line."""
     return (MARKER + '\n' + body).encode('utf-8')
 
 
 def _firefox_logins():
+    """Build a fake Firefox logins.json with one encrypted-looking entry."""
     entry = dict(id=1, hostname='https://mail.example.invalid', encryptedUsername='MD' + secrets.token_urlsafe(40),
         encryptedPassword='MD' + secrets.token_urlsafe(40), encType=1, sentinelav=MARKER)
     return json.dumps(dict(nextId=2, logins=[entry], version=3)).encode('utf-8')
 
 
 def _filezilla():
+    """Build a fake FileZilla server list that points at the decoy host."""
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n<!-- {MARKER} -->\n<FileZilla3><RecentServers><Server><Host>{DECOY_HOST}</Host>'
         f'<Port>21</Port><User>backup</User><Pass encoding="base64">{secrets.token_urlsafe(12)}</Pass></Server></RecentServers></FileZilla3>\n').encode('utf-8')
 
 
 def _wallet():
+    """Build a fake Electrum wallet file."""
     return _text(json.dumps(dict(wallet_type='standard', seed_version=52, keystore=dict(type='bip32', xprv='decoy' + secrets.token_hex(40)))))
 
 
@@ -88,6 +93,7 @@ STORES = (
 
 
 def installed(markers):
+    """Tell whether any of the program paths exists, meaning the real app is installed."""
     return any(Path(os.path.expandvars(marker)).exists() for marker in markers if '%' not in os.path.expandvars(marker))
 
 
@@ -120,6 +126,7 @@ def retire_installed(record):
 
 
 def remove(record):
+    """Remove every placed store, returning any decoy files left because their content changed."""
     left = []
     for store in record:
         left += remove_decoys(store['entries'], store['created'])

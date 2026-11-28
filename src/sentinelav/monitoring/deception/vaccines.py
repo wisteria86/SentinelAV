@@ -19,14 +19,24 @@ MARKER_TEXT = b'SentinelAV infection marker (vaccine). Safe to delete if you rem
 
 
 def markers(path=None):
+    """Load the list of infection markers (mutexes and files, each with its family and source) from the
+    bundled JSON.
+    """
     return json.loads(Path(path or RESOURCE_ROOT / 'deception' / 'vaccines.json').read_text(encoding='utf-8'))['markers']
 
 
 class Vaccines:
+    """Holds infection markers that make certain malware believe the PC is already infected, so it
+    stops.
+    """
     def __init__(self, items=None):
+        """Use the given markers, or the bundled list by default."""
         self.items, self.handles, self.held, self.skipped, self.files = items if items is not None else markers(), [], [], [], []
 
     def start(self):
+        """Create every mutex and every missing marker file (files need administrator rights). Returns
+        what is now held; problems go to `skipped`.
+        """
         if os.name != 'nt':
             return self.held
         import win32event

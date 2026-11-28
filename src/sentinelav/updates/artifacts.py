@@ -19,10 +19,13 @@ KINDS={'model','confirm_model','reputation','policy'}
 LIMIT=16*1024*1024
 
 
-def canonical(value): return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode('utf-8')
+def canonical(value):
+    """Encode a value as compact, sorted JSON bytes, so signatures and hashes are stable."""
+    return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode('utf-8')
 
 
 def bounded_json(path,limit=LIMIT):
+    """Read and parse a JSON file, refusing linked paths and files larger than `limit` bytes."""
     path=Path(path)
     if any(p.is_symlink() or p.is_junction() for p in (path,*path.parents)): raise ValueError('Linked artifact path')
     with path.open('rb') as stream: raw=stream.read(limit+1)
@@ -31,6 +34,13 @@ def bounded_json(path,limit=LIMIT):
 
 
 def verify(envelope,trust,kind,now=None):
+    """Check that a signed artifact is genuine and currently valid, then return its payload.
+
+    The checks are: the manifest has exactly the expected fields, the validity period covers now
+    (trained models may have no end date), the publisher key is pinned in `trust`, the payload hash
+    matches, and the Ed25519 signature over the manifest is valid. Finally the payload itself is
+    validated for its kind.
+    """
     if not isinstance(envelope,dict) or not isinstance(trust,dict) or not isinstance(trust.get('keys'),dict): raise ValueError('Invalid artifact/trust object')
     if kind not in KINDS or envelope.get('schema')!=1: raise ValueError('Unsupported artifact')
     manifest=envelope['manifest']
@@ -65,6 +75,9 @@ def verify(envelope,trust,kind,now=None):
 
 
 def active(folder,trust_path,kind):
+    """Load and verify the currently active artifact of one kind from `folder`. Returns (payload,
+    manifest).
+    """
     folder=Path(folder)
     index=bounded_json(folder/'active.json',65536)
     name=index[kind]['file']
@@ -76,6 +89,11 @@ def active(folder,trust_path,kind):
 
 
 def activate(envelope_path,folder,trust_path,kind):
+    """Verify a downloaded artifact and make it the active one for its kind.
+
+    Its revision must be higher than the active one (no rollbacks or replays). The artifact is
+    written to a new file and the active.json index is replaced atomically.
+    """
     envelope=bounded_json(envelope_path)
     verify(envelope,bounded_json(trust_path,65536),kind)
     folder=Path(folder).absolute()
@@ -101,10 +119,18 @@ def activate(envelope_path,folder,trust_path,kind):
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self,*args,**kwargs): raise ValueError('Update redirects refused')
+    """URL handler that refuses HTTP redirects, so an update can only come from the exact configured
+    URL.
+    """
+    def redirect_request(self,*args,**kwargs):
+        """Refuse every redirect."""
+        raise ValueError('Update redirects refused')
 
 
 def download(url,destination):
+    """Download an update over HTTPS to `destination` (a new file), with size and time limits and no
+    redirects.
+    """
     from urllib.parse import urlsplit
     parsed=urlsplit(url)
     if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:

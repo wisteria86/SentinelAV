@@ -22,6 +22,15 @@ def prepare_self_test_dir(path):
 
 
 def main():
+    """Program entry point: read the command line and start the requested mode.
+
+    The same executable plays many roles. Besides the normal desktop window it can run as a headless
+    scanner, the background engine, an isolated scan worker, the Windows service, the remediation
+    broker, or one of several lab and evaluation jobs. Each mode is checked in turn below; most of
+    them are exclusive and refuse to be combined with other options.
+
+    Returns the process exit code (0 means success).
+    """
     if '--decoy-role' in sys.argv:
         # A decoy process (see monitoring.deception.processes) runs only its idle body, never the app.
         from sentinelav.monitoring.deception.decoy_process import main as decoy_main
@@ -47,6 +56,7 @@ def main():
     parser.add_argument('--windows-service',action='store_true',help=argparse.SUPPRESS)
     parser.add_argument('--remediation-broker',help=argparse.SUPPRESS)
     args=parser.parse_args()
+    # Lab qualification jobs run inside a disposable test VM and must not mix with any other mode.
     if args.qualification_job:
         if any(value for key,value in vars(args).items() if key!='qualification_job'):
             parser.error('Qualification job mode is exclusive')
@@ -54,10 +64,13 @@ def main():
         return qualification_main(args.qualification_job)
     if args.signature_free and not any((args.evaluate_corpus,args.static_corpus_key,args.static_holdout_key,args.zeus_validation_key)):parser.error('--signature-free requires a corpus evaluation mode')
     if args.batch_offset is not None and not args.evaluate_corpus:parser.error('--batch-offset requires --evaluate-corpus')
+    # The remediation broker is a small privileged helper that carries out approved clean-up steps.
     if args.remediation_broker:
         if any(value for key,value in vars(args).items() if key!='remediation_broker'):parser.error('Broker mode is exclusive')
         from sentinelav.platform.remediation_broker import run
         return run(args.remediation_broker)
+    # Runtime jobs execute samples inside an offline guest machine only; their result is printed as
+    # JSON.
     if args.runtime_job:
         if any((args.evaluate_corpus,args.evaluation_output,args.self_test,args.startup,args.scheduled_scan,args.engine_host,
                 args.inspection_worker,args.windows_service,args.data_dir,args.static_pilot_key,args.static_corpus_key,
@@ -72,6 +85,7 @@ def main():
         except Exception as error:
             if sys.stderr: print(str(error),file=sys.stderr)
             return 2
+    # Static lab modes evaluate the detector against a sample corpus, unlocked with a key.
     if args.static_pilot_key or args.static_corpus_key or args.static_holdout_key or args.zeus_validation_key:
         if any((args.evaluate_corpus,args.evaluation_output,args.self_test,args.startup,args.scheduled_scan,args.engine_host,args.inspection_worker,args.windows_service,args.data_dir)):
             parser.error('Static pilot cannot be combined with other modes')
@@ -91,9 +105,13 @@ def main():
             if args.static_corpus_key:return pilot_main(args.static_corpus_key,signature_free=args.signature_free)
             return pilot_main(args.static_pilot_key)
         except Exception as error:
+            # Inside Windows Sandbox there is no console to read, so leave the error in a file the
+            # host can collect.
             if os.environ.get('USERNAME')=='WDAGUtilityAccount':
                 Path('C:/SentinelAV-Test/static-pilot-error.txt').write_text(str(error)[:2000],encoding='utf-8')
             return 16
+    # Corpus evaluation: scan a list of known files read-only and write a report of what was
+    # detected.
     if args.evaluate_corpus:
         if not args.evaluation_output or any((args.self_test,args.startup,args.scheduled_scan,args.engine_host,args.inspection_worker,args.windows_service,args.data_dir)):
             parser.error('--evaluate-corpus requires --evaluation-output and no other execution mode')
@@ -101,6 +119,8 @@ def main():
         return evaluate_main([str(args.evaluate_corpus),'--output',str(args.evaluation_output)]+(['--signature-free'] if args.signature_free else [])+(['--batch-offset',str(args.batch_offset)] if args.batch_offset is not None else []))
     if args.evaluation_output:
         parser.error('--evaluation-output requires --evaluate-corpus')
+    # Everything below here is a long-running role: the Windows service, a scan worker, or the
+    # background engine.
     if args.windows_service:
         from sentinelav.platform.windows_service import run_service
         try: return run_service()
@@ -119,6 +139,7 @@ def main():
         except Exception as error:
             if sys.stderr:print(str(error),file=sys.stderr)
             return 1
+    # Headless scan from the command line: prints JSON and exits 1 if anything was flagged.
     if args.scan:
         if args.self_test or args.scheduled_scan or args.startup:
             parser.error('--scan cannot be combined with other execution modes')
@@ -136,9 +157,11 @@ def main():
             parser.error('Self-test requires a new, unused directory: '+str(error))
     if args.self_test or args.scheduled_scan:
         os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+    # From here on we are starting the normal desktop application.
     app=QApplication(sys.argv[:1])
     data=args.data_dir or Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'SentinelAV'
     data.mkdir(parents=True,exist_ok=True)
+    # Only one copy of SentinelAV may use a data folder at a time; a lock file enforces that.
     lock=QLockFile(str(data/'instance.lock'))
     lock.setStaleLockTime(0)
     if not lock.tryLock(100):
@@ -155,6 +178,8 @@ def main():
         from sentinelav.ui.application import Window,ROOT
         # Real desktop launches protect by default; self-tests stay isolated from the real profile.
         window=Window(data_dir=data,protect_by_default=not args.self_test)
+        # Self-test mode: exercise every major component once against harmless fixtures, then write
+        # the results to self-test.json. Packaging uses this to prove a build actually works.
         if args.self_test:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
             verification_key=Ed25519PrivateKey.generate()
@@ -195,6 +220,7 @@ def main():
                 if not window.rules_worker.wait(15000):
                     raise RuntimeError('Packaged YARA rule validation did not finish')
                 app.processEvents()
+            # Visit every page of the window so that any page that fails to draw is caught.
             for index in range(window.stack.count()):
                 window.navigate(index)
                 app.processEvents()

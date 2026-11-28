@@ -12,7 +12,14 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 
 class DefenseSettingsMixin:
+    """Saving and actions for the Defense settings tab."""
     def save_settings(self):
+        """Validate and save the Defense settings: update URLs (HTTPS only), inspection options, and
+        the automatic response policy.
+
+        Saving the response policy gives it a new reset_id, which also clears a tripped auto-
+        response circuit breaker.
+        """
         from urllib.parse import urlsplit
         urls={key:widget.text().strip() for key,widget in [('model',self.model_feed_url),('reputation',self.reputation_feed_url),('policy',self.policy_feed_url)] if widget.text().strip()}
         for url in urls.values():
@@ -52,6 +59,9 @@ class DefenseSettingsMixin:
         self.refresh_defense_layers()
 
     def import_analysis_artifact(self):
+        """Let the user import a signed model, reputation feed or policy file and make it active (only
+        while nothing else is running).
+        """
         if self.worker or self.protection_worker or self.inspection_worker or self.response_worker or self.definition_worker:
             QMessageBox.information(self,'Operation active','Stop scanning, monitoring and response operations before importing analysis data.')
             return
@@ -73,15 +83,21 @@ class DefenseSettingsMixin:
         except Exception as error: QMessageBox.warning(self,'Artifact rejected',str(error))
 
     def analysis_trust_path(self):
+        """Return the trust file to use: the user's own pins if they exist, otherwise the bundled one.
+        """
         from sentinelav.ui.application import ROOT
         local=self.store.path.parent/'analysis-trust.json'
         return str(local if local.exists() else ROOT/'trusted-update-keys.json')
 
     def analysis_master_changed(self,enabled):
+        """When content analysis is switched off, switch off every option that depends on it."""
         if not enabled:
             for control in (self.emulation_option,self.model_option,self.reputation_option,self.neural_option): control.setChecked(False)
 
     def pin_analysis_publisher(self):
+        """Ask for a publisher key id and public key, show its fingerprint for confirmation, and pin
+        it.
+        """
         if self.worker or self.protection_worker or self.inspection_worker or self.response_worker or self.definition_worker:
             QMessageBox.information(self,'Operation active','Stop scanning and monitoring before changing trust.'); return
         key_id,okay=QInputDialog.getText(self,'Analysis publisher','Publisher key ID:')
@@ -99,6 +115,7 @@ class DefenseSettingsMixin:
         except Exception as error: QMessageBox.warning(self,'Publisher pin rejected',str(error))
 
     def remove_analysis_publisher(self):
+        """Let the user pick one of their pinned publishers and remove it."""
         if self.worker or self.protection_worker or self.inspection_worker or self.response_worker or self.definition_worker:
             QMessageBox.information(self,'Operation active','Stop scanning and monitoring before changing trust.'); return
         try:
@@ -112,12 +129,16 @@ class DefenseSettingsMixin:
         except Exception as error: QMessageBox.warning(self,'Trust update failed',str(error))
 
     def show_feature_dependencies(self):
+        """Show which optional analysis dependencies are installed."""
         from sentinelav.platform.feature_status import feature_status
         box=QMessageBox(self); box.setWindowTitle('Analysis dependencies')
         box.setText('Dependency presence does not establish protection or validation.')
         box.setDetailedText(json.dumps(feature_status(self.store.get('inspection_options',{})),indent=2)); box.exec()
 
     def choose_kernel_collector(self):
+        """Let the user select the installed native telemetry collector, checking it lives under
+        Program Files with locked-down permissions.
+        """
         if self.protection_worker:
             QMessageBox.information(self,'Monitoring active','Stop monitoring before changing the collector.'); return
         path,_=QFileDialog.getOpenFileName(self,'Select deployed native collector','','Executable (*.exe)')
@@ -134,6 +155,7 @@ class DefenseSettingsMixin:
         except Exception as error: QMessageBox.warning(self,'Collector unavailable',str(error))
 
     def clear_kernel_collector(self):
+        """Forget the configured telemetry collector (only while monitoring is stopped)."""
         if self.protection_worker:
             QMessageBox.information(self,'Monitoring active','Stop monitoring before disconnecting the collector.'); return
         self.store.set('kernel_collector',''); self.collector_note.setText('Native file-write collector: not configured')

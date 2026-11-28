@@ -11,6 +11,14 @@ PROFILES={'background':(3,1000000),'deep':(15,5000000),'lab':(30,10000000)}
 
 
 def emulate(data,metadata,analyze,profile='background'):
+    """Run a Windows program inside the Speakeasy Windows emulator and scan what it reveals.
+
+    Speakeasy models a Windows environment in software, so the program's code runs without touching
+    the real machine. We run it strictly: any Windows function Speakeasy only pretends to support
+    stops the run instead of faking success. Afterwards we scan the memory pages the program changed
+    and any files it 'wrote' to the virtual disk. The profile ('background', 'deep' or 'lab') sets
+    the time and instruction budget.
+    """
     if profile not in PROFILES:raise ValueError('Unknown emulator budget profile')
     result=dict(status='Partial',backend='speakeasy-strict-v1',omissions=[],findings=[],api_events=[],
         diagnostics=[],termination_reason='not_started',api_calls=0,api_attempts=0,instructions_observed=0,changed_pages=0)
@@ -33,6 +41,9 @@ def emulate(data,metadata,analyze,profile='background'):
         module=engine.load_module(data=bytes(data),filename='subject.exe')
         resolver=engine.emu.resolve_api_implementation
         def strict_resolve(instance,dll,name):
+            """Replacement for Speakeasy's API resolver: allow only fully implemented Windows functions
+            and record each call.
+            """
             result['api_attempts']+=1
             implementation=resolver(dll,name)
             if not isinstance(implementation,HandlerImplementation):
@@ -45,6 +56,9 @@ def emulate(data,metadata,analyze,profile='background'):
             return implementation
         engine.emu.resolve_api_implementation=types.MethodType(strict_resolve,engine.emu)
         def written(emulator,access,address,size,value):
+            """Memory-write hook: remember the original contents of each page the first time it is
+            written, up to 256 pages.
+            """
             for page in range(address&~4095,(address+size+4095)&~4095,4096):
                 if page in dirty:continue
                 if len(dirty)>=256:

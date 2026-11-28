@@ -8,6 +8,9 @@ import os
 
 
 def current_sid():
+    """Return the Windows security identifier (SID) of the account this process runs as, for example
+    'S-1-5-19' for LocalService.
+    """
     if os.name!='nt': raise RuntimeError('Windows identity requires Windows')
     kernel=ctypes.WinDLL('kernel32',use_last_error=True)
     advapi=ctypes.WinDLL('advapi32',use_last_error=True)

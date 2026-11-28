@@ -21,6 +21,9 @@ TASK_NAME = 'SentinelAV Daily Scan'
 
 
 def launch_command(*args):
+    """Return the command line that starts SentinelAV with the given arguments (the .exe when packaged,
+    otherwise pythonw plus app.py).
+    """
     if getattr(sys,'frozen',False):
         return [sys.executable,*args]
     python = Path(sys.executable).with_name('pythonw.exe')
@@ -28,6 +31,9 @@ def launch_command(*args):
 
 
 def next_daily(hour,minute,now=None):
+    """Return the next date-time (in the app's time zone) at hour:minute, today if still ahead,
+    otherwise tomorrow.
+    """
     now = now or datetime.now(ZONE)
     now = now.astimezone(ZONE)
     candidate = now.replace(hour=hour,minute=minute,second=0,microsecond=0)
@@ -35,11 +41,17 @@ def next_daily(hour,minute,now=None):
 
 
 def due(schedule,now=None):
+    """Tell whether an enabled schedule's next run time has arrived."""
     return bool(schedule.get('enabled') and schedule.get('next_run') and
                 datetime.fromisoformat(schedule['next_run']) <= (now or datetime.now(ZONE)))
 
 
 def set_startup(enabled):
+    """Add or remove SentinelAV from the current user's Windows startup (Run key).
+
+    An entry written by a different SentinelAV copy is left untouched, and FileExistsError is raised
+    instead.
+    """
     import winreg
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
         expected=subprocess.list2cmdline(launch_command('--startup'))
@@ -59,6 +71,7 @@ def set_startup(enabled):
 
 
 def startup_enabled():
+    """Tell whether this copy of SentinelAV is registered to start with Windows."""
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
@@ -69,9 +82,13 @@ def startup_enabled():
 
 
 def task_xml(schedule,data_dir):
+    """Build the Windows Task Scheduler XML for the daily scheduled scan (runs as the user, without
+    elevation).
+    """
     namespace='http://schemas.microsoft.com/windows/2004/02/mit/task'
     ET.register_namespace('',namespace)
     def tag(parent,name,text=None,**attrs):
+        """Add a child element (with optional text and attributes) in the task XML namespace."""
         el=ET.SubElement(parent,'{'+namespace+'}'+name,attrs)
         if text is not None:
             el.text=str(text)
@@ -107,6 +124,7 @@ def task_xml(schedule,data_dir):
 
 
 def _text(output):
+    """Decode schtasks output, which may be UTF-16, UTF-8 or the local code page."""
     if isinstance(output,str):
         return output
     if output.startswith((b'\xff\xfe',b'\xfe\xff')):
@@ -120,6 +138,9 @@ def _text(output):
 
 
 def existing_task():
+    """Return the XML of our scheduled task if it exists, or None. Raises PermissionError if it exists
+    but cannot be read.
+    """
     query=subprocess.run(['schtasks.exe','/Query','/TN',TASK_NAME,'/XML'],capture_output=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if query.returncode==0:
         return ET.fromstring(_text(query.stdout))
@@ -132,6 +153,7 @@ def existing_task():
 
 
 def owns_task(task,data_dir):
+    """Tell whether a scheduled task was created by this copy of SentinelAV for this data folder."""
     ns={'t':'http://schemas.microsoft.com/windows/2004/02/mit/task'}
     actions=task.findall('t:Actions/*',ns)
     if len(actions)!=1 or actions[0].tag!='{'+ns['t']+'}Exec':
@@ -144,6 +166,9 @@ def owns_task(task,data_dir):
 
 
 def register_schedule(schedule,data_dir):
+    """Create, update or delete the Windows scheduled task to match the saved schedule. A task owned by
+    another copy is left alone.
+    """
     data_dir=Path(data_dir).resolve()
     task=existing_task()
     if task is not None and not owns_task(task,data_dir):
@@ -158,6 +183,9 @@ def register_schedule(schedule,data_dir):
 
 
 def run_scheduled(data_dir):
+    """Run the scheduled scan if it is due (`--scheduled-scan`): scan, save the result, set the next
+    run time and log an event.
+    """
     from sentinelav.data.storage import Store
     from sentinelav.detection.inspection import IsolatedScanner as Scanner
     import os

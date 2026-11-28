@@ -12,13 +12,18 @@ from sentinelav.data.reporting import snapshot,render_report
 
 
 class PreferencesWorker(QThread):
+    """Background thread that applies the Windows startup and scheduled-task settings (these system
+    calls can be slow).
+    """
     completed=Signal(dict,list)
 
     def __init__(self,schedule,data_dir,startup):
+        """Remember the schedule, data folder and whether to start with Windows."""
         super().__init__()
         self.schedule,self.data_dir,self.startup=schedule,data_dir,startup
 
     def run(self):
+        """Apply both settings and emit completed(schedule, list of problems)."""
         errors=[]
         try:
             set_startup(self.startup)
@@ -33,7 +38,11 @@ class PreferencesWorker(QThread):
 
 
 class FinalizationMixin:
+    """Scheduling, startup, report export and close handling for the window."""
     def settings_page(self):
+        """Add the Scheduling tab: start with Windows, resume protection, and daily scan time, type and
+        folder.
+        """
         super().settings_page()
         tabs=self.stack.widget(5).findChild(QTabWidget)
         page=QWidget()
@@ -74,11 +83,13 @@ class FinalizationMixin:
         self.update_schedule_note()
 
     def choose_schedule_folder(self):
+        """Let the user pick the folder for a Folder schedule."""
         folder=QFileDialog.getExistingDirectory(self,'Scheduled scan folder')
         if folder:
             self.schedule_folder.setText(folder)
 
     def update_schedule_note(self):
+        """Show when the next scheduled scan will run and how it is triggered."""
         schedule=self.store.get('schedule',{})
         text='Daily scans are disabled.'
         if schedule.get('enabled'):
@@ -86,6 +97,7 @@ class FinalizationMixin:
         self.schedule_note.setText(text+' Closed-app tasks require this user to be logged in. Missed runs catch up once; busy scans are deferred.')
 
     def apply_schedule(self):
+        """Validate the schedule inputs and apply them in a PreferencesWorker."""
         if self.response_worker or self.preferences_worker:
             QMessageBox.information(self,'Response active','Wait for the response operation to finish.')
             return
@@ -106,6 +118,7 @@ class FinalizationMixin:
         self.preferences_worker.start()
 
     def preferences_completed(self,schedule,errors):
+        """Save the applied schedule, log the change and tell the user about any limitations."""
         self.store.set('schedule',schedule)
         self.store.set('resume_protection',self.pending_resume)
         self.audit_response('Startup/schedule settings changed',str(schedule))
@@ -116,11 +129,15 @@ class FinalizationMixin:
             QMessageBox.information(self,'Schedule saved','Startup and scheduling preferences applied.')
 
     def preferences_finished(self):
+        """Tidy up after the preferences worker and re-enable the Apply button."""
         self.preferences_worker.deleteLater()
         self.preferences_worker=None
         self.apply_schedule_button.setEnabled(True)
 
     def check_schedule(self):
+        """Start the scheduled scan if it is due and nothing else is running (checked every 30
+        seconds).
+        """
         if self.closing or self.worker or self.response_worker:
             return
         schedule=self.store.get('schedule',{})
@@ -139,6 +156,7 @@ class FinalizationMixin:
             self.update_schedule_note()
 
     def export(self):
+        """Ask where to save a report and write it as HTML, JSON or CSV."""
         path,selected=QFileDialog.getSaveFileName(self,'Export security report','sentinelav-report.html','HTML report (*.html);;JSON evidence (*.json);;Scan history CSV (*.csv)')
         if not path:
             return
@@ -152,6 +170,7 @@ class FinalizationMixin:
             QMessageBox.warning(self,'Export failed',str(error))
 
     def refresh(self):
+        """Add scan coverage and quarantine counts to the dashboard summary line."""
         super().refresh()
         if hasattr(self,'latest'):
             last=self.store.history()
@@ -160,6 +179,7 @@ class FinalizationMixin:
             self.latest.setText(self.latest.text()+f'\n{coverage} {active} files quarantined. v{VERSION}')
 
     def closeEvent(self,event):
+        """Wait for the preferences worker to finish before closing."""
         if self.preferences_worker:
             event.ignore()
             QTimer.singleShot(100,self.close)

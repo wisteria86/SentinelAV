@@ -33,6 +33,13 @@ from .hash_snapshots import ensure_directory, update_lock, load_active, activate
 
 
 def apply_changes(folder,changes,provenance,package=None,restore_revoked=True):
+    """Create a new hash-database snapshot with the given additions and removals, then make it active.
+
+    The current database is copied, the changes are applied (removed hashes are remembered as
+    revocations so later imports do not bring them back), the result is integrity-checked, and the
+    active pointer is switched atomically. For a signed package, it must target the current snapshot
+    and have a higher revision.
+    """
     validate_changes(changes)
     with update_lock(folder) as folder:
         current=load_active(folder,verify=True)
@@ -101,16 +108,19 @@ def apply_changes(folder,changes,provenance,package=None,restore_revoked=True):
 
 
 def import_recent(folder,path):
+    """Import a 'recent additions' CSV export into a new snapshot. Not publisher-authenticated."""
     changes,digest=changes_from_csv(path)
     return apply_changes(folder,changes,'Manual recent CSV import; payload SHA-256 '+digest,restore_revoked=False)
 
 
 def apply_signed(folder,path,trust_path):
+    """Verify a signed update package with the pinned publisher key and apply it."""
     changes,package=verify_package(path,trust_path)
     return apply_changes(folder,changes,'Verified Ed25519 publisher package',package)
 
 
 def rollback(folder):
+    """Switch back to the previous snapshot after checking its checksum."""
     with update_lock(folder) as folder:
         current=load_active(folder,verify=True)
         name=current.get('previous_manifest','')
@@ -129,6 +139,9 @@ def rollback(folder):
 
 
 def freshness(metadata,now=None):
+    """Describe how old the definitions are: 'Recent import' (48 hours or less), 'Stale', 'Clock
+    mismatch' or 'Age unknown', plus the age in hours.
+    """
     now=now or datetime.now(timezone.utc)
     try:
         stamp=datetime.fromisoformat(metadata.get('definition_updated_utc',metadata.get('imported_utc','')))
@@ -140,6 +153,7 @@ def freshness(metadata,now=None):
 
 
 def main():
+    """Command-line tool for definition updates: status, recent, signed, corrections or rollback."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',choices=['status','recent','signed','corrections','rollback'])
     parser.add_argument('file',nargs='?',type=Path)

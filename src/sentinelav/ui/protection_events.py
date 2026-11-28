@@ -11,10 +11,13 @@ from sentinelav.data.reporting import is_detection
 
 
 class ProtectionEventsMixin:
+    """Shows live protection events and status in the window."""
     def show_live_event(self,row,column):
+        """Show the details of a double-clicked live event."""
         self.show_event_details(self.session_events[row])
 
     def show_event_details(self,event):
+        """Show one event's summary and full JSON in a dialog."""
         box = QMessageBox(self)
         box.setWindowTitle(event['kind'])
         box.setText(event['details'])
@@ -22,6 +25,9 @@ class ProtectionEventsMixin:
         box.exec()
 
     def receive_status(self, state):
+        """Update the protection page with a status summary from the monitor, marking it 'needs
+        attention' if anything is degraded.
+        """
         health_error=state.get('inspection_error') or state.get('engine_error') or state.get('telemetry_error')
         if not health_error and state.get('dropped'):
             health_error=f"{state['dropped']} telemetry updates dropped"
@@ -50,6 +56,9 @@ class ProtectionEventsMixin:
         self.refresh()
 
     def receive_event(self, event):
+        """Save a new event, add it to the live list, and raise a banner, status-bar message or tray
+        notification for warnings and alerts.
+        """
         event=dict(event)
         persisted=event.pop('_background_persisted',False)
         try:
@@ -77,6 +86,9 @@ class ProtectionEventsMixin:
         self.refresh()
 
     def refresh(self):
+        """Update the dashboard to reflect the monitoring state, and refill the Reports table with live
+        events and detections.
+        """
         super().refresh()
         state = getattr(self,'monitor_state','Off')
         active = state == 'Active'
@@ -108,6 +120,7 @@ class ProtectionEventsMixin:
             self.fill(self.history_table,rows)
 
     def export(self):
+        """Save scan history and protection events as a JSON file."""
         path, _ = QFileDialog.getSaveFileName(self,'Export report','sentinelav-report.json','JSON (*.json)')
         if path:
             try:

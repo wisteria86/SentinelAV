@@ -19,6 +19,7 @@ from sentinelav.workspace import Workspace,unlinked
 
 
 def source_identity(project):
+    """Hash every relevant source file so a run can prove exactly which code it evaluated."""
     paths=[]
     for folder in ('src','resources','packaging','native','scripts','tests/unit'):
         root=project/folder
@@ -31,6 +32,7 @@ def source_identity(project):
 
 
 def package_identity(root):
+    """Return {relative path: SHA-256} for every file of a built package."""
     files={}
     if not root.exists():return files
     for p in sorted(root.rglob('*')):
@@ -45,6 +47,9 @@ def package_identity(root):
 
 
 def freeze_package(work,source,manifest):
+    """Copy a built package into a cache folder named after its manifest hash, so every case evaluates
+    the same frozen bytes. Returns the frozen app folder.
+    """
     if not manifest:return source
     base=unlinked(work/'builds/evaluation-packages');base.mkdir(parents=True,exist_ok=True)
     target=base/digest(manifest)
@@ -59,6 +64,9 @@ def freeze_package(work,source,manifest):
 
 
 def preflight(project,work):
+    """List any problems that would stop an evaluation from running (wrong OS, low disk space, missing
+    Python environment).
+    """
     problems=[]
     if os.name!='nt':problems.append('Windows required for guest backends')
     if shutil.disk_usage(Path(project.anchor)).free<2*1024**3:problems.append('Project report drive needs 2 GiB free for bounded logs and headroom; heavy work stays on the work drive')
@@ -69,6 +77,8 @@ def preflight(project,work):
 
 
 def sandbox_storage_problem():
+    """Return a message if the system drive lacks the 10 GiB Windows Sandbox needs, otherwise None.
+    """
     system=Path(os.environ.get('SystemDrive','C:')+'/')
     if shutil.disk_usage(system).free<10*1024**3:
         return 'Windows Sandbox requires 10 GiB system-drive reserve; F: staging does not relocate its Windows-managed guest storage. Use an enrolled Hyper-V VM with its disks on F:.'
@@ -76,6 +86,7 @@ def sandbox_storage_problem():
 
 
 def configure_work_temporary(work):
+    """Point this process's temporary folders (and PyInstaller's cache) at the work drive."""
     import tempfile
     temporary=Workspace(work).area('cache')/'qualification-temp'
     unlinked(temporary).mkdir(exist_ok=True)
@@ -86,6 +97,9 @@ def configure_work_temporary(work):
 
 
 def build(project,work,identity,cancelled,progress,folder):
+    """Build the app and installer from the current source, unless the existing build already matches
+    this source identity.
+    """
     receipt=work/'builds/qualification-build.json';exe=work/'builds/dist/SentinelAV/SentinelAV.exe'
     if receipt.exists() and exe.exists():
         old=json.loads(receipt.read_text())
@@ -96,6 +110,9 @@ def build(project,work,identity,cancelled,progress,folder):
 
 
 def resource_identity(project):
+    """Hash the analysis data and active signature database so a run records exactly which detection
+    data it used.
+    """
     root=project/'resources';paths=list((root/'analysis-data').glob('*.json'))+list((root/'analysis-data').glob('*.npz'))
     from sentinelav.detection.definition_paths import signature_data_dir
     active=signature_data_dir(root)/'active.json'
@@ -116,9 +133,14 @@ def resource_identity(project):
 
 
 def selfcheck():
+    """Prove the scoring logic itself works, using known-answer cases (good case passes, false action
+    fails, missing evidence is inconclusive, mixed builds are rejected).
+    """
     from .scoring import upper_bound
     versions=dict(engine='known-answer');case=asdict(CaseDefinition('known','harness','host','selfcheck',expected=dict(answer=True)))
-    def obs(**kw):return asdict(Observation('known',digest(versions),dict(answer=True,**kw),['fixture'],True))
+    def obs(**kw):
+        """Build a minimal known-answer observation."""
+        return asdict(Observation('known',digest(versions),dict(answer=True,**kw),['fixture'],True))
     if score_case(case,obs(),versions).status!='passed':raise AssertionError('Known good scorer case failed')
     if score_case(case,obs(false_actions=1),versions).status!='failed':raise AssertionError('False action accepted')
     incomplete=obs();incomplete['complete']=False
@@ -132,6 +154,7 @@ def selfcheck():
 
 
 def transfer(work,case):
+    """Return the decrypted transfer key for the sealed corpus group a case needs."""
     from sentinelav.response.response import dpapi
     import base64
     sample=case['parameters'].get('sample','')

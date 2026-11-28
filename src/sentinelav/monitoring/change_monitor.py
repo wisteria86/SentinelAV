@@ -17,9 +17,23 @@ from .windows_inventory import WindowsInventory
 
 
 class ChangeTracker:
-    def __init__(self,journal,inventory):self.journal,self.inventory=journal,inventory
+    """Compares the current list of autostart entries with the last saved one and records every
+    difference.
+    """
+    def __init__(self,journal,inventory):
+        """Use `journal` to store snapshots and changes, and `inventory` to list the current autostart
+        entries.
+        """
+        self.journal,self.inventory=journal,inventory
 
     def poll(self,observations=(),inventory_result=None):
+        """Take a fresh inventory, record new, changed and removed entries, and return the changes.
+
+        If Sysmon telemetry (observations) shows exactly which process wrote a registry value, the
+        change is marked as Verified for that process; a looser match is marked Correlated. Entries
+        seen during the very first inventory are recorded as pre-existing rather than as new
+        changes.
+        """
         result=inventory_result or self.inventory.collect();seen=set();changes=[]
         for target,state in result['rows']:
             key=fingerprint(target)
@@ -46,16 +60,31 @@ class ChangeTracker:
 
 
 class ChangeMonitor:
+    """Background thread that tracks changes to autostart locations (Run keys, startup folders, tasks,
+    services and chosen setting files) every `interval` seconds.
+    """
     def __init__(self,folder,settings=(),emit=lambda event:None,interval=30,service_owner=None):
+        """Prepare the monitor (the thread is not started yet). emit receives a summary event after
+        each round.
+        """
         self.folder,self.settings,self.emit,self.interval=folder,settings,emit,interval
         self.service_owner=service_owner
         self.stop=threading.Event();self.thread=threading.Thread(target=self.run,name='app-change-tracker')
         self.telemetry=queue.Queue(maxsize=1024);self.dropped=0;self.process_guids={}
-    def start(self):self.thread.start()
+    def start(self):
+        """Start the tracking thread."""
+        self.thread.start()
     def observe_sysmon(self,row):
+        """Queue one raw Sysmon event for the next round (dropped if the queue is full)."""
         try:self.telemetry.put_nowait(row)
         except queue.Full:self.dropped+=1
     def observations(self,inventory):
+        """Turn queued Sysmon events into verified 'this process wrote this registry value' facts.
+
+        Process-creation events (id 1) are matched to a live process by id and exact start time;
+        registry-write events (id 13) from those processes are then matched to watched registry
+        values.
+        """
         from sentinelav.monitoring.sequences import parse_event
         from datetime import datetime,timezone
         import psutil
@@ -86,6 +115,8 @@ class ChangeMonitor:
             except (ValueError,KeyError,OSError,psutil.Error):self.dropped+=1
         return result
     def run(self):
+        """Main loop: inventory, match telemetry, record changes, and emit a summary, until stopped.
+        """
         journal=None
         try:
             journal=ChangeJournal(self.folder);tracker=ChangeTracker(journal,WindowsInventory(self.settings,service_scope=bool(self.service_owner)))
@@ -108,4 +139,6 @@ class ChangeMonitor:
         except Exception as error:self.emit(dict(kind='App change tracking unavailable',source='App Changes',level='Warning',details=str(error)))
         finally:
             if journal:journal.close()
-    def close(self):self.stop.set();self.thread.join()
+    def close(self):
+        """Stop the thread and wait for it to finish."""
+        self.stop.set();self.thread.join()

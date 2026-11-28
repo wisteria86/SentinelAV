@@ -24,11 +24,17 @@ COMMANDS = {'status', 'start', 'stop', 'poll', 'shutdown'}
 
 
 def endpoint(data):
+    """Return the local pipe name for the background engine that serves this data folder (one engine
+    per folder).
+    """
     identity = str(Path(data).resolve()).casefold() if os.name == 'nt' else str(Path(data).resolve())
     return 'SentinelAV-engine-' + hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 
 def decode(raw):
+    """Parse and strictly validate one request sent to the background engine, raising ValueError for
+    anything unexpected.
+    """
     if len(raw) > MAX_MESSAGE:
         raise ValueError('Request too large')
     value = json.loads(raw)
@@ -48,6 +54,11 @@ def decode(raw):
 
 
 def request(data, command, **fields):
+    """Send one command to the background engine and return its reply.
+
+    The desktop app uses this to start, stop and poll real-time protection. Raises ConnectionError
+    if the engine is not running, and RuntimeError if it refused the request.
+    """
     payload = dict(version=1, command=command, **fields)
     encoded = json.dumps(payload).encode() + b'\n'
     decode(encoded)
@@ -84,6 +95,10 @@ def request(data, command, **fields):
 
 
 def configuration(store, root):
+    """Build the monitoring configuration from the saved settings: watched folders, size limit,
+    exclusions, canaries, enabled sources, response policy and so on. Raises ValueError for invalid
+    settings.
+    """
     from sentinelav.response.auto_response import policy_for
     folders = store.get('watch_folders', [])
     if not isinstance(folders, list) or len(folders) > 64 or any(
@@ -109,6 +124,7 @@ def configuration(store, root):
 
 
 def launch(data):
+    """Start the background engine as a separate, detached process for this data folder."""
     if getattr(sys, 'frozen', False):
         command = [sys.executable]
     else:

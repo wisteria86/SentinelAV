@@ -16,12 +16,22 @@ from sentinelav.paths import RESOURCE_ROOT
 
 
 class AppChangeWorker(QThread):
+    """Background thread for the App Changes page: refreshes the inventory, plans clean-ups or
+    restores, and executes approved plans.
+
+    With source='service' it works on the protected service's machine-wide history and goes through
+    the elevated broker (UAC) instead.
+    """
     completed=Signal(dict)
     failed=Signal(str)
     def __init__(self,folder,settings,options,action='refresh',value=None,source='local'):
+        """Remember the data folder, tracked setting files, scan options, the action and its value, and
+        which history to use.
+        """
         super().__init__();self.folder,self.settings,self.options,self.action,self.value=folder,settings,options,action,value
         self.source=source
     def run(self):
+        """Carry out the requested action and emit completed(result) or failed(message)."""
         journal=None;store=None;scanner=None
         try:
             if self.source=='service':
@@ -45,8 +55,12 @@ class AppChangeWorker(QThread):
                 self.completed.emit(dict(rows=journal.changes(),receipts=journal.operations(),errors=result['errors']));return
             store=Store(self.folder/'sentinelav.db')
             scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',options=self.options,persistent=True)
-            def verify(path):return scanner.scan([path],lambda:False,lambda *a:None)['detections']
+            def verify(path):
+                """Re-scan one file and return its detections."""
+                return scanner.scan([path],lambda:False,lambda *a:None)['detections']
             def verify_buffer(content):
+                """Scan content that is about to be restored, refusing if the scan was incomplete.
+                """
                 result=scanner.scan_buffer(content)
                 if not result['complete']:raise ValueError('Recovery content inspection incomplete')
                 return result['detected']
@@ -64,7 +78,11 @@ class AppChangeWorker(QThread):
 
 
 class AppChangesMixin:
+    """Builds and drives the App Changes page."""
     def app_changes_page(self):
+        """Build the App Changes page: history source picker, tracking switch, change table, details
+        box and action buttons.
+        """
         layout=self.page('App Changes','Review startup, task, service and selected settings changes. Attribution is shown only when established.')
         self.change_worker=None;self.change_rows=[];self.change_plan=None;self.change_receipts=[]
         self.change_status=QLabel('Refresh to capture the initial inventory. Existing entries are not assumed malicious.',objectName='muted')
@@ -99,6 +117,8 @@ class AppChangesMixin:
         self.change_execute.setEnabled(False)
 
     def change_source_changed(self):
+        """Clear the page when the user switches between their own history and the protected service's.
+        """
         if self.change_worker:return
         local=self.change_source.currentData()=='local'
         self.track_changes.setEnabled(local);self.change_rows=[];self.change_receipts=[];self.change_plan=None
@@ -107,6 +127,7 @@ class AppChangesMixin:
         self.change_status.setText('Refresh to read '+('your account history.' if local else 'the protected service history. Machine repair prompts for UAC twice: prepare, then apply the reviewed plan.'))
 
     def add_tracked_setting(self):
+        """Let the user pick an application setting file to track, then refresh."""
         if self.change_source.currentData()!='local':
             self.change_status.setText('Select My account to track personal setting files.');return
         path,_=QFileDialog.getOpenFileName(self,'Select application setting file','','Settings (*.ini *.json *.xml *.cfg *.conf *.yaml *.yml)')
@@ -116,25 +137,30 @@ class AppChangesMixin:
             self.change_action('refresh')
 
     def show_change(self,row,column=0):
+        """Show the details of the clicked change, hiding stored file contents."""
         if not 0<=row<len(self.change_rows):return
         record=self.change_rows[row]
         # Content is available locally to the owner, never exported by default.
         def view(state):
+            """Replace a stored file snapshot with a placeholder for display."""
             if not state:return state
             return {k:('[encrypted file snapshot]' if k=='content' else v) for k,v in state.items()}
         self.change_details.setPlainText(json.dumps(dict(resource=record['resource'],attribution=record['attribution'],
             before=view(record['before']),after=view(record['after']),baseline_trusted=record['baseline_trusted']),indent=2))
 
     def selected_change_action(self,action):
+        """Run an action (cleanup or restore) on every selected change."""
         rows=sorted({item.row() for item in self.change_table.selectedIndexes()})
         if not rows:return
         self.change_action(action,[self.change_rows[row]['id'] for row in rows])
 
     def show_change_receipt(self):
+        """Show the most recent clean-up receipt."""
         receipts=[row for row in self.change_receipts if row.get('kind')=='RemediationReceipt']
         self.change_details.setPlainText(json.dumps(receipts[0],indent=2) if receipts else 'No cleanup receipt recorded yet.')
 
     def export_change_summary(self):
+        """Save a redacted summary of changes and receipts to a new JSON file."""
         path,_=QFileDialog.getSaveFileName(self,'Export App Changes summary','SentinelAV-app-changes.json','JSON (*.json)')
         if not path:return
         try:
@@ -147,6 +173,7 @@ class AppChangesMixin:
         except Exception as error:self.change_status.setText('Export unavailable: '+str(error))
 
     def change_action(self,action,value=None):
+        """Start an AppChangeWorker for the given action (ignored if one is already running)."""
         if self.change_worker:return
         self.change_execute.setEnabled(False);self.change_plan=None
         self.change_source.setEnabled(False)
@@ -158,6 +185,8 @@ class AppChangesMixin:
         self.change_worker.start()
 
     def change_completed(self,result):
+        """Fill the table with the returned changes and show any plan, receipt or collection gaps.
+        """
         import time
         self.change_rows=result['rows']
         self.change_receipts=result.get('receipts',[])
@@ -173,10 +202,12 @@ class AppChangesMixin:
             else:self.change_status.setText(value['state'])
 
     def change_finished(self):
+        """Tidy up after the worker finishes and re-enable the source picker."""
         self.change_worker.deleteLater();self.change_worker=None
         self.change_source.setEnabled(True)
 
     def execute_change_plan(self):
+        """Ask the user to confirm, then execute the reviewed plan."""
         if not self.change_plan or self.change_worker:return
         answer=QMessageBox.question(self,'Apply reviewed change plan',
             'Apply the displayed plan? Recorded previous settings are not automatically trustworthy. '
@@ -184,5 +215,6 @@ class AppChangesMixin:
         if answer==QMessageBox.StandardButton.Yes:self.change_action('execute',self.change_plan['id'])
 
     def closeEvent(self,event):
+        """Wait for a running App Changes action to finish before closing."""
         if getattr(self,'change_worker',None):event.ignore();QTimer.singleShot(200,self.close);return
         super().closeEvent(event)

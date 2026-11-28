@@ -12,7 +12,9 @@ ROOT = RESOURCE_ROOT
 
 
 class WindowWidgetsMixin:
+    """Small widget helpers shared by every page."""
     def card(self, layout):
+        """Add a rounded 'card' frame to a layout and return the layout inside it."""
         frame = QFrame(objectName='card')
         inner = QVBoxLayout(frame)
         inner.setContentsMargins(22, 22, 22, 22)
@@ -22,6 +24,9 @@ class WindowWidgetsMixin:
         return inner
 
     def action(self, layout, text, callback, primary=False):
+        """Add a push button that calls `callback` when clicked (primary=True gives it the orange
+        style) and return it.
+        """
         button = QPushButton(text, objectName='primary' if primary else '')
         button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         button.clicked.connect(callback)
@@ -29,6 +34,7 @@ class WindowWidgetsMixin:
         return button
 
     def table(self, headings):
+        """Create a read-only, row-selecting table with the given column headings."""
         table = QTableWidget(0, len(headings))
         table.setHorizontalHeaderLabels(headings)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -49,6 +55,7 @@ class WindowWidgetsMixin:
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch if column in wide else QHeaderView.ResizeMode.ResizeToContents)
 
     def fill(self, table, rows):
+        """Replace a table's contents with the given rows, adding tooltips for long values."""
         table.setRowCount(len(rows))
         for i, row in enumerate(rows):
             for j, value in enumerate(row):
@@ -57,6 +64,7 @@ class WindowWidgetsMixin:
                 table.setItem(i, j, item)
 
     def show_report(self, row, column):
+        """Show the full JSON of a saved scan in a dialog."""
         report = self.store.history()[row]
         box = QMessageBox(self)
         box.setWindowTitle('Scan report')
@@ -65,6 +73,7 @@ class WindowWidgetsMixin:
         box.exec()
 
     def export(self):
+        """Save the scan history as a JSON file."""
         path, _ = QFileDialog.getSaveFileName(self, 'Export report', 'sentinelav-report.json', 'JSON (*.json)')
         if path:
             try:

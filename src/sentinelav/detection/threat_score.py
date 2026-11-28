@@ -27,11 +27,21 @@ ARMS={'full':None,'generalized':{'heuristic','generic_yara','ml','context','clam
 
 
 def indicator(code,group,weight,explanation,layer='heuristic',category='',evidence=''):
+    """Create one piece of scoring evidence.
+
+    code is a short machine name, group the family of related traits (weights within a group are
+    capped together), weight how much it counts, explanation the sentence shown to the user, layer
+    the detection layer it came from, category a threat type such as 'Ransomware', and evidence a
+    short sample of what matched.
+    """
     return dict(code=code,group=group,weight=int(weight),explanation=str(explanation)[:300],layer=layer,
         category=category,evidence=str(evidence)[:160])
 
 
 def _groups(items,trusted):
+    """Add up the weights within each group and apply that group's cap. A valid signature (trusted)
+    dampens heuristic evidence.
+    """
     totals={}
     for item in items:
         value=item['weight']*(TRUST_DAMPING if trusted and item['layer'] in DAMPED_LAYERS else 1)
@@ -40,10 +50,14 @@ def _groups(items,trusted):
 
 
 def verdict_for(score):
+    """Turn a 0..100 score into 'Malicious' (70+), 'Suspicious' (35+) or 'Clean'."""
     return 'Malicious' if score>=MALICIOUS else 'Suspicious' if score>=SUSPICIOUS else 'Clean'
 
 
 def _confidence(score,groups,decisive,partial):
+    """Rate confidence: High for exact identity matches, otherwise based on how many independent kinds
+    of evidence agree. A partial scan lowers it one step.
+    """
     if decisive:return 'High'
     independent=sum(value>=12 and group!='context' for group,value in groups.items())
     level=2 if independent>=3 and score>=MALICIOUS else 1 if independent>=2 else 0
@@ -52,6 +66,9 @@ def _confidence(score,groups,decisive,partial):
 
 
 def _threat_name(items,platform,decisive):
+    """Name the threat: the matched signature's name if there is one, otherwise a heuristic name such
+    as 'Heuristic.Win32.Ransomware'.
+    """
     if decisive:
         first=decisive[0]
         return first.get('threat') or first['explanation'][:80]
@@ -80,6 +97,9 @@ def score(items,platform='Generic',trusted=False,partial=False):
 
 
 def arm_scores(items,platform='Generic',trusted=False,partial=False):
+    """Score the same evidence several ways ('arms'): everything, without exact signatures, and without
+    signatures or learned models. Used to evaluate how well each layer works on its own.
+    """
     result={}
     for name,layers in ARMS.items():
         chosen=items if layers is None else [i for i in items if i['layer'] in layers]

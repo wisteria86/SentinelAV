@@ -7,7 +7,16 @@ import struct
 
 
 class PEImage:
+    """Helper for reading a Windows program's internal tables straight from its file bytes.
+
+    Programs refer to their own data by virtual address (where it would sit in memory once loaded).
+    locate() translates those addresses back into file offsets, with strict bounds checks so a
+    malformed file can never make us read outside it.
+    """
     def __init__(self,data,metadata):
+        """Read the PE optional header (32 or 64-bit, image base and size, data directories) and
+        sanity-check it.
+        """
         self.data,self.metadata=data,metadata
         self.optional=struct.unpack_from('<I',data,0x3c)[0]+24
         self.optional_size=struct.unpack_from('<H',data,self.optional-4)[0]
@@ -26,12 +35,18 @@ class PEImage:
             raise ValueError('PE image/header mapping bounds')
 
     def directory(self,index):
+        """Return (virtual address, size) of data-directory entry `index`, or (0, 0) if the file has no
+        such entry.
+        """
         if index>=self.directory_count: return 0,0
         offset=self.directory_offset+index*8
         if offset+8>self.optional_size: raise ValueError('Truncated PE directory')
         return struct.unpack_from('<II',self.data,self.optional+offset)
 
     def locate(self,rva,size):
+        """Translate a virtual address range into a file offset, refusing ranges that are unmapped or
+        ambiguous.
+        """
         if rva<0 or size<0 or rva+size>self.size: raise ValueError('PE virtual address out of bounds')
         locations=[]
         if rva+size<=self.headers: locations.append(rva)
@@ -43,6 +58,8 @@ class PEImage:
         return locations[0]
 
     def string(self,rva):
+        """Read a zero-terminated, printable ASCII name at a virtual address (at most 512 characters).
+        """
         value=bytearray()
         for index in range(512):
             byte=self.data[self.locate(rva+index,1)]
@@ -54,6 +71,12 @@ class PEImage:
         raise ValueError('PE name length limit')
 
     def imports(self,delay=False):
+        """List every imported function as dictionaries of library, name (or ordinal) and import-table
+        address.
+
+        With delay=True it reads the delay-load import table instead of the normal one. Hard caps on
+        the number of libraries, symbols and name bytes protect against hostile files.
+        """
         rva,size=self.directory(13 if delay else 1)
         if not rva and not size: return []
         stride=32 if delay else 20
@@ -88,6 +111,9 @@ class PEImage:
         raise ValueError('Unterminated import directory')
 
     def tls_callbacks(self):
+        """Return the addresses of the program's TLS callbacks, which Windows runs before the normal
+        entry point.
+        """
         rva,size=self.directory(9)
         if not rva and not size: return []
         required=40 if self.wide else 24

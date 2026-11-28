@@ -65,10 +65,12 @@ def connection_owner(peer_address, peer_port):
 
 
 def event(kind, details, level='Alert', **extra):
+    """Build a deception activity event with the current time."""
     return dict(time=time.strftime('%Y-%m-%d %H:%M:%S'), kind=kind, details=details, source='Deception', level=level, **extra)
 
 
 def describe(process):
+    """Describe a process as 'name (PID n)', or say it could not be identified."""
     return f"{process['name']} (PID {process['pid']})" if process else 'process not identified'
 
 
@@ -80,6 +82,9 @@ def flag(behavior, process, reason, weight=70):
 
 
 def profile_dirs():
+    """Return (home, local app data, roaming app data) folders, using the test decoy home when
+    SENTINELAV_DECOY_HOME is set.
+    """
     home = Path(os.environ.get('SENTINELAV_DECOY_HOME') or Path.home())
     local = Path(os.environ.get('LOCALAPPDATA') or home / 'AppData' / 'Local')
     roaming = Path(os.environ.get('APPDATA') or home / 'AppData' / 'Roaming')

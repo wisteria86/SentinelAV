@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QWidget, QLabel, QSizePolicy
 class InactiveSwitch(QWidget):
     """Draw the unavailable switch without relying on a font glyph."""
     def __init__(self):
+        """Create the switch in its 'off' state with a fixed size and tooltip."""
         super().__init__()
         self.active = False
         self.setFixedSize(39, 22)
@@ -20,6 +21,7 @@ class InactiveSwitch(QWidget):
         self.setAccessibleName('Protection off; feature not available')
 
     def paintEvent(self, event):
+        """Draw the rounded track and the round knob (on the right when active)."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(QColor('#e0cbb0'))
@@ -33,6 +35,7 @@ class InactiveSwitch(QWidget):
 class PathLabel(QLabel):
     """Keep long paths from changing the size of the scan card."""
     def __init__(self, text='', **kwargs):
+        """Create the label; long text is shortened with an ellipsis in the middle."""
         super().__init__('', **kwargs)
         self.full_text = text
         self.setMinimumWidth(0)
@@ -41,16 +44,19 @@ class PathLabel(QLabel):
         self.setText(text)
 
     def setText(self, text):
+        """Show the text, shortened to fit, with the full text as a tooltip."""
         self.full_text = text
         self.setToolTip(text)
         super().setText(self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideMiddle, max(0, self.width())))
 
     def resizeEvent(self, event):
+        """Re-shorten the text whenever the label changes size."""
         self.setText(self.full_text)
         super().resizeEvent(event)
 
 
 def configure_app(app):
+    """Apply the app-wide look: Fusion style, Segoe UI fonts and the SentinelAV stylesheet."""
     from PySide6.QtGui import QFontDatabase
     app.setStyle('Fusion')
     for name in ['segoeui.ttf', 'segoeuib.ttf', 'seguisb.ttf']:
@@ -73,6 +79,7 @@ PATHS = {
 }
 
 def pixmap(name, color='#ed7b23', size=24, filled=False):
+    """Draw one of the built-in line icons (see PATHS) as a crisp, high-resolution image."""
     body = PATHS.get(name, PATHS['shield'])
     if filled and name == 'shield':
         body = '<path fill="'+color+'" stroke="'+color+'" d="M12 2 21 6v6c0 6-9 10-9 10S3 18 3 12V6Z"/><path stroke="white" d="m8 12 3 3 5-6"/>'
@@ -86,9 +93,11 @@ def pixmap(name, color='#ed7b23', size=24, filled=False):
     return result
 
 def icon(name, color='#ed7b23'):
+    """Return a built-in icon as a QIcon, for buttons."""
     return QIcon(pixmap(name, color))
 
 def art(name, size=24, color='#ed7b23', filled=False):
+    """Return a built-in icon as a fixed-size QLabel, for placing in layouts."""
     label = QLabel()
     label.setPixmap(pixmap(name, color, size, filled))
     label.setFixedSize(size, size)

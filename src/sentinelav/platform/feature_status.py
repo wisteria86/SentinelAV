@@ -8,6 +8,9 @@ import os
 
 
 def feature_status(options=None):
+    """Describe which optional analysis features have their dependencies installed, for the settings
+    page. Presence does not mean they work well.
+    """
     options=options or {}
     rows=[]
     for name,package,key in [('CPU / Win32 emulation','unicorn','emulation'),('VBA extraction','oletools','documents')]:

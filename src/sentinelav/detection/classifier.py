@@ -10,12 +10,20 @@ from sentinelav.detection.anomaly_model import FEATURES,validate
 
 
 def sigmoid(value):
+    """Squash any number into the range 0..1 (the logistic function), written so large inputs never
+    overflow.
+    """
     if value>=0: return 1/(1+math.exp(-value))
     exp=math.exp(value)
     return exp/(1+exp)
 
 
 def validate_model(model):
+    """Check that a model dictionary is complete and sane before it is used, raising ValueError if not.
+
+    The newer LightGBM model types have their own validators; this function routes to them, and
+    otherwise checks the simple logistic-regression format.
+    """
     if isinstance(model,dict) and model.get('algorithm')=='lightgbm-pe-ensemble-v1':
         from sentinelav.detection.pe_ensemble import validate as validate_ensemble
         return validate_ensemble(model)
@@ -38,6 +46,12 @@ def validate_model(model):
 
 
 def predict(model,features):
+    """Score one file's features with the logistic model.
+
+    Each feature is standardised (centred and scaled), multiplied by its weight, and the sum is
+    turned into a 0..1 score. The per-feature contributions are returned too, so the result can be
+    explained. A high score only asks for review; it never authorises automatic action.
+    """
     validate_model(model)
     terms={}
     for index,key in enumerate(FEATURES):
@@ -51,6 +65,13 @@ def predict(model,features):
 
 
 def train(rows,epochs=300,learning_rate=.05,l2=.01,target_fpr=.01):
+    """Train a small logistic-regression model with plain gradient descent, then pick its review
+    threshold.
+
+    The threshold is chosen on separate benign calibration files so that roughly target_fpr of
+    ordinary files would be flagged. l2 is a gentle penalty that keeps the weights from growing too
+    large.
+    """
     validate(rows)
     if not 1<=epochs<=2000 or not 0<learning_rate<=1 or not 0<=l2<=10 or not 0<target_fpr<1:
         raise ValueError('Invalid training configuration')
@@ -63,6 +84,8 @@ def train(rows,epochs=300,learning_rate=.05,l2=.01,target_fpr=.01):
     scale=[statistics.pstdev(r['features'][k] for r in training) or 1.0 for k in FEATURES]
     vectors=[([(r['features'][k]-center[i])/scale[i] for i,k in enumerate(FEATURES)],int(r['label']=='malware')) for r in training]
     weights=[0.0]*len(FEATURES); bias=0.0
+    # Plain batch gradient descent: measure the average error over all rows, then nudge the weights
+    # against it.
     for _ in range(epochs):
         gradient=[0.0]*len(weights); error_sum=0.0
         for vector,label in vectors:

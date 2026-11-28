@@ -10,7 +10,16 @@ import sqlite3
 
 
 class SignatureIndex:
+    """Exact SHA-256 lookup of known malware.
+
+    A small built-in list (signatures.json) is always loaded. If a larger downloaded hash database
+    is installed, it is opened read-only as well; revocations in that database can withdraw
+    individual entries.
+    """
     def __init__(self, json_path):
+        """Load the built-in hash list and, if present, open the downloaded database after checking its
+        manifest and record count.
+        """
         path=Path(json_path)
         self.local=json.loads(path.read_text(encoding='utf-8'))
         if not isinstance(self.local,dict) or any(
@@ -53,6 +62,9 @@ class SignatureIndex:
             self.count=len(self.local)
 
     def get(self,digest,default=None):
+        """Return the threat name for a SHA-256 hash, or `default` if the hash is not known (or has
+        been revoked).
+        """
         if digest in self.local and (self.db is None or not self.local[digest].startswith('MalwareBazaar: ')):
             return self.local[digest]
         if self.db is not None:
@@ -69,22 +81,27 @@ class SignatureIndex:
         return self.local.get(digest,default)
 
     def __contains__(self,digest):
+        """Allow `digest in index`."""
         return self.get(digest) is not None
 
     def __getitem__(self,digest):
+        """Allow `index[digest]`, raising KeyError for unknown hashes."""
         value=self.get(digest)
         if value is None:
             raise KeyError(digest)
         return value
 
     def __len__(self):
+        """Return the total number of known hashes."""
         return self.count
 
     def close(self):
+        """Close the database, if one is open."""
         if self.db is not None:
             self.db.close()
             self.db=None
 
     def __del__(self):
+        """Close the database when this object is garbage-collected."""
         if getattr(self,'db',None) is not None:
             self.close()

@@ -26,6 +26,7 @@ MAX_ROWS=5_000_000
 
 
 def checksum(path):
+    """Return the SHA-256 of a file, read in 1 MB chunks."""
     digest=hashlib.sha256()
     with Path(path).open('rb') as stream:
         while chunk:=stream.read(1024*1024): digest.update(chunk)
@@ -33,6 +34,12 @@ def checksum(path):
 
 
 def records(stream,on_reject=None):
+    """Yield (hash bytes, label, first seen, file type) for each data row of a MalwareBazaar CSV
+    stream.
+
+    The header row is found automatically. Malformed rows are passed to on_reject(line number) if
+    given (otherwise they raise), and size and row limits are enforced.
+    """
     header=None
     rows=0
     for line_number,line in enumerate(iter(lambda:stream.readline(65537),''),1):
@@ -79,6 +86,9 @@ def records(stream,on_reject=None):
 
 def import_archive(archive,output,activate=False,progress=lambda count:None):
     # Preserve the previous no-output behavior for malformed archive structure.
+    """Import a MalwareBazaar full.csv ZIP into a new hash-database snapshot, optionally activating it,
+    while holding the update lock.
+    """
     with ZipFile(archive) as zipped:
         members=zipped.infolist()
         if len(members)!=1 or members[0].filename!='full.csv' or members[0].flag_bits&1:
@@ -89,6 +99,11 @@ def import_archive(archive,output,activate=False,progress=lambda count:None):
 
 
 def _import_archive(archive,output,activate=False,progress=lambda count:None):
+    """Do the actual import: stream the CSV into a new SQLite file, apply existing revocations,
+    integrity-check it and write its candidate manifest.
+
+    If anything fails, the partial database is deleted.
+    """
     archive,output=Path(archive).resolve(),Path(output).absolute()
     for part in [output,*output.parents]:
         if part.is_symlink() or part.is_junction():
@@ -111,6 +126,7 @@ def _import_archive(archive,output,activate=False,progress=lambda count:None):
         complete=False
         rejected=[]
         def reject(line):
+            """Remember a malformed CSV line, giving up after 1000 of them."""
             rejected.append(line)
             if len(rejected)>1000:
                 raise ValueError('Too many malformed CSV records')
@@ -121,6 +137,7 @@ def _import_archive(archive,output,activate=False,progress=lambda count:None):
                 'CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);')
             batch=[]
             def write_batch():
+                """Insert the current batch of rows and commit."""
                 db.executemany('INSERT OR IGNORE INTO hashes VALUES (?,?,?)',((h,s,t) for h,l,s,t in batch))
                 db.executemany('INSERT OR IGNORE INTO labels VALUES (?,?)',((h,l) for h,l,s,t in batch))
                 db.commit()
@@ -186,6 +203,7 @@ def _import_archive(archive,output,activate=False,progress=lambda count:None):
 
 
 def main():
+    """Command-line entry point: import an archive and print the resulting metadata."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive',type=Path)
     parser.add_argument('--activate',action='store_true')

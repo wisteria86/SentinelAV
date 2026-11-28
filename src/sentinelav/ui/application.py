@@ -25,7 +25,13 @@ from .scan_actions import ScanActionsMixin
 from .window_widgets import WindowWidgetsMixin
 
 class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
+    """The main window's skeleton: the sidebar with its navigation buttons and the stack of pages.
+
+    Each page is built by a method from one of the mixins (dashboard(), scan_page(), ...). The full
+    Window class below adds every feature mixin on top of this.
+    """
     def __init__(self, data_dir=None):
+        """Open the database, build the sidebar and every page, and show the Dashboard."""
         super().__init__()
         self.resource_root = ROOT
         self.setWindowTitle('SentinelAV')
@@ -81,11 +87,15 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
 
 
     def navigate(self, index):
+        """Show the page at `index` and highlight its sidebar button."""
         self.stack.setCurrentIndex(index)
         for i, button in enumerate(self.buttons):
             button.setChecked(i == index)
 
     def save_settings(self):
+        """Save the size limit and exclusions from the Settings page (exclusions must be absolute
+        paths).
+        """
         paths = [p.strip() for p in self.exclusions.toPlainText().splitlines() if p.strip()]
         if any(not Path(p).is_absolute() for p in paths):
             QMessageBox.warning(self, 'Invalid exclusion', 'Use absolute paths for exclusions.')
@@ -96,6 +106,9 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
 
 
     def closeEvent(self, event):
+        """When the window closes, cancel a running scan first (the user closes again once it stops),
+        otherwise shut down cleanly.
+        """
         if self.worker is not None:
             self.cancel_scan()
             QMessageBox.information(self, 'Finishing scan', 'Cancellation requested. Close the window after the scan stops.')
@@ -121,7 +134,16 @@ from sentinelav.ui.deception_ui import DeceptionMixin
 
 
 class Window(DeceptionMixin,HoneypotMixin,AppChangesMixin,DefenseMixin,YaraMixin,UpdatesMixin,LabMixin,FinalizationMixin, ResponseMixin, ProtectionMixin, DesignMixin, BaseWindow):
+    """The complete SentinelAV window: BaseWindow plus every feature mixin (scanning, protection,
+    quarantine, lab, updates, app changes, deception and more).
+
+    Python combines the mixins from left to right, so several of them extend the same method (for
+    example settings_page) and call super() to let the others add their parts too.
+    """
     def __init__(self, data_dir=None, protect_by_default=False):
+        """Set up worker slots and timers, start ClamAV in the background, reconnect or resume
+        protection if configured, and show the tray icon.
+        """
         self.protection_worker = None
         self.monitor_state = 'Off'
         self.session_events = []
@@ -162,16 +184,21 @@ class Window(DeceptionMixin,HoneypotMixin,AppChangesMixin,DefenseMixin,YaraMixin
         import threading
         from sentinelav.detection.clamav_engine import ensure_service
         enabled=self.store.get('inspection_options',{}).get('clamav',True)
-        def run():self.clamav_service,self.clamav_problem=ensure_service(enabled)
+        def run():
+            """Start ClamAV and remember the service (or the problem) for later."""
+            self.clamav_service,self.clamav_problem=ensure_service(enabled)
         threading.Thread(target=run,daemon=True,name='clamd-start').start()
 
     def stop_clamav(self):
+        """Stop the ClamAV service started by this window, if any."""
         if getattr(self,'clamav_service',None):self.clamav_service.stop()
 
     def update_elapsed(self):
+        """Refresh the elapsed-time counter shown during a scan."""
         self.live_stats[2].setText(time.strftime('%H:%M:%S', time.gmtime(time.monotonic() - self.scan_started)))
 
     def navigate(self, index):
+        """Switch page and recolour the sidebar icons so the selected one stands out."""
         super().navigate(index)
         for i, button in enumerate(self.buttons):
             button.setIcon(icon(['home','scan','shield','box','report','settings','lab','report'][i], '#241a12' if i == index else '#fff0d9'))

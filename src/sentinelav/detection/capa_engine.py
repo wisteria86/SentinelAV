@@ -78,6 +78,7 @@ def run(path, program=None):
 
 
 def _end_tree(process):
+    """Forcefully stop a process together with every child process it started."""
     if os.name == 'nt':
         subprocess.run(['taskkill', '/T', '/F', '/PID', str(process.pid)], capture_output=True,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=30)
@@ -128,6 +129,8 @@ def indicators(report):
             continue
         namespace = meta.get('namespace') or ''
         tactics = {entry.get('tactic') for entry in meta.get('attack') or []}
+        # Use the first entry in STRONG whose namespace matches this rule; credential theft is
+        # recognised by its ATT&CK tactic instead.
         chosen = next((entry for entry in STRONG if namespace.startswith(entry[0])), None)
         if chosen is None and CREDENTIAL_TACTIC in tactics:
             chosen = ('', 'capa_credential_theft', 25, 'Stealer', 'Can read stored passwords or other credentials.')

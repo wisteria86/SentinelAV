@@ -23,14 +23,29 @@ class BoundedErrors(list):
     """Keeps a full-disk scan's report transportable while still counting everything dropped."""
     dropped=0
     def append(self,value):
+        """Add one error message (trimmed), or just count it once the list is full."""
         if len(self)>=MAX_ERRORS:self.dropped+=1
         else:super().append(str(value)[:1200])
     def extend(self,values):
+        """Add several error messages, one at a time, through append()."""
         for value in values:self.append(value)
 
 
 class ScanFlowMixin:
+    """The part of the Scanner that walks folders, reads each file safely and hands it on for analysis.
+    """
     def scan(self, roots, cancelled, progress, skip=0):
+        """Scan every file under the given roots and return a full result dictionary.
+
+        Folders are walked without following links, excluded paths are skipped, each file is read
+        once into memory and hashed, and the file is re-checked afterwards to make sure it did not
+        change while being read. progress(path, scanned, threats) is called after each file, and
+        cancelled() is checked often so the scan can stop quickly. skip lets a restarted worker
+        continue after the file that stopped the previous one.
+
+        When the scan target is a single file, the result also carries a detailed decision and the
+        file's identity.
+        """
         result = dict(started=time.strftime('%Y-%m-%d %H:%M:%S'), scanned=0,
                       skipped=0, errors=BoundedErrors(), detections=[], suspicious=[], status='Complete', elapsed=0,
                       structural_review=[],structural_review_total=0,advanced_reviews=[],advanced_review_total=0,
@@ -43,6 +58,8 @@ class ScanFlowMixin:
             result['errors'].append('No scan locations were selected or available')
 
         def walk(root):
+            """Yield every file under one root, sorted, without following symbolic links or junctions.
+            """
             if root.is_symlink() or root.is_junction():
                 result['errors'].append(f'Linked scan root was not followed: {root}')
                 return
@@ -52,6 +69,7 @@ class ScanFlowMixin:
                 yield root
             elif root.is_dir():
                 def onerror(error):
+                    """Record a folder that could not be listed instead of stopping the walk."""
                     result['errors'].append(str(error))
                 for directory, dirs, files in os.walk(root, followlinks=False, onerror=onerror):
                     if cancelled():
@@ -103,6 +121,8 @@ class ScanFlowMixin:
                     # Windows fstat/stat disagree about ctime on rewritten files;
                     # compare ctime only within the same descriptor API.
                     identity=lambda value:(value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns)
+                    # Compare the file's identity before reading, after reading and now; any
+                    # difference means it was being changed.
                     if identity(initial)!=identity(final) or identity(initial)!=identity(current) or initial.st_ctime_ns!=final.st_ctime_ns or len(data)!=initial.st_size:
                         raise ValueError('File changed during inspection; scan it again')
                     sha = digest.hexdigest()
@@ -152,6 +172,13 @@ class ScanFlowMixin:
     def inspect_file(self,data,path,resolved,sha,result,capture_identity,cancelled):
         # Preserve an independently verified exact-hash finding
         # even if a subsequent native parser fails in the worker.
+        """Run every detection layer on one file that has already been read into memory, and record its
+        findings.
+
+        The steps are: signature checks, file-type and structure analysis, optional AMSI, the
+        advanced pipeline, recursive archive inspection, and finally the combined score. Results go
+        into `result` as detections (malicious) or suspicious findings.
+        """
         early_label=self.signatures.get(sha)
         if early_label is not None and getattr(self,'early_finding',None):
             self.early_finding(dict(path=str(resolved),sha256=sha,reasons=['SHA-256: '+early_label],yara_matches=[]))

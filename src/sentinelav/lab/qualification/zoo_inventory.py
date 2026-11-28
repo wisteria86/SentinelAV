@@ -31,6 +31,7 @@ SIDECARS = PASSWORD_SUFFIXES | {'.md5', '.sha256', '.sha', '.sha1', '.shasum', '
 
 
 def git(repo, *args):
+    """Run a read-only git command against the bare repository and return its output."""
     return subprocess.check_output(
         ['git', '--no-replace-objects', '--git-dir', str(repo), *args], timeout=60,
         env=dict(os.environ, GIT_NO_LAZY_FETCH='1', GIT_TERMINAL_PROMPT='0'),
@@ -38,6 +39,8 @@ def git(repo, *args):
 
 
 def repository(work):
+    """Return the local bare sample repository after checking it is bare and has the pinned commit.
+    """
     path = unlinked(work / 'datasets/theZoo.git')
     if not path.is_dir():
         raise FileNotFoundError(f'Place a local bare theZoo repository at {path}')
@@ -72,6 +75,7 @@ def split_of(family):
 
 
 def tree_entries():
+    """Load the pinned repository file listing, checking its hash and revision."""
     tree = json.loads((PROJECT_ROOT / 'resources/zoo-tree.json').read_bytes())
     if digest(tree) != TREE_SHA256:
         raise ValueError('Pinned Zoo tree metadata changed')
@@ -81,6 +85,9 @@ def tree_entries():
 
 
 def cases(split=None):
+    """Split the repository listing into evaluation batches (at most 24 archives or 96 MB each),
+    optionally keeping only the dev or holdout split.
+    """
     entries = []
     passwords = {}
     folders = {}
@@ -127,6 +134,7 @@ def cases(split=None):
 
 
 def quick_cases():
+    """Return the single quick-test case covering the fixed static corpus fixtures."""
     from sentinelav.lab.static_corpus import SPECS
     entries = [dict(path=spec['family'], blob=spec['blob'], fixture=spec['id']) for spec in SPECS]
     return [asdict(CaseDefinition('zoo-quick', 'raw_detection', 'sandbox', 'zoo_static',
@@ -135,6 +143,7 @@ def quick_cases():
 
 
 def blob_identity(data):
+    """Return the Git blob hash of some bytes (how Git names file contents)."""
     return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
 
 
@@ -146,11 +155,15 @@ def seal(data, key, blob):
 
 
 def unseal(sealed, key, blob):
+    """Decrypt a sealed archive (the reverse of seal())."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     return AESGCM(key).decrypt(sealed[:12], sealed[12:], SEAL_CONTEXT + blob.encode())
 
 
 def stage(work, parameters, output):
+    """Read each batch archive from the bare repository, verify it, and seal it with a fresh transfer
+    key for one guest, along with any archive password.
+    """
     if parameters['revision'] != REVISION:
         raise ValueError('Unexpected Zoo revision')
     repo = repository(work)

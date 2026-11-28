@@ -15,14 +15,21 @@ from sentinelav.paths import PROJECT_ROOT
 
 
 class RuntimeWorker(QThread):
+    """Background thread that runs one lab controller script (prepare kit, start guest, or run/reset a
+    guest job) and reads its output.
+    """
     stage=Signal(str)
     completed=Signal(dict)
     failed=Signal(str)
 
     def __init__(self,request,state_dir):
+        """Remember the request and where to write the temporary request file."""
         super().__init__(); self.request=request; self.state_dir=Path(state_dir)
 
     def run(self):
+        """Write the request, run the matching PowerShell controller, relay '[stage]' lines as
+        progress, and emit the final JSON result.
+        """
         request_path=None
         try:
             operation=self.request.get('operation','runtime')
@@ -71,6 +78,11 @@ class RuntimeWorker(QThread):
 
 
 def add_runtime_tab(window,tabs):
+    """Add the 'Offline Guest Job' tab to the lab page and wire up its buttons.
+
+    It also attaches prepare_guest_kit() and start_registered_guest() to the window so the Overview
+    tab's buttons can use them.
+    """
     window.runtime_worker=None
     window.runtime_last_result=None
     page=QWidget(); layout=QVBoxLayout(page)
@@ -92,11 +104,14 @@ def add_runtime_tab(window,tabs):
         window.runtime_note.setText('Offline guest control requires the source-workspace lab controller. This build does not include it.')
     details=QPushButton('View Last Job'); row.addWidget(details); layout.addLayout(row)
     def show_details():
+        """Show the full summary of the last guest job."""
         if not window.runtime_last_result: return
         box=QMessageBox(window); box.setWindowTitle('Guest runtime summary'); box.setText(window.runtime_note.text())
         box.setDetailedText(json.dumps(window.runtime_last_result,indent=2)); box.exec()
     details.clicked.connect(show_details)
     def start():
+        """Validate the specimen hash, confirm with the user, and run the job in the disposable guest.
+        """
         if window.runtime_worker or window.lab_worker or window.worker or window.response_worker or window.protection_worker:
             window.runtime_note.setText('Finish active scans, monitoring, response or lab work first.'); return
         if window.runtime_last_result and window.runtime_last_result.get('execution_attempted') and not window.runtime_last_result.get('guest_disposal_verified'):
@@ -111,26 +126,31 @@ def add_runtime_tab(window,tabs):
         request=dict(schema=1,authorization='RUN_ONLY_IN_DISPOSABLE_OFFLINE_GUEST',sha256=sha,seconds=window.runtime_seconds.value())
         launch(request)
     def launch(request):
+        """Start a RuntimeWorker for a request and connect its progress and result to the page."""
         window.runtime_worker=RuntimeWorker(request,window.store.path.parent/'runtime-requests')
         window.runtime_start.setEnabled(False)
         window.runtime_reset.setEnabled(False)
         window.runtime_worker.stage.connect(window.runtime_note.setText)
         def completed(result):
+            """Show and audit the finished job's summary."""
             window.runtime_last_result=result
             window.runtime_note.setText(result['status']+' · guest disposal: '+('verified' if result.get('guest_disposal_verified') else 'not verified'))
             window.audit_response('Guest runtime job',json.dumps(result)[:4000])
         window.runtime_worker.completed.connect(completed)
         window.runtime_worker.failed.connect(lambda error:window.runtime_note.setText('Job incomplete: '+error+' — check registered guest state before retrying.'))
         def finished():
+            """Tidy up after the worker and re-enable the buttons."""
             window.runtime_worker.deleteLater(); window.runtime_worker=None; window.runtime_start.setEnabled(True); window.runtime_reset.setEnabled(True)
         window.runtime_worker.finished.connect(finished); window.runtime_worker.start()
     window.runtime_start.clicked.connect(start)
     def reset():
+        """After confirmation, discard the registered guest and verify a fresh one."""
         if window.runtime_worker or window.lab_worker: return
         if QMessageBox.question(window,'Discard registered guest?','Discard only the registered test guest and verify a fresh replacement? Its current contents will be lost.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes:
             launch(dict(reset_only=True))
     window.runtime_reset.clicked.connect(reset)
     def prepare():
+        """Let the user pick a built package folder and prepare the offline guest kit from it."""
         if window.runtime_worker or window.lab_worker: return
         folder=QFileDialog.getExistingDirectory(window,'Choose the built SentinelAV package folder')
         if not folder: return
@@ -138,6 +158,7 @@ def add_runtime_tab(window,tabs):
         tabs.setCurrentWidget(page)
         launch(dict(operation='prepare',package_root=folder))
     def start_guest():
+        """After confirmation, start the prepared offline guest."""
         if window.runtime_worker or window.lab_worker: return
         if QMessageBox.question(window,'Start registered offline guest?','Start the prepared read-only, offline Windows Sandbox kit? Its bootstrap performs guest readiness checks.',QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes:
             tabs.setCurrentWidget(page); launch(dict(operation='start'))

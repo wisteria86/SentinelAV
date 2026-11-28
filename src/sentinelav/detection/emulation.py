@@ -11,6 +11,17 @@ import struct
 
 
 def cpu_emulate(data,metadata,analyze):
+    """Run the first part of a Windows program on a virtual CPU to catch code that unpacks itself.
+
+    Many malicious programs are 'packed': the real code is compressed or encrypted and only appears
+    in memory once the program starts. Here we load the program into the Unicorn CPU emulator
+    (nothing runs on the real processor), let it execute for a very short, bounded time, and then
+    scan every executable memory page it changed. If the unpacked code matches a detection rule, it
+    is reported as a finding.
+
+    Returns a dictionary with a status, the list of findings, and the omissions describing what was
+    not covered.
+    """
     try:
         import unicorn as uc
         from unicorn import x86_const as registers
@@ -24,6 +35,8 @@ def cpu_emulate(data,metadata,analyze):
     if metadata.get('format')!='PE': return dict(status='Not applicable',omissions=[],findings=[])
     if metadata.get('machine') not in ('0x14c','0x8664'):
         result['omissions'].append('Unsupported CPU architecture'); return result
+    # Read the bits of the PE header we need: 32 or 64-bit, preferred load address, image size and
+    # entry point.
     offset=struct.unpack_from('<I',data,0x3c)[0]+24
     optional_size=struct.unpack_from('<H',data,offset-4)[0]
     if optional_size<64: result['omissions'].append('Incomplete PE optional header'); return result
@@ -42,6 +55,8 @@ def cpu_emulate(data,metadata,analyze):
     machine=uc.Uc(uc.UC_ARCH_X86,uc.UC_MODE_64 if wide else uc.UC_MODE_32)
     dirty=set()
     stack=0x700000000000 if wide else 0x7f000000
+    # Map the program into the emulator's memory the way Windows would: headers first, then each
+    # section at its virtual address.
     try:
         machine.mem_map(base,(size+4095)&~4095)
         machine.mem_write(base,bytes(data[:min(headers,len(data),size)]))
@@ -52,6 +67,9 @@ def cpu_emulate(data,metadata,analyze):
         machine.mem_map(stack,1024*1024)
         machine.reg_write(registers.UC_X86_REG_RSP if wide else registers.UC_X86_REG_ESP,stack+1024*1024-0x100)
         def written(engine,access,address,length,value,context):
+            """Memory-write hook: remember which pages inside the program image were changed, stopping
+            after 256.
+            """
             if base<=address<base+size:
                 for page in range(address&~4095,(address+length+4095)&~4095,4096):
                     if len(dirty)<256: dirty.add(page)
@@ -59,6 +77,7 @@ def cpu_emulate(data,metadata,analyze):
         machine.hook_add(uc.UC_HOOK_MEM_WRITE,written)
         try: machine.emu_start(base+entry,base+size,timeout=500000,count=100000)
         except uc.UcError as error: result['omissions'].append('Emulation stopped: '+str(error)[:160])
+        # Only pages that belong to executable sections matter; changed data pages are ignored.
         for address in sorted(dirty):
             if not any(s['executable'] and base+s['virtual_address']<=address+4095 and address<base+s['virtual_address']+max(s['virtual_bytes'],s['raw_bytes']) for s in metadata['sections']): continue
             payload=bytes(machine.mem_read(address,min(4096,base+size-address)))
@@ -72,6 +91,9 @@ def cpu_emulate(data,metadata,analyze):
 
 
 def emulate(data,metadata,analyze,backend='speakeasy',profile='background'):
+    """Run the chosen emulator on a Windows program: 'speakeasy' (the fuller Windows model, the
+    default) or 'minimal' (our own small model).
+    """
     if backend=='speakeasy':
         from sentinelav.detection.speakeasy_backend import emulate as run
         return run(data,metadata,analyze,profile)

@@ -15,7 +15,13 @@ from .backend_control import run,powershell,quote,Blocked
 from .backend_transport import GuestTransportMixin
 
 class Sandbox(GuestTransportMixin):
+    """Evaluation backend that runs each case in a fresh Windows Sandbox guest it owns and always
+    disposes of.
+    """
     def __init__(self,project,work,attempt,cancelled,progress):
+        """Remember the project and work folders, the attempt folder for logs and receipts, and the
+        cancel/progress callbacks.
+        """
         self.project=Path(project);self.work=Path(work);self.attempt=Path(attempt);self.cancelled=cancelled;self.progress=progress
         self.owner=None
         self.inventory_name=None;self.batch_offset=0;self.batch_count=32
@@ -25,14 +31,21 @@ class Sandbox(GuestTransportMixin):
         self.package_root=self.work/'builds/dist/SentinelAV'
 
     def verify_stage(self,state):
+        """Check that the staged application files match the frozen package manifest."""
         manifest=json.loads((Path(state['input'])/'manifest.json').read_text(encoding='utf-8-sig'))
         staged={k.replace('\\','/')[4:]:v for k,v in manifest['files'].items() if k.replace('\\','/').startswith('App/')}
         if self.package_manifest and staged!=self.package_manifest:raise ValueError('Staged application differs from frozen package')
 
     def listed(self):
+        """Return the Windows Sandbox environments that currently exist."""
         return json.loads(run(['wsb.exe','list','--raw'],30,self.cancelled))['WindowsSandboxEnvironments']
 
     def start(self):
+        """Prepare the input kit, start a new Sandbox with a fresh id, wait until its bootstrap self-
+        test passes offline, and check the boundary.
+
+        Refuses to start if any Sandbox already exists, so an unrelated guest is never touched.
+        """
         try:existing=self.listed()
         except (OSError,RuntimeError) as e:raise Blocked('Sandbox CLI unavailable or inaccessible: '+str(e)) from e
         if existing:raise Blocked('A Sandbox already exists; unrelated guests are never stopped')
@@ -80,12 +93,14 @@ class Sandbox(GuestTransportMixin):
         return dict(backend='sandbox',guest_uuid='',**({'zoo_input':zoo} if zoo is not None else {}))
 
     def connect(self):
+        """Open a viewer window onto our own Sandbox."""
         if not self.owner or self.owner.get('backend')!='sandbox':raise ValueError('Sandbox ownership required for connection')
         guest=str(uuid.UUID(self.owner['guest_id']))
         if not any(r['Id']==guest for r in self.listed()):raise Blocked('Owned Sandbox no longer exists; connection refused')
         run(['wsb.exe','connect','--id',guest,'--raw'],30,self.cancelled,self.attempt/'connect.log')
 
     def exec(self,code,timeout=30,system=False):
+        """Run a PowerShell script inside our Sandbox and return its exit code."""
         if not self.owner:raise ValueError('Guest ownership unavailable')
         raw=run(['wsb.exe','exec','--id',self.owner['guest_id'],'-r','System' if system else 'ExistingLogin','-c',
             'powershell.exe -NoProfile -NonInteractive -EncodedCommand '+base64.b64encode(code.encode('utf-16le')).decode(),'--raw'],timeout,self.cancelled)
@@ -94,6 +109,9 @@ class Sandbox(GuestTransportMixin):
         return value
 
     def dispose(self):
+        """Stop our Sandbox, confirm it is gone, release the staging folder and write a disposal
+        receipt.
+        """
         if not self.owner:return
         guest=self.owner['guest_id']
         raw=json.loads(run(['wsb.exe','list','--raw'],30,lambda:False))['WindowsSandboxEnvironments']
@@ -128,5 +146,6 @@ class Sandbox(GuestTransportMixin):
         except Exception as e:return dict(retained=True,reason=type(e).__name__+': '+str(e))
 
 def shutil_copy(source,target):
+    """Copy a file, refusing linked source or target paths."""
     import shutil
     shutil.copyfile(unlinked(source),unlinked(target))

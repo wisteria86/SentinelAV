@@ -25,10 +25,12 @@ MATCH_TIMEOUT = 10
 
 
 class PackError(ValueError):
+    """Raised when a rule pack is missing or does not match its pinned digest."""
     pass
 
 
 def _tokens(name):
+    """Split a rule name into its upper-case, underscore-separated words."""
     return set(name.upper().split('_'))
 
 
@@ -49,6 +51,9 @@ def classify(identifier, meta, disabled=()):
 
 
 def _category(identifier):
+    """Guess a threat category (Ransomware, Stealer, ...) from words in the rule name, defaulting to
+    'Technique'.
+    """
     for token in identifier.upper().split('_'):
         if token in ('RANSOM', 'RANSOMWARE', 'STEALER', 'LOADER', 'DROPPER', 'BACKDOOR', 'RAT', 'MINER', 'WEBSHELL', 'EXPL', 'EXPLOIT'):
             return token.capitalize()
@@ -56,7 +61,11 @@ def _category(identifier):
 
 
 class RulePack:
+    """One installed third-party YARA rule pack, compiled and ready to match."""
     def __init__(self, name, folder=None):
+        """Load the pack: verify the rule file against its pinned SHA-256, then use the cached compiled
+        rules if they are still valid, or compile and cache them.
+        """
         import yara
         self.name = name
         self.folder = folder or definitions_dir(name)
@@ -94,6 +103,9 @@ class RulePack:
         return found
 
     def summary(self):
+        """Return a short description of the pack (name, release, rule count, disabled count, digest)
+        for the UI.
+        """
         return dict(name=self.name, release=self.manifest.get('release'), rules=self.count,
             disabled=len(self.disabled), sha256=self.manifest['sha256'])
 

@@ -35,7 +35,18 @@ from .agent_protocol import endpoint, decode, request, configuration, launch
 
 
 class EngineHost(QObject):
+    """The per-user background engine that keeps real-time protection running when the window is
+    closed.
+
+    It owns the Monitor (which does the actual watching) on a separate thread and answers small JSON
+    requests from the desktop app over a local pipe that only the current user can open. Events from
+    the monitor are saved to the database and kept in a short in-memory list so the app can poll for
+    new ones.
+    """
     def __init__(self, data, root, monitor_factory=Monitor):
+        """Open the database, claim the pipe for this data folder and start the 100 ms housekeeping
+        timer.
+        """
         super().__init__()
         self.data, self.root = Path(data), Path(root)
         self.store = Store(self.data/'sentinelav.db')
@@ -60,12 +71,18 @@ class EngineHost(QObject):
         self.timer.start(100)
 
     def publish(self, kind, value):
+        """Hand a message from the monitor thread to the engine (counted as dropped if the inbox is
+        full).
+        """
         try:
             self.inbox.put_nowait((kind, value))
         except queue.Full:
             self.dropped += 1
 
     def start(self):
+        """Start monitoring on a new thread with the current saved settings (does nothing if it is
+        already running).
+        """
         if self.thread and self.thread.is_alive():
             if self.state == 'Stopping':
                 raise ValueError('Wait for monitoring to stop')
@@ -74,6 +91,7 @@ class EngineHost(QObject):
         self.monitor = self.factory(config, lambda e: self.publish('event', e), lambda s: self.publish('status', s))
         self.state, self.error = 'Starting', ''
         def run():
+            """Thread body: run the monitor and report any crash back to the engine."""
             try:
                 self.monitor.run()
             except Exception as error:
@@ -82,11 +100,15 @@ class EngineHost(QObject):
         self.thread.start()
 
     def stop(self):
+        """Ask the monitor to stop; the thread finishes on its own shortly after."""
         if self.thread and self.thread.is_alive():
             self.state = 'Stopping'
             self.monitor.stop.set()
 
     def tick(self):
+        """Housekeeping, every 100 ms: process messages from the monitor, notice when it has stopped,
+        and shut down cleanly if asked to.
+        """
         for _ in range(200):
             try:
                 kind, value = self.inbox.get_nowait()
@@ -118,6 +140,11 @@ class EngineHost(QObject):
             QCoreApplication.instance().quit()
 
     def handle(self, message):
+        """Carry out one validated request (status, start, stop, poll or shutdown) and build the reply.
+
+        For 'poll', only events newer than the client's cursor are returned, and only as many as fit
+        in half a message, so clients page through large backlogs.
+        """
         command = message['command']
         if self.quitting:
             raise ValueError('Engine is shutting down')
@@ -147,6 +174,9 @@ class EngineHost(QObject):
                     dropped=self.dropped, background=True, elevated_service=False)
 
     def accept(self):
+        """Accept new pipe connections (at most 8 at once). Each connection sends exactly one request
+        line and gets one reply.
+        """
         while self.server.hasPendingConnections():
             sock = self.server.nextPendingConnection()
             if len(self.clients) >= 8:
@@ -161,6 +191,8 @@ class EngineHost(QObject):
             timer.start(3000)
             buffer = bytearray()
             def read(sock=sock, buffer=buffer):
+                """Collect incoming bytes; once a full line has arrived, handle it and send the reply.
+                """
                 buffer.extend(bytes(sock.readAll()))
                 if len(buffer) > MAX_MESSAGE:
                     sock.abort()
@@ -177,6 +209,7 @@ class EngineHost(QObject):
                 sock.write(json.dumps(reply).encode() + b'\n')
                 sock.disconnectFromServer()
             def cleanup(sock=sock):
+                """Forget a connection once it closes."""
                 self.clients.discard(sock)
                 sock.deleteLater()
             sock.readyRead.connect(read)
@@ -187,6 +220,12 @@ class EngineHost(QObject):
 
 def main(data):
     # Do not turn per-user, user-writable code/config into an elevated broker.
+    """Entry point for the background engine process (`--engine-host`).
+
+    It refuses to run as administrator on purpose: the engine reads per-user settings, so giving it
+    admin rights would let ordinary user files steer a privileged process. Only one engine may run
+    per data folder.
+    """
     if os.name != 'nt':
         raise RuntimeError('Background engine currently supports Windows only')
     import ctypes

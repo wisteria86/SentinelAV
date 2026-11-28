@@ -18,6 +18,9 @@ from .backend_sandbox import Sandbox
 class HyperV(Sandbox):
     """PowerShell Direct to one explicitly enrolled, offline, licensed lab VM."""
     def __init__(self,*args,**kw):
+        """Load and check the VM enrolment (ids, credential location, licensing) and verify the VM's
+        ownership and disconnected networking.
+        """
         super().__init__(*args,**kw)
         path=self.work/'lab/qualification/hyperv.json'
         if not path.exists():raise Blocked('Dedicated Hyper-V VM not enrolled: F:\\SentinelAV-Work\\lab\\qualification\\hyperv.json')
@@ -33,6 +36,9 @@ class HyperV(Sandbox):
         except (OSError,RuntimeError) as e:raise Blocked('Hyper-V enrollment, isolation or management permission check failed') from e
 
     def start(self):
+        """Reset the VM to its baseline checkpoint, stage the sealed input kit into it, wait for
+        PowerShell Direct, and copy the app package in after verifying hashes.
+        """
         c=self.config
         self.owner=dict(schema=1,backend='hyperv',guest_id=c['vm_id'],checkpoint_id=c['checkpoint_id'],ownership_id=c['ownership_id'],disposal_required=True)
         write_json(self.attempt/'owner.json',self.owner)
@@ -61,6 +67,8 @@ class HyperV(Sandbox):
         return result
 
     def exec(self,code,timeout=30,system=False):
+        """Run a PowerShell script inside the VM through PowerShell Direct and return its exit code.
+        """
         c=self.config
         script=self.common+"$cred=Import-Clixml -LiteralPath "+quote(c['credential_xml'])+";$reply=Invoke-Command -VMId $id -Credential $cred -ScriptBlock {param($code);$p=Start-Process powershell.exe -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand',$code) -WindowStyle Hidden -Wait -PassThru;[int]$p.ExitCode} -ArgumentList "+quote(base64.b64encode(code.encode('utf-16le')).decode())+";$reply|ConvertTo-Json -Compress"
         value=json.loads(powershell(script,timeout,self.cancelled))
@@ -68,6 +76,9 @@ class HyperV(Sandbox):
         return value
 
     def dispose(self):
+        """Power the VM off, detach any test disk, restore the baseline checkpoint, and write a
+        disposal receipt.
+        """
         if not self.owner:return
         powershell(self.ownership_common+"if($vm.State -ne 'Off'){Stop-VM -VM $vm -TurnOff -Confirm:$false}",60,lambda:False,self.attempt/'stop.log')
         if self.owner.get('test_disk'):
@@ -78,6 +89,7 @@ class HyperV(Sandbox):
         write_json(self.attempt/'disposal.json',{**self.owner,'disposed':True,'powered_off':True,'baseline_restored':True,'reset_before_reuse':True,'disposal_required':False,'staging':self.release_staging()})
 
     def reboot(self):
+        """Reboot the guest and confirm, from its boot time, that it really restarted."""
         code="exit ([int]([DateTimeOffset](Get-CimInstance Win32_OperatingSystem).LastBootUpTime).ToUnixTimeSeconds())"
         before=self.exec(code)
         if self.exec('shutdown.exe /r /t 0;exit $LASTEXITCODE'):raise RuntimeError('Guest reboot request failed')

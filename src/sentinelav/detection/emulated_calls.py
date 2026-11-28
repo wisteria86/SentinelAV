@@ -12,7 +12,21 @@ from .emulation_errors import UnsupportedAPI
 
 
 class EmulatedCallsMixin:
+    """Fake implementations of the Windows API functions an emulated program may call.
+
+    The emulator runs a program's machine code in a sandbox, and whenever the program calls a
+    Windows function it lands here instead of in real Windows. Files, registry keys and network
+    connections only exist as virtual, in-memory objects, and interesting calls are recorded as
+    events (file writes, registry writes, network attempts). Anything we do not model raises
+    UnsupportedAPI, which stops the emulation honestly rather than pretending the call succeeded.
+    """
     def invoke(self,name,a):
+        # Memory management: hand out memory from the emulator's own bounded pool.
+        """Carry out one emulated Windows API call.
+
+        name is the lower-case function name and a is the list of its arguments. Returns the value
+        the real function would return (for example a handle, a byte count, or 1 for success).
+        """
         if name=='virtualalloc': return self.allocate(a[1],a[0])
         if name=='heapalloc': return self.allocate(max(1,a[2]))
         if name in ('virtualfree','heapfree'):
@@ -21,6 +35,7 @@ class EmulatedCallsMixin:
             self.read(a[0],min(a[1],4096)); self.write(a[3],struct.pack('<I',0x04))
             self.event('memory_protection',address=a[0],size=a[1],protection=a[2]); return 1
         if name=='getprocessheap': return 0x100
+        # Module loading: pretend to load DLLs and hand back a fake handle.
         if name in ('loadlibrarya','loadlibraryw','getmodulehandlea','getmodulehandlew'):
             if name.startswith('getmodulehandle') and not a[0]: return self.image_base
             value=self.text(a[0],name.endswith('w'))
@@ -38,6 +53,7 @@ class EmulatedCallsMixin:
         if name=='getcurrentthreadid': return 43
         if name=='isdebuggerpresent': return 0
         if name=='checkremotedebuggerpresent': self.write(a[1],struct.pack('<I',0)); return 1
+        # Environment queries get fixed, believable answers so the program carries on.
         if name.startswith('getmodulefilename'):
             if a[0] not in (0,self.image_base): raise UnsupportedAPI('Module filename for unmodeled DLL image')
             return self.output_text(a[1],a[2],'C:\\Sample\\subject.exe',name.endswith('w'))
@@ -75,6 +91,7 @@ class EmulatedCallsMixin:
         if name.startswith('getstartupinfo'):
             size=104 if self.wide else 68
             self.write(a[0],struct.pack('<I',size)+bytes(size-4)); return 0
+        # Sleeping only moves the virtual clock forward; no real time passes.
         if name=='sleep':
             self.virtual_ms+=min(a[0],300000)
             self.event('virtual_sleep',milliseconds=a[0]); return 0
@@ -87,6 +104,7 @@ class EmulatedCallsMixin:
             if a[2]>4*1024*1024: raise ValueError('Emulated memset size cap')
             self.write(a[0],bytes([a[1]&255])*a[2]); return a[0]
         if name in ('lstrlena','lstrlenw'): return len(self.text(a[0],name.endswith('w')))
+        # Files exist only in a virtual in-memory file system.
         if name in ('createfilea','createfilew'):
             path=self.text(a[0],name.endswith('w')).casefold()
             if a[4] not in (1,2,3,4,5): raise UnsupportedAPI('Unmodeled CreateFile disposition')
@@ -122,6 +140,8 @@ class EmulatedCallsMixin:
             source=self.text(a[0],name.endswith('w')).casefold(); target=self.text(a[1],name.endswith('w')).casefold()
             if source not in self.files or target in self.files: self.error=2; return 0
             self.files[target]=self.files.pop(source); self.event('file_move',source=source[:512],target=target[:512]); return 1
+        # Registry writes are recorded, not performed; the Run key ones matter most for spotting
+        # persistence.
         if name in ('regcreatekeyexa','regcreatekeyexw'):
             path=self.text(a[1],name.endswith('w')); handle=self.handle('registry',path)
             self.store_pointer(a[7],handle)
@@ -133,6 +153,7 @@ class EmulatedCallsMixin:
             self.read(a[4],min(a[5],4096))
             self.event('registry_write',path=str(key['value'])[:512],value=self.text(a[1],name.endswith('w'))[:256],bytes=a[5]); return 0
         if name=='regclosekey': self.handles.pop(a[0],None); return 0
+        # Networking: note where the program wants to connect, then make every request fail.
         if name=='winhttpopen': return self.handle('http_session','virtual')
         if name=='winhttpconnect':
             if self.handles.get(a[0],{}).get('kind')!='http_session': self.error=6; return 0
