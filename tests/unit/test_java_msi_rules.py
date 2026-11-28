@@ -1,5 +1,5 @@
 # Purpose: Verify exact class-constant matching for Java rules and Windows Installer stream-name decoding, on inert data.
-# Works with: detection.indicators.mobile, detection.archive_formats
+# Works with: detection.indicators.mobile, detection.helpers.archive_formats
 
 """Verify exact class-constant matching for Java rules and Windows Installer stream-name decoding, on inert data."""
 
@@ -7,7 +7,7 @@ import io
 import unittest
 import zipfile
 
-from sentinelav.detection.archive_formats import MSI_CHARS, msi_name
+from sentinelav.detection.helpers.archive_formats import MSI_CHARS, msi_name
 from sentinelav.detection.indicators.mobile import constants, java_indicators
 
 

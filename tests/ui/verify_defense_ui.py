@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory() as temp:
             ordinary = watched / 'ordinary.txt'
             ordinary.write_text('Ordinary manual pre-execution check')
             with patch(
-                'sentinelav.ui.defense_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.defense_ui.QFileDialog.getOpenFileName',
                 return_value=(str(ordinary), 'TXT'),
             ):
                 window.begin_bounded_inspection('file')

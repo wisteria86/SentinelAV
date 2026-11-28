@@ -387,7 +387,7 @@ def main():
             (data / 'security-report.html').write_text(
                 render_report(snapshot(window.store), 'html'), encoding='utf-8'
             )
-            from sentinelav.detection.signature_db import SignatureIndex
+            from sentinelav.detection.core.signature_db import SignatureIndex
 
             signature_index = SignatureIndex(ROOT / 'signatures.json')
             signature_count = len(signature_index)

@@ -63,7 +63,7 @@ def run(target, data_dir):
         kind = 'Custom Folder'
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     store = Store(Path(data_dir) / 'sentinelav.db')
-    from sentinelav.detection.clamav_engine import ensure_service
+    from sentinelav.detection.core.clamav_engine import ensure_service
 
     _, problem = ensure_service(store.get('inspection_options', {}).get('clamav', True))
     if problem:

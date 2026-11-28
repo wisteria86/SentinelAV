@@ -1,6 +1,6 @@
 # Purpose: SCM-hosted, least-privilege monitoring with protected, admin-owned policy.
-# Works with: data.storage, monitoring.monitoring, paths, platform.amsi_broker, platform.engine_policy
-# Used by: entrypoint, platform.remediation_broker, platform.service_changes, ui.defense_pages
+# Works with: data.storage, monitoring.monitoring, paths, platform.core.amsi_broker, platform.core.engine_policy
+# Used by: entrypoint, platform.remediation_broker, platform.service_changes, ui.helpers.defense_pages
 
 """SCM-hosted, least-privilege monitoring with protected, admin-owned policy.
 
@@ -129,7 +129,7 @@ def run_service():
         raise RuntimeError(
             'The Windows service requires the packaged executable in a protected installation'
         )
-    from sentinelav.platform.windows_identity import current_sid
+    from sentinelav.platform.core.windows_identity import current_sid
 
     if current_sid() != 'S-1-5-19':
         raise RuntimeError(
@@ -233,7 +233,7 @@ def run_service():
         try:
             from sentinelav.monitoring.monitoring import Monitor
             from sentinelav.data.storage import Store
-            from sentinelav.platform.integrity import verify_installation, verify_windows_acl
+            from sentinelav.platform.core.integrity import verify_installation, verify_windows_acl
 
             verify_installation(executable.parent, protected=True)
             verify_windows_acl(base)
@@ -254,14 +254,14 @@ def run_service():
             if type(policy.get('amsi_broker', False)) is not bool:
                 raise ValueError('Invalid AMSI service policy')
             if policy.get('amsi_broker', False):
-                from sentinelav.platform.amsi_broker import AmsiBroker
+                from sentinelav.platform.core.amsi_broker import AmsiBroker
 
                 state['broker'] = AmsiBroker(resources)
                 state['broker'].start()
             for name in ('sysmon', 'behavior', 'network', 'event_processes', 'watch_app_changes'):
                 if name in policy and type(policy[name]) is not bool:
                     raise ValueError('Invalid source policy: ' + name)
-            from sentinelav.platform.engine_policy import inspection_options
+            from sentinelav.platform.core.engine_policy import inspection_options
 
             service_inspection = inspection_options(policy.get('inspection_options'))
             service_inspection['analysis_store'] = str(data / 'analysis-data')

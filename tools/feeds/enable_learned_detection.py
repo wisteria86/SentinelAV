@@ -1,5 +1,5 @@
 # Purpose: Enable the installed signed classifiers for the current SentinelAV profile.
-# Works with: data.storage, paths, platform.engine_policy, updates.analysis_trust, updates.artifacts
+# Works with: data.storage, paths, platform.core.engine_policy, updates.analysis_trust, updates.artifacts
 # Used by: the Python module loader or CLI entry point
 
 """Enable the installed signed classifiers for the current SentinelAV profile."""
@@ -11,7 +11,7 @@ from sentinelav.paths import RESOURCE_ROOT
 from sentinelav.data.storage import Store
 from sentinelav.updates.artifacts import active, activate, bounded_json
 from sentinelav.updates.analysis_trust import update_pin
-from sentinelav.platform.engine_policy import inspection_options
+from sentinelav.platform.core.engine_policy import inspection_options
 from sentinelav.workspace import Workspace
 
 

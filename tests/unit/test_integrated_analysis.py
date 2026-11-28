@@ -1,6 +1,6 @@
 # Purpose: Harmless content and emulated instructions; never launch fixture executables.
-# Works with: detection.active_content, detection.content_analysis, detection.engine, detection.file_formats,
-#   detection.windows_emulation
+# Works with: detection.helpers.active_content, detection.helpers.content_analysis, detection.engine, detection.core.file_formats,
+#   detection.helpers.windows_emulation
 # Used by: tools.evaluation.verify_frozen_emulator
 
 """Harmless content and emulated instructions; never launch fixture executables."""
@@ -17,10 +17,10 @@ from pathlib import Path
 from tests.unit.test_pe_imports import imported_fixture
 from sentinelav.paths import RESOURCE_ROOT
 from sentinelav.detection.engine import Scanner
-from sentinelav.detection.file_formats import pe_metadata
-from sentinelav.detection.windows_emulation import emulate_windows
-from sentinelav.detection.content_analysis import normalized_variants, inspect_containers
-from sentinelav.detection.active_content import active_sources
+from sentinelav.detection.core.file_formats import pe_metadata
+from sentinelav.detection.helpers.windows_emulation import emulate_windows
+from sentinelav.detection.helpers.content_analysis import normalized_variants, inspect_containers
+from sentinelav.detection.helpers.active_content import active_sources
 
 MARKER = b'SENTINELAV_DEMO_THREAT_7C23A'
 
@@ -46,7 +46,7 @@ class IntegratedAnalysisTests(unittest.TestCase):
         data = emulated_fixture(['ExitProcess'], b'\xc3')
         with (
             patch(
-                'sentinelav.platform.emulation_support.control_flow_guard_enabled',
+                'sentinelav.platform.core.emulation_support.control_flow_guard_enabled',
                 return_value=True,
             ),
             patch('unicorn.Uc') as engine,

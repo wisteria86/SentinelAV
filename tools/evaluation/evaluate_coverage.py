@@ -1,5 +1,5 @@
 # Purpose: Evaluate inert transformation fixtures; never a real-malware efficacy score.
-# Works with: lab.corpus_evaluation, paths, platform.engine_policy, workspace
+# Works with: lab.corpus_evaluation, paths, platform.core.engine_policy, workspace
 # Used by: tests.unit.test_coverage_evaluation
 
 """Evaluate inert transformation fixtures; never a real-malware efficacy score."""
@@ -18,7 +18,7 @@ import zipfile
 import zlib
 from sentinelav.lab.corpus_evaluation import evaluate
 from sentinelav.paths import PROJECT_ROOT
-from sentinelav.platform.engine_policy import inspection_options
+from sentinelav.platform.core.engine_policy import inspection_options
 
 
 def fixture_cases():

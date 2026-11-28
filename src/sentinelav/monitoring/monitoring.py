@@ -1,7 +1,7 @@
 # Purpose: Bounded, read-only monitoring. No files are removed and no processes are stopped.
-# Works with: detection.inspection, monitoring.behavior, monitoring.event_sources, monitoring.monitor_loop,
-#   monitoring.process_telemetry
-# Used by: lab.runtime_job, monitoring.background, platform.windows_service, ui.protection
+# Works with: detection.inspection, monitoring.core.behavior, monitoring.core.event_sources, monitoring.core.monitor_loop,
+#   monitoring.core.process_telemetry
+# Used by: lab.runtime_job, monitoring.background, platform.windows_service, ui.core.protection
 
 """Bounded, read-only monitoring. No files are removed and no processes are stopped."""
 
@@ -17,13 +17,13 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 import psutil
 from sentinelav.detection.inspection import IsolatedScanner as Scanner
-from sentinelav.monitoring.behavior import BehaviorEngine
-from sentinelav.monitoring.process_telemetry import ProcessEvents, ProcessGraph
+from sentinelav.monitoring.core.behavior import BehaviorEngine
+from sentinelav.monitoring.core.process_telemetry import ProcessEvents, ProcessGraph
 
 
-from .monitor_loop import MonitorLoopMixin
+from .core.monitor_loop import MonitorLoopMixin
 
-from .event_sources import PendingFiles, Changes, SysmonReader
+from .core.event_sources import PendingFiles, Changes, SysmonReader
 
 RETRY_LIMIT = 5
 
@@ -67,14 +67,14 @@ class Monitor(MonitorLoopMixin):
         self.reported_process_event_drops = 0
         self.responder = None
         self.inspection_error = ''
-        from sentinelav.monitoring.sequences import BehaviorCorrelator
+        from sentinelav.monitoring.core.sequences import BehaviorCorrelator
 
         self.sequences = BehaviorCorrelator(self.emit)
         self.kernel_reader = None
         self.network_reputation = None
         self.artifact_updater = None
         self.change_monitor = None
-        from .health import MonitoringHealth
+        from .core.health import MonitoringHealth
 
         self.health = MonitoringHealth()
 
@@ -243,7 +243,7 @@ class Monitor(MonitorLoopMixin):
         )
         if not self.config.get('behavior'):
             return
-        from sentinelav.monitoring.sequences import parse_event
+        from sentinelav.monitoring.core.sequences import parse_event
 
         try:
             event = parse_event(row.get('Xml'))

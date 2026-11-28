@@ -1,5 +1,5 @@
 # Purpose: Verify that padded scripts and large Office files are still decoded instead of skipped.
-# Works with: detection.content_analysis, detection.documents, detection.archive_formats
+# Works with: detection.helpers.content_analysis, detection.helpers.documents, detection.helpers.archive_formats
 
 """Verify that padded scripts and large Office files are still decoded instead of skipped."""
 
@@ -9,9 +9,9 @@ import random
 import unittest
 import zipfile
 
-from sentinelav.detection.archive_formats import rar_members
-from sentinelav.detection.content_analysis import normalized_variants
-from sentinelav.detection.documents import macro_sources
+from sentinelav.detection.helpers.archive_formats import rar_members
+from sentinelav.detection.helpers.content_analysis import normalized_variants
+from sentinelav.detection.helpers.documents import macro_sources
 
 
 class LargeContentTests(unittest.TestCase):

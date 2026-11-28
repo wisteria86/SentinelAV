@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert '2 full-feed hashes' in window.definition_health.text()
             assert 'not configured' in window.definition_health.text()
             with patch(
-                'sentinelav.ui.updates_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.updates_ui.QFileDialog.getOpenFileName',
                 return_value=(str(recent), 'CSV'),
             ):
                 window.begin_definition_update('recent')
@@ -76,7 +76,7 @@ with tempfile.TemporaryDirectory() as temp:
             wait(lambda: window.definition_worker is None)
             assert load_active(root / 'signature-data')['unique_sha256'] == 2
             with patch(
-                'sentinelav.ui.updates_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.updates_ui.QFileDialog.getOpenFileName',
                 return_value=(str(corrections), 'JSON'),
             ):
                 window.begin_definition_update('corrections')
@@ -95,7 +95,7 @@ with tempfile.TemporaryDirectory() as temp:
             # Invalid signed-package structure fails without altering active definitions.
             before = (root / 'signature-data/active.json').read_bytes()
             with patch(
-                'sentinelav.ui.updates_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.updates_ui.QFileDialog.getOpenFileName',
                 return_value=(str(archive), 'ZIP'),
             ):
                 window.begin_definition_update('signed')
@@ -103,7 +103,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Update failed' in window.definition_result.text()
             assert (root / 'signature-data/active.json').read_bytes() == before
             with patch(
-                'sentinelav.ui.updates_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.updates_ui.QFileDialog.getOpenFileName',
                 return_value=(str(recent), 'CSV'),
             ):
                 window.begin_definition_update('recent')

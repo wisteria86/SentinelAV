@@ -1,10 +1,10 @@
 # Purpose: Verify test anomaly model behavior using controlled fixtures.
-# Works with: detection.anomaly_model, tools.evaluation.calibrate_static
+# Works with: detection.helpers.anomaly_model, tools.evaluation.calibrate_static
 # Used by: tests.unit.test_analysis_artifacts
 
 import copy
 import unittest
-from sentinelav.detection.anomaly_model import FEATURES, fit_evaluate, score
+from sentinelav.detection.helpers.anomaly_model import FEATURES, fit_evaluate, score
 from tools.evaluation.calibrate_static import collect
 
 

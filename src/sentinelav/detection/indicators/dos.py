@@ -1,5 +1,5 @@
 # Purpose: Static traits of DOS executables, a format with little structure to analyze.
-# Works with: detection.threat_score
+# Works with: detection.helpers.threat_score
 # Used by: detection.indicators
 
 """Static traits of DOS executables, a format with little structure to analyze.
@@ -9,7 +9,7 @@ but detection here is inherently weak. Evaluations report that limit openly.
 """
 
 import re
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 DOS_CALL = b'\xcd\x21'
 DISK_WRITE = (b'\xcd\x26', b'\xcd\x13')

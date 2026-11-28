@@ -53,7 +53,7 @@ if (native_runtime/'emulator-build.json').exists():
         (str(native_runtime/name),'licenses/unicorn') for name in
         ('COPYING','COPYING.LGPL2','COPYING_GLIB','unicorn-corresponding-source.zip')]
 sys.path.insert(0,str(root/'src'))
-from sentinelav.detection.definition_paths import binaries as clamav_binaries,signature_data_dir
+from sentinelav.detection.helpers.definition_paths import binaries as clamav_binaries,signature_data_dir
 feed_manifest=signature_data_dir(resources)/'active.json'
 if feed_manifest.exists():
     if feed_manifest.stat().st_size>16384:
@@ -95,7 +95,7 @@ if clamav:
     shutil.rmtree(target,ignore_errors=True)
     shutil.copytree(clamav['home'],target,ignore=shutil.ignore_patterns('*.pdb','*.lib','UserManual','conf_examples'))
 # capa (Mandiant, Apache-2.0) is a standalone program that SentinelAV runs on undecided Windows programs.
-from sentinelav.detection.capa_engine import locate as capa_locate
+from sentinelav.detection.helpers.capa_engine import locate as capa_locate
 capa=capa_locate()
 if capa:
     import shutil
@@ -103,7 +103,7 @@ if capa:
     shutil.rmtree(target,ignore_errors=True);target.mkdir(parents=True)
     shutil.copy2(capa,target/'capa.exe')
 # 7-Zip (Igor Pavlov, LGPL-2.1 with the unRAR restriction) opens RAR archives for inspection.
-from sentinelav.detection.archive_formats import seven_zip_tool
+from sentinelav.detection.helpers.archive_formats import seven_zip_tool
 seven=seven_zip_tool()
 if seven:
     import shutil

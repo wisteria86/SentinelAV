@@ -52,8 +52,8 @@ with tempfile.TemporaryDirectory() as temp:
         window.schedule_kind.setCurrentText('Folder')
         window.schedule_folder.setText(str(files))
         with (
-            patch('sentinelav.ui.finalization.set_startup') as startup,
-            patch('sentinelav.ui.finalization.register_schedule') as register,
+            patch('sentinelav.ui.core.finalization.set_startup') as startup,
+            patch('sentinelav.ui.core.finalization.register_schedule') as register,
             patch.object(QMessageBox, 'information'),
         ):
             window.apply_schedule()

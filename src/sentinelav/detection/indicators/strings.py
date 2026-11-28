@@ -1,11 +1,11 @@
 # Purpose: Bounded string extraction and generic behavior indicators for compiled content.
-# Works with: detection.threat_score
+# Works with: detection.helpers.threat_score
 # Used by: detection.indicators, detection.indicators.unix, detection.indicators.dos
 
 """Bounded string extraction and generic behavior indicators for compiled content."""
 
 import re
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 MAX_SCAN = 16 * 1024 * 1024
 ASCII = re.compile(rb'[\x20-\x7e]{5,512}')

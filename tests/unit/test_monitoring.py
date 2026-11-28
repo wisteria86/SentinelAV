@@ -1,5 +1,5 @@
 # Purpose: Verify test monitoring behavior using controlled fixtures.
-# Works with: monitoring.behavior, monitoring.monitoring, paths, tests.unit.test_sequences
+# Works with: monitoring.core.behavior, monitoring.monitoring, paths, tests.unit.test_sequences
 # Used by: unittest discovery
 
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
@@ -162,7 +162,7 @@ class MonitoringTests(unittest.TestCase):
 
     def test_structured_sysmon_records_reach_sequence_alerts_and_respect_exclusions(self):
         from tests.unit.test_sequences import event, xml_event
-        from sentinelav.monitoring.behavior import BehaviorEngine
+        from sentinelav.monitoring.core.behavior import BehaviorEngine
 
         events = []
         config = self.config(ROOT)
@@ -226,7 +226,7 @@ class MonitoringTests(unittest.TestCase):
                     'sentinelav.monitoring.monitoring.psutil.net_connections',
                     return_value=[connection],
                 ),
-                patch('sentinelav.monitoring.health.psutil.Process') as process,
+                patch('sentinelav.monitoring.core.health.psutil.Process') as process,
             ):
                 process.return_value.create_time.return_value = 1
                 monitor.run()

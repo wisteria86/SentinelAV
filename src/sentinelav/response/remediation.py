@@ -1,7 +1,7 @@
 # Purpose: Stored, expiring, evidence-linked cleanup and conflict-checked manual recovery.
 # Works with: data.contracts, monitoring.app_changes, response.remediation_backend,
 #   response.remediation_resources, response.response
-# Used by: lab.qualification.cleanup_fixtures, lab.qualification.guest_inventory, monitoring.change_monitor,
+# Used by: lab.qualification.cleanup_fixtures, lab.qualification.guest_inventory, monitoring.core.change_monitor,
 #   platform.remediation_broker
 
 """Stored, expiring, evidence-linked cleanup and conflict-checked manual recovery."""

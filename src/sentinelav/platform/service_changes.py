@@ -1,7 +1,7 @@
 # Purpose: Encrypted, owner-readable views of service-owned change records.
-# Works with: data.contracts, platform.integrity, platform.windows_identity, platform.windows_service,
+# Works with: data.contracts, platform.core.integrity, platform.core.windows_identity, platform.windows_service,
 #   response.response
-# Used by: monitoring.change_monitor, platform.remediation_broker, ui.app_changes_ui,
+# Used by: monitoring.core.change_monitor, platform.remediation_broker, ui.core.app_changes_ui,
 #   tests.unit.test_remediation_broker
 
 """Encrypted, owner-readable views of service-owned change records.
@@ -16,7 +16,7 @@ from pathlib import Path
 import time
 import uuid
 from sentinelav.data.contracts import canonical, validate_change
-from sentinelav.platform.integrity import verify_windows_acl
+from sentinelav.platform.core.integrity import verify_windows_acl
 from sentinelav.response.response import dpapi
 from sentinelav.workspace import unlinked
 
@@ -70,7 +70,7 @@ def load_view(fresh=False):
     older than 90 seconds is refused.
     """
     from sentinelav.platform.windows_service import service_paths
-    from sentinelav.platform.windows_identity import current_sid
+    from sentinelav.platform.core.windows_identity import current_sid
 
     base, data = service_paths()
     target = unlinked(data / 'app-changes-view.bin')

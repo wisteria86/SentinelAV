@@ -1,5 +1,5 @@
 # Purpose: Verify test defense layers behavior using controlled fixtures.
-# Works with: detection.archive_inspection, detection.engine, detection.inspection, detection.memory_inspection,
+# Works with: detection.core.archive_inspection, detection.engine, detection.inspection, detection.helpers.memory_inspection,
 #   detection.preexecution
 # Used by: unittest discovery
 
@@ -16,14 +16,14 @@ import queue
 from types import SimpleNamespace
 from unittest.mock import patch
 from zipfile import ZipFile, ZIP_DEFLATED
-from sentinelav.detection.archive_inspection import inspect_zip
+from sentinelav.detection.core.archive_inspection import inspect_zip
 from sentinelav.detection.engine import Scanner
 from sentinelav.detection.inspection import IsolatedScanner
-from sentinelav.monitoring.process_telemetry import ProcessGraph
+from sentinelav.monitoring.core.process_telemetry import ProcessGraph
 from sentinelav.response.auto_response import eligibility
 from sentinelav.detection.preexecution import verdict
-from sentinelav.platform.integrity import verify_installation, file_hash
-from sentinelav.detection.yara_rules import compile_rules
+from sentinelav.platform.core.integrity import verify_installation, file_hash
+from sentinelav.detection.core.yara_rules import compile_rules
 
 ROOT = RESOURCE_ROOT
 
@@ -196,7 +196,7 @@ class IsolatedWorkerTests(unittest.TestCase):
             self.assertIsNotNone(process.poll())
 
     def test_memory_rejects_system_pid_before_reading(self):
-        from sentinelav.detection.memory_inspection import inspect_memory
+        from sentinelav.detection.helpers.memory_inspection import inspect_memory
 
         with self.assertRaises(ValueError):
             inspect_memory(4, 1, lambda data: ([], [], []))

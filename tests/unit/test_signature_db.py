@@ -1,5 +1,5 @@
 # Purpose: Verify test signature db behavior using controlled fixtures.
-# Works with: detection.engine, detection.signature_db, updates.hash_archive
+# Works with: detection.engine, detection.core.signature_db, updates.hash_archive
 # Used by: unittest discovery
 
 import hashlib
@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile, ZIP_DEFLATED
 from sentinelav.detection.engine import Scanner
-from sentinelav.detection.signature_db import SignatureIndex
+from sentinelav.detection.core.signature_db import SignatureIndex
 from sentinelav.updates.hash_archive import import_archive
 
 

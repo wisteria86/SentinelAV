@@ -1,5 +1,5 @@
 # Purpose: Verify the decoders and rules added for script, Java, RTF, payload and compiled-Python gaps, on inert fixtures.
-# Works with: detection.script_decoders, detection.indicators
+# Works with: detection.helpers.script_decoders, detection.indicators
 
 """Verify the decoders and rules added for script, Java, RTF, payload and compiled-Python gaps, on inert fixtures."""
 
@@ -7,10 +7,10 @@ import io
 import unittest
 import zipfile
 
-from sentinelav.detection.file_types import classify
+from sentinelav.detection.helpers.file_types import classify
 from sentinelav.detection.indicators import collect, documents, mobile, payloads, scripts
-from sentinelav.detection.script_decoders import batch_expand, powershell_normalize
-from sentinelav.detection.threat_score import score
+from sentinelav.detection.helpers.script_decoders import batch_expand, powershell_normalize
+from sentinelav.detection.helpers.threat_score import score
 
 
 def codes(items):

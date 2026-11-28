@@ -1,5 +1,5 @@
 # Purpose: Install the original authors' pinned nonexecutable PE model weights locally.
-# Works with: detection.pe_classifier, detection.pe_ensemble, paths, response.response, updates.analysis_trust
+# Works with: detection.helpers.pe_classifier, detection.helpers.pe_ensemble, paths, response.response, updates.analysis_trust
 # Used by: the Python module loader or CLI entry point
 
 """Install the original authors' pinned nonexecutable PE model weights locally."""
@@ -29,7 +29,7 @@ FILES = {
 
 def main():
     import lightgbm
-    from sentinelav.detection.pe_classifier import FEATURE_REVISION
+    from sentinelav.detection.helpers.pe_classifier import FEATURE_REVISION
 
     folder = Workspace().area('models') / 'ember2024-published'
     folder.mkdir(exist_ok=True)
@@ -92,7 +92,7 @@ def main():
 
 def sign_and_activate(model, kind, folder):
     """Sign a validated ensemble payload with the local research key and make it the active artifact of this kind."""
-    from sentinelav.detection.pe_ensemble import validate
+    from sentinelav.detection.helpers.pe_ensemble import validate
 
     validate(model)
     keypath = Workspace().area('models') / 'ember2024-published' / 'publisher-private.dpapi'

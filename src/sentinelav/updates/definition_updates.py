@@ -1,6 +1,6 @@
 # Purpose: Versioned definition updates, reviewed corrections, and explicit rollback.
 # Works with: paths, updates.hash_archive, updates.hash_snapshots, updates.update_envelope
-# Used by: ui.updates_ui, updates.hash_archive, tests.ui.verify_updates_ui, tests.unit.test_definition_updates
+# Used by: ui.core.updates_ui, updates.hash_archive, tests.ui.verify_updates_ui, tests.unit.test_definition_updates
 
 """Versioned definition updates, reviewed corrections, and explicit rollback.
 
@@ -231,7 +231,7 @@ def main():
     parser.add_argument('action', choices=['status', 'recent', 'signed', 'corrections', 'rollback'])
     parser.add_argument('file', nargs='?', type=Path)
     args = parser.parse_args()
-    from sentinelav.detection.definition_paths import signature_data_dir
+    from sentinelav.detection.helpers.definition_paths import signature_data_dir
 
     folder = signature_data_dir(ROOT)
     if args.action in ('recent', 'signed', 'corrections') and args.file is None:

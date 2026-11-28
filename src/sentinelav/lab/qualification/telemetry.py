@@ -1,5 +1,5 @@
 # Purpose: Independent guest observers. No event absence is a benign verdict.
-# Works with: monitoring.kernel_telemetry, monitoring.sequences
+# Works with: monitoring.helpers.kernel_telemetry, monitoring.core.sequences
 # Used by: lab.qualification.guest_lifecycle, lab.qualification.guest_telemetry
 
 """Independent guest observers. No event absence is a benign verdict."""
@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from sentinelav.monitoring.sequences import parse_event
+from sentinelav.monitoring.core.sequences import parse_event
 
 
 @dataclass
@@ -175,7 +175,7 @@ class TelemetrySession:
         self.started = time.time()
         self.registry_probe = None
         self.sysmon = SysmonObserver()
-        from sentinelav.monitoring.kernel_telemetry import KernelFileEvents
+        from sentinelav.monitoring.helpers.kernel_telemetry import KernelFileEvents
 
         self.etw = KernelFileEvents(collector, probe_pid=probe_pid)
         self.thread = threading.Thread(target=self.collect, daemon=True)

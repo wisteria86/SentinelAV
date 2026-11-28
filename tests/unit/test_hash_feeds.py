@@ -1,5 +1,5 @@
 # Purpose: Verify the MD5 hash list and the code-signing certificate blocklist on generated inert data.
-# Works with: detection.md5_feed, detection.cert_blocklist, detection.threat_score
+# Works with: detection.core.md5_feed, detection.helpers.cert_blocklist, detection.helpers.threat_score
 
 """Verify the MD5 hash list and the code-signing certificate blocklist on generated inert data."""
 
@@ -12,9 +12,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from sentinelav.detection import cert_blocklist, md5_feed
-from sentinelav.detection.file_analysis import signature_items
-from sentinelav.detection.threat_score import score
+from sentinelav.detection.core import md5_feed
+from sentinelav.detection.helpers import cert_blocklist
+from sentinelav.detection.core.file_analysis import signature_items
+from sentinelav.detection.helpers.threat_score import score
 
 
 def certificate():

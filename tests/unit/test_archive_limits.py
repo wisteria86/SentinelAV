@@ -1,5 +1,5 @@
 # Purpose: Keep archive reading bounded, and a damaged or hostile member from hiding other members.
-# Works with: detection.archive_inspection
+# Works with: detection.core.archive_inspection
 # Used by: test.ps1
 
 """Keep archive reading bounded, and a damaged or hostile member from hiding other members."""
@@ -8,7 +8,7 @@ import io
 import unittest
 import zipfile
 
-from sentinelav.detection.archive_inspection import inspect_archive
+from sentinelav.detection.core.archive_inspection import inspect_archive
 
 
 def zipped(*entries):

@@ -1,12 +1,12 @@
 # Purpose: Verify the Windows Script Host dropper rules on inert text, and that ordinary web and Node.js code stays clean.
-# Works with: detection.indicators.scripts, detection.threat_score
+# Works with: detection.indicators.scripts, detection.helpers.threat_score
 
 """Verify the Windows Script Host dropper rules on inert text, and that ordinary web and Node.js code stays clean."""
 
 import unittest
 
 from sentinelav.detection.indicators.scripts import indicators
-from sentinelav.detection.threat_score import score
+from sentinelav.detection.helpers.threat_score import score
 
 OBFUSCATED = b'var ' + b';'.join(b'_0x%04x=1' % i for i in range(40))
 

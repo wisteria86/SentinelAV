@@ -1,7 +1,7 @@
 # Purpose: Shared paths for source checkouts and PyInstaller bundles.
 # Works with: sibling modules in sentinelav
-# Used by: detection.advanced_pipeline, detection.inspection, detection.memory_inspection,
-#   detection.neural_bytes
+# Used by: detection.core.advanced_pipeline, detection.inspection, detection.helpers.memory_inspection,
+#   detection.helpers.neural_bytes
 
 """Shared paths for source checkouts and PyInstaller bundles."""
 

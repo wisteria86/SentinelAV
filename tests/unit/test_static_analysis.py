@@ -1,5 +1,5 @@
 # Purpose: Inert headers exercise generic properties without malware/sample identifiers.
-# Works with: detection.engine, detection.file_formats, paths
+# Works with: detection.engine, detection.core.file_formats, paths
 # Used by: tests.unit.test_pe_imports
 
 """Inert headers exercise generic properties without malware/sample identifiers."""
@@ -8,7 +8,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
-from sentinelav.detection.file_formats import byte_statistics, pe_metadata, static_analysis
+from sentinelav.detection.core.file_formats import byte_statistics, pe_metadata, static_analysis
 from sentinelav.detection.engine import Scanner
 from sentinelav.paths import RESOURCE_ROOT
 

@@ -1,5 +1,5 @@
 # Purpose: Verify test background behavior using controlled fixtures.
-# Works with: data.storage, monitoring.background, paths, ui.background_ui
+# Works with: data.storage, monitoring.background, paths, ui.helpers.background_ui
 # Used by: unittest discovery
 
 from sentinelav.paths import RESOURCE_ROOT
@@ -192,13 +192,13 @@ class EngineLifecycleTests(unittest.TestCase):
                 host.store.db.close()
 
     def test_worker_surfaces_disconnection(self):
-        from sentinelav.ui.background_ui import BackgroundWorker
+        from sentinelav.ui.helpers.background_ui import BackgroundWorker
 
         worker = BackgroundWorker(Path('unused'), attach_only=True)
         errors = []
         worker.failed.connect(errors.append)
         with patch(
-            'sentinelav.ui.background_ui.request',
+            'sentinelav.ui.helpers.background_ui.request',
             side_effect=[
                 dict(state='Active', epoch='fixture', cursor=0),
                 ConnectionError('fixture disconnect'),

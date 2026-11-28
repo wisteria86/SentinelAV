@@ -1,5 +1,5 @@
 # Purpose: Explicit guest-only runtime orchestration. Never invoked by ordinary scanning.
-# Works with: detection.inspection, lab.corpus_evaluation, monitoring.monitoring, monitoring.sequences,
+# Works with: detection.inspection, lab.corpus_evaluation, monitoring.monitoring, monitoring.core.sequences,
 #   updates.artifacts
 # Used by: entrypoint, lab.qualification.guest_inventory, lab.qualification.guest_telemetry,
 #   tests.unit.test_runtime_guards
@@ -107,7 +107,7 @@ def run_job(job, *, _guest_check=None, _health_check=None):
         automatic_response=False,
     )
     from sentinelav.monitoring.monitoring import SysmonReader
-    from sentinelav.monitoring.sequences import BehaviorCorrelator, parse_event
+    from sentinelav.monitoring.core.sequences import BehaviorCorrelator, parse_event
 
     reader = SysmonReader()
     correlator = BehaviorCorrelator(lambda event: report['events'].append(event))

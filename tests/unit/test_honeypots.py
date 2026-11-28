@@ -1,5 +1,5 @@
 # Purpose: Verify decoy deployment, read and change detection, safe removal, and the network honeypot.
-# Works with: monitoring.honeypots
+# Works with: monitoring.helpers.honeypots
 
 """Verify decoy deployment, read and change detection, safe removal, and the network honeypot."""
 
@@ -10,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 
-from sentinelav.monitoring import honeypots
+from sentinelav.monitoring.helpers import honeypots
 
 
 def overwrite(path, data):

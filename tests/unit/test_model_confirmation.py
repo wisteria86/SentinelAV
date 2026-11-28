@@ -1,13 +1,13 @@
 # Purpose: Verify that a primary-model conviction needs the confirmation model's agreement.
-# Works with: detection.pe_ensemble, detection.file_analysis
+# Works with: detection.helpers.pe_ensemble, detection.core.file_analysis
 
 """Verify that a primary-model conviction needs the confirmation model's agreement."""
 
 import unittest
 from unittest import mock
 
-from sentinelav.detection import pe_ensemble
-from sentinelav.detection.file_analysis import _model_items
+from sentinelav.detection.helpers import pe_ensemble
+from sentinelav.detection.core.file_analysis import _model_items
 
 
 def scored(score):

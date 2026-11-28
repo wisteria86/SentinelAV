@@ -1,5 +1,5 @@
 # Purpose: Connect the native test harness to an inert, random local broker endpoint.
-# Works with: paths, platform.amsi_broker
+# Works with: paths, platform.core.amsi_broker
 # Used by: unittest discovery
 
 """Connect the native test harness to an inert, random local broker endpoint."""
@@ -16,7 +16,7 @@ import uuid
 from unittest.mock import patch
 
 from sentinelav.paths import PROJECT_ROOT, RESOURCE_ROOT
-from sentinelav.platform.amsi_broker import AmsiBroker
+from sentinelav.platform.core.amsi_broker import AmsiBroker
 
 harness = PROJECT_ROOT / 'artifacts/native/amsi/AmsiHarness.exe'
 if not harness.is_file():
@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory() as temp:
         if broker.error:
             raise AssertionError(broker.error)
         with patch(
-            'sentinelav.platform.amsi_broker.IsolatedScanner.scan_buffer',
+            'sentinelav.platform.core.amsi_broker.IsolatedScanner.scan_buffer',
             return_value=dict(kind='buffer', detected=False, complete=False),
         ):
             subprocess.run(
@@ -51,7 +51,8 @@ with tempfile.TemporaryDirectory() as temp:
             return dict(kind='buffer', detected=False, complete=True)
 
         with patch(
-            'sentinelav.platform.amsi_broker.IsolatedScanner.scan_buffer', side_effect=slow_result
+            'sentinelav.platform.core.amsi_broker.IsolatedScanner.scan_buffer',
+            side_effect=slow_result,
         ):
             subprocess.run(
                 [str(harness), '--timeout', endpoint, str(os.getpid())], check=True, timeout=10

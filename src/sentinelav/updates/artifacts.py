@@ -1,6 +1,6 @@
 # Purpose: Signed JSON model/reputation/policy distribution with explicit activation.
-# Works with: detection.classifier, detection.fusion, detection.reputation
-# Used by: detection.advanced_pipeline, entrypoint, lab.qualification.features, lab.qualification.inventories
+# Works with: detection.helpers.classifier, detection.helpers.fusion, detection.helpers.reputation
+# Used by: detection.core.advanced_pipeline, entrypoint, lab.qualification.features, lab.qualification.inventories
 
 """Signed JSON model/reputation/policy distribution with explicit activation."""
 
@@ -86,15 +86,15 @@ def verify(envelope, trust, kind, now=None):
         base64.b64decode(envelope['signature'], validate=True), canonical(manifest)
     )
     if kind in ('model', 'confirm_model'):
-        from sentinelav.detection.classifier import validate_model
+        from sentinelav.detection.helpers.classifier import validate_model
 
         validate_model(payload)
     elif kind == 'reputation':
-        from sentinelav.detection.reputation import ReputationIndex
+        from sentinelav.detection.helpers.reputation import ReputationIndex
 
         ReputationIndex(payload, manifest)
     elif kind == 'policy':
-        from sentinelav.detection.fusion import validate_policy
+        from sentinelav.detection.helpers.fusion import validate_policy
 
         validate_policy(payload)
     return payload

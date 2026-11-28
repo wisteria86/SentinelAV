@@ -1,6 +1,6 @@
 # Purpose: Route bytes to per-format static indicator modules. Nothing here executes content.
-# Works with: detection.threat_score, detection.indicators.pe, strings, scripts, documents, unix, mobile, dos, boot
-# Used by: detection.file_analysis
+# Works with: detection.helpers.threat_score, detection.indicators.pe, strings, scripts, documents, unix, mobile, dos, boot
+# Used by: detection.core.file_analysis
 
 """Route bytes to per-format static indicator modules. Nothing here executes content."""
 

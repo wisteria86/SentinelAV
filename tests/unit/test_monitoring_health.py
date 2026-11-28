@@ -1,11 +1,11 @@
 # Purpose: Prevent lost telemetry and reused PIDs from masquerading as reliable coverage.
-# Works with: monitoring.health; monitoring.monitoring
+# Works with: monitoring.core.health; monitoring.monitoring
 
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 import psutil
-from sentinelav.monitoring.health import MonitoringHealth, verified_network_processes
+from sentinelav.monitoring.core.health import MonitoringHealth, verified_network_processes
 
 
 class MonitoringHealthTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class MonitoringHealthTests(unittest.TestCase):
                 raise psutil.NoSuchProcess(pid)
             return SimpleNamespace(create_time=lambda: 200 if pid == 2 else 100)
 
-        with patch('sentinelav.monitoring.health.psutil.Process', side_effect=process):
+        with patch('sentinelav.monitoring.core.health.psutil.Process', side_effect=process):
             verified, omitted = verified_network_processes(
                 connections, snapshot, [], lambda p, _: p == 'app4'
             )

@@ -1,5 +1,5 @@
 # Purpose: Check the proposal's remaining items end to end on harmless fixtures, with nothing mocked.
-# Works with: monitoring.monitoring, monitoring.behavior, response.response, platform.runtime, data.reporting
+# Works with: monitoring.monitoring, monitoring.core.behavior, response.response, platform.runtime, data.reporting
 # Used by: the CLI and docs/deliverables/RUNNING.md
 
 """Check the proposal's remaining items end to end on harmless fixtures, with nothing mocked.
@@ -22,7 +22,7 @@ import time
 
 from sentinelav.data.reporting import render_report, snapshot
 from sentinelav.data.storage import Store
-from sentinelav.monitoring.behavior import create_canary
+from sentinelav.monitoring.core.behavior import create_canary
 from sentinelav.monitoring.monitoring import Monitor
 from sentinelav.paths import PROJECT_ROOT, RESOURCE_ROOT
 from sentinelav.platform.runtime import ZONE, run_scheduled

@@ -1,5 +1,5 @@
 # Purpose: Safe behavioral-rule evaluation; no malware, network traffic or process response.
-# Works with: lab.lab, monitoring.behavior, paths
+# Works with: lab.lab, monitoring.core.behavior, paths
 # Used by: tests.unit.test_advanced_evaluation
 
 """Safe behavioral-rule evaluation; no malware, network traffic or process response."""
@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 import uuid
 from sentinelav.lab.lab import SimulationRunner, PROFILES
-from sentinelav.monitoring.behavior import BehaviorEngine, create_canary
+from sentinelav.monitoring.core.behavior import BehaviorEngine, create_canary
 from sentinelav.paths import PROJECT_ROOT, RESOURCE_ROOT
 
 

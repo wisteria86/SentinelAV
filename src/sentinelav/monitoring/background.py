@@ -1,5 +1,5 @@
 # Purpose: Per-user background engine. Local JSON IPC; never an elevated service.
-# Works with: data.storage, monitoring.agent_protocol, monitoring.monitoring, paths
+# Works with: data.storage, monitoring.core.agent_protocol, monitoring.monitoring, paths
 # Used by: entrypoint, lab.qualification.guest_lifecycle, lab.qualification.guest_support,
 #   lab.qualification.guest_telemetry
 
@@ -32,7 +32,7 @@ MAX_MESSAGE = 128 * 1024
 COMMANDS = {'status', 'start', 'stop', 'poll', 'shutdown'}
 
 
-from .agent_protocol import endpoint, decode, request, configuration, launch
+from .core.agent_protocol import endpoint, decode, request, configuration, launch
 
 
 class EngineHost(QObject):

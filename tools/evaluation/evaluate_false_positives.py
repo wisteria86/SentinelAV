@@ -1,5 +1,5 @@
 # Purpose: Measure false positives on installed software, split by product. Reads files and runs nothing.
-# Works with: detection.inspection, detection.trust, paths, workspace
+# Works with: detection.inspection, detection.helpers.trust, paths, workspace
 # Used by: the CLI, tests.unit.test_false_positive_evaluation
 
 """Measure false positives on installed software, split by product. Reads files and runs nothing.
@@ -172,7 +172,7 @@ def upper_bound(failures, trials, confidence=0.95):
 
 def evaluate(chosen, budget):
     from sentinelav.detection.inspection import IsolatedScanner
-    from sentinelav.detection.trust import signature_status
+    from sentinelav.detection.helpers.trust import signature_status
     from sentinelav.paths import RESOURCE_ROOT
 
     scanner = IsolatedScanner(
@@ -292,7 +292,7 @@ def main(argv=None):
     chosen, products = select(roots, args.split, args.per_product)
     print(f'{args.split}: {products} products, {len(chosen)} files selected', flush=True)
     # Measure the product as shipped: ClamAV signatures are the layer most likely to flag clean software.
-    from sentinelav.detection.clamav_engine import ensure_service
+    from sentinelav.detection.core.clamav_engine import ensure_service
 
     service, problem = ensure_service()
     print('ClamAV:', problem or 'running', flush=True)

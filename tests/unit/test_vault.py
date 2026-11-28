@@ -1,5 +1,5 @@
 # Purpose: Verify the streaming vault, one-step removal and the automatic quarantine policy.
-# Works with: response.vault, response.response, response.auto_response, monitoring.behavior, monitoring.event_sources
+# Works with: response.vault, response.response, response.auto_response, monitoring.core.behavior, monitoring.core.event_sources
 # Used by: test.ps1
 
 """Verify the streaming vault, one-step removal and the automatic quarantine policy. Fixtures are harmless."""
@@ -11,8 +11,8 @@ import unittest
 from collections import namedtuple
 from pathlib import Path
 
-from sentinelav.monitoring.behavior import BehaviorEngine
-from sentinelav.monitoring.event_sources import PendingFiles, still_downloading
+from sentinelav.monitoring.core.behavior import BehaviorEngine
+from sentinelav.monitoring.core.event_sources import PendingFiles, still_downloading
 from sentinelav.response.auto_response import eligibility, policy_for
 from sentinelav.response.response_files import dpapi
 from sentinelav.response.vault import CHUNK, encrypt_stream, plain_digest, read_plain

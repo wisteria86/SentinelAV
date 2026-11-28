@@ -1,5 +1,5 @@
 # Purpose: Verify test signature free behavior using controlled fixtures.
-# Works with: detection.engine, detection.inspection, lab.corpus_evaluation, paths, platform.engine_policy
+# Works with: detection.engine, detection.inspection, lab.corpus_evaluation, paths, platform.core.engine_policy
 # Used by: unittest discovery
 
 import base64
@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 from sentinelav.detection.engine import Scanner
-from sentinelav.platform.engine_policy import inspection_options
+from sentinelav.platform.core.engine_policy import inspection_options
 from sentinelav.paths import RESOURCE_ROOT
 
 

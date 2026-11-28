@@ -1,5 +1,5 @@
 # Purpose: Reproduce the pinned MalConv2 tensor-only runtime artifact (no samples).
-# Works with: detection.neural_bytes, paths, workspace
+# Works with: detection.helpers.neural_bytes, paths, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Reproduce the pinned MalConv2 tensor-only runtime artifact (no samples)."""
@@ -18,7 +18,7 @@ CHECKPOINT_SHA = '28ea9a22e2389abaff7559ca1e78be908b7a43fb4cd3e56148d34dbc55f29e
 def main():
     import numpy as np
     import torch
-    from sentinelav.detection.neural_bytes import WEIGHTS_SHA256
+    from sentinelav.detection.helpers.neural_bytes import WEIGHTS_SHA256
 
     folder = Workspace().area('models') / 'malconv2'
     folder.mkdir(exist_ok=True)

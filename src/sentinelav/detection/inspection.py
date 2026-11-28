@@ -1,6 +1,6 @@
 # Purpose: Manage isolated scan workers and their bounded JSON exchanges.
-# Works with: detection.buffer_scan, detection.inspection_protocol, detection.inspection_worker,
-#   detection.worker_limits, paths
+# Works with: detection.core.buffer_scan, detection.core.inspection_protocol, detection.core.inspection_worker,
+#   detection.core.worker_limits, paths
 # Used by: entrypoint, lab.advanced_check, lab.corpus_evaluation, lab.qualification.corpus_inputs
 
 """JSON-only scan worker with Windows job limits and bounded transport.
@@ -8,7 +8,7 @@
 Fault/resource isolation, not a VM or an AppContainer security sandbox.
 """
 
-from .inspection_protocol import MAX_LINE, MAX_REQUEST
+from .core.inspection_protocol import MAX_LINE, MAX_REQUEST
 from sentinelav.paths import RESOURCE_ROOT, PROJECT_ROOT
 import ctypes
 import base64
@@ -23,8 +23,8 @@ import threading
 import time
 
 
-from .worker_limits import WindowsJob
-from .inspection_worker import worker_main
+from .core.worker_limits import WindowsJob
+from .core.inspection_worker import worker_main
 
 PER_FILE_SECONDS = 180
 MAX_WORKER_RESUMES = 64
@@ -177,7 +177,7 @@ class IsolatedScanner:
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
         )
         try:
-            from sentinelav.platform.engine_policy import inspection_options
+            from sentinelav.platform.core.engine_policy import inspection_options
 
             effective = inspection_options(self.config.get('options') or {})
             # capa runs as one extra child process with its own memory needs, so its worker gets room for it.
@@ -420,7 +420,7 @@ class IsolatedScanner:
 
     def scan_buffer(self, content, cancelled=lambda: False):
         """Ask the worker to scan a block of bytes (at most 1 MiB)."""
-        from sentinelav.detection.buffer_scan import MAX_BUFFER
+        from sentinelav.detection.core.buffer_scan import MAX_BUFFER
 
         try:
             if not isinstance(content, bytes):

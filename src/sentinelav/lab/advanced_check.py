@@ -1,5 +1,5 @@
 # Purpose: Safe packaged analyzer integration check; no fixture is executed by Windows.
-# Works with: detection.inspection, paths, platform.emulation_support
+# Works with: detection.inspection, paths, platform.core.emulation_support
 # Used by: entrypoint, tests.unit.test_learned_detectors, tests.unit.test_speakeasy_backend
 
 """Safe packaged analyzer integration check; no fixture is executed by Windows."""
@@ -68,7 +68,7 @@ def check_advanced(directory):
             windows_fixture_execution=False,
         )
     import unicorn
-    from sentinelav.platform.emulation_support import compatibility
+    from sentinelav.platform.core.emulation_support import compatibility
 
     support = compatibility(unicorn.__version__)
     if not support['available']:

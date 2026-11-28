@@ -1,8 +1,8 @@
 # Purpose: Compose the reference-design page mixins and re-export shared widgets.
-# Works with: ui.design_components, ui.design_dashboard, ui.design_reports, ui.design_scan, ui.design_settings
-# Used by: entrypoint, ui.application, ui.lab_ui, ui.protection
+# Works with: ui.core.design_components, ui.core.design_dashboard, ui.core.design_reports, ui.core.design_scan, ui.core.design_settings
+# Used by: entrypoint, ui.application, ui.core.lab_ui, ui.core.protection
 
-from .design_components import (
+from .core.design_components import (
     InactiveSwitch,
     PathLabel,
     configure_app,
@@ -12,11 +12,11 @@ from .design_components import (
     STYLE,
     PATHS,
 )
-from .design_shell import DesignShellMixin
-from .design_dashboard import DashboardMixin
-from .design_scan import ScanPageMixin
-from .design_reports import ReportsPageMixin
-from .design_settings import SettingsPageMixin
+from .core.design_shell import DesignShellMixin
+from .core.design_dashboard import DashboardMixin
+from .core.design_scan import ScanPageMixin
+from .core.design_reports import ReportsPageMixin
+from .core.design_settings import SettingsPageMixin
 
 
 class DesignMixin(

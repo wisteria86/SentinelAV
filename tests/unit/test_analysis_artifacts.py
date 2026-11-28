@@ -1,5 +1,5 @@
 # Purpose: Verify test analysis artifacts behavior using controlled fixtures.
-# Works with: detection.advanced_pipeline, detection.anomaly_model, detection.classifier,
+# Works with: detection.core.advanced_pipeline, detection.helpers.anomaly_model, detection.helpers.classifier,
 #   updates.analysis_trust, updates.artifacts
 # Used by: tests.ui.verify_analysis_ui
 
@@ -14,9 +14,9 @@ from pathlib import Path
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from sentinelav.detection.anomaly_model import FEATURES
-from sentinelav.detection.classifier import train, predict
-from sentinelav.detection.advanced_pipeline import AdvancedPipeline
+from sentinelav.detection.helpers.anomaly_model import FEATURES
+from sentinelav.detection.helpers.classifier import train, predict
+from sentinelav.detection.core.advanced_pipeline import AdvancedPipeline
 from sentinelav.updates.artifacts import canonical, verify, activate, active
 from sentinelav.updates.analysis_trust import update_pin
 from tests.unit.test_anomaly_model import row

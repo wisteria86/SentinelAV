@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory() as temp:
         window.navigate(6)
         assert window.buttons[6].isChecked()
         with patch(
-            'sentinelav.ui.lab_ui_workers.capabilities',
+            'sentinelav.ui.helpers.lab_ui_workers.capabilities',
             return_value=dict(
                 hyperv_tools=False, vm_service='Not configured', note='No containment claimed.'
             ),

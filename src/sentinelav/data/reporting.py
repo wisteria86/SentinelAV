@@ -1,6 +1,6 @@
 # Purpose: Local exports. Escape HTML and neutralize spreadsheet formula prefixes.
 # Works with: platform.runtime
-# Used by: entrypoint, ui.finalization, tests.unit.test_finalization
+# Used by: entrypoint, ui.core.finalization, tests.unit.test_finalization
 
 """Local exports. Escape HTML and neutralize spreadsheet formula prefixes."""
 

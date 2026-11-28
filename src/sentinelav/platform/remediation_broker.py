@@ -1,6 +1,6 @@
 # Purpose: One-shot UAC broker: protected records, independent verdicts, fixed actions.
-# Works with: data.contracts, detection.inspection, monitoring.app_changes, paths, platform.amsi_broker
-# Used by: entrypoint, ui.app_changes_ui, tests.unit.test_remediation_broker
+# Works with: data.contracts, detection.inspection, monitoring.app_changes, paths, platform.core.amsi_broker
+# Used by: entrypoint, ui.core.app_changes_ui, tests.unit.test_remediation_broker
 
 """One-shot UAC broker: protected records, independent verdicts, fixed actions.
 
@@ -20,7 +20,7 @@ import sys
 import time
 import uuid
 from sentinelav.data.contracts import canonical
-from sentinelav.platform.integrity import verify_installation, verify_windows_acl
+from sentinelav.platform.core.integrity import verify_installation, verify_windows_acl
 from sentinelav.response.response import dpapi
 from sentinelav.workspace import unlinked
 
@@ -55,7 +55,7 @@ def protected_root(owner):
 
 def secure_create(path, directory=False, owner=None):
     """Assign administrative ownership atomically, before any record exists."""
-    from sentinelav.platform.amsi_broker import PipeAPI
+    from sentinelav.platform.core.amsi_broker import PipeAPI
 
     api = PipeAPI(__import__('threading').Event())
     descriptor = ctypes.c_void_p()
@@ -217,7 +217,7 @@ def require_deployment():
         raise ValueError('Use the protected protection-service installation')
     verify_installation(executable.parent, protected=True)
     from sentinelav.platform.windows_service import service_paths
-    from sentinelav.platform.windows_identity import current_sid
+    from sentinelav.platform.core.windows_identity import current_sid
 
     base, _ = service_paths()
     policy = unlinked(base / 'policy.json')
@@ -370,7 +370,7 @@ def run(key):
 def launch(request):
     """Called by a GUI worker; UAC is the final authorization for each step."""
     validate_request(request)
-    from sentinelav.platform.windows_identity import current_sid
+    from sentinelav.platform.core.windows_identity import current_sid
 
     executable = unlinked(Path(os.environ['ProgramFiles']) / 'SentinelAVProtection/SentinelAV.exe')
     verify_installation(executable.parent, protected=True)

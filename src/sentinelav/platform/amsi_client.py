@@ -1,6 +1,6 @@
 # Purpose: AMSI consumer only. Does not register SentinelAV as an AMSI provider.
 # Works with: sibling modules in platform
-# Used by: detection.scan_flow, tests.unit.test_defense_layers
+# Used by: detection.core.scan_flow, tests.unit.test_defense_layers
 
 """AMSI consumer only. Does not register SentinelAV as an AMSI provider."""
 

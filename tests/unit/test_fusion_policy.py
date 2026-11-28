@@ -1,10 +1,10 @@
 # Purpose: Verify test fusion policy behavior using controlled fixtures.
-# Works with: detection.decisions, detection.fusion
+# Works with: detection.helpers.decisions, detection.helpers.fusion
 # Used by: unittest discovery
 
 import unittest
-from sentinelav.detection.decisions import Evidence, decide
-from sentinelav.detection.fusion import gates
+from sentinelav.detection.helpers.decisions import Evidence, decide
+from sentinelav.detection.helpers.fusion import gates
 
 
 class FusionPolicyTests(unittest.TestCase):

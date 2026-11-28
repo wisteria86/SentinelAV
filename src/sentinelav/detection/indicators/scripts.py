@@ -1,11 +1,11 @@
 # Purpose: Behavior indicators for scripts, applied after bounded literal deobfuscation.
-# Works with: detection.content_analysis, detection.threat_score
+# Works with: detection.helpers.content_analysis, detection.helpers.threat_score
 # Used by: detection.indicators, detection.indicators.documents
 
 """Behavior indicators for scripts, applied after bounded literal deobfuscation. Scripts are never run."""
 
 import re
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 SUFFIX = {
     'powershell': '.ps1',
@@ -562,8 +562,8 @@ def _decode(data):
 
 def variants_of(data, kind, omissions):
     """Original text plus bounded normalized forms, so concealment does not hide behavior."""
-    from sentinelav.detection.content_analysis import normalized_variants
-    from sentinelav.detection.script_decoders import batch_expand, powershell_normalize
+    from sentinelav.detection.helpers.content_analysis import normalized_variants
+    from sentinelav.detection.helpers.script_decoders import batch_expand, powershell_normalize
 
     texts = [_decode(data)]
     raw = bytes(data[: 8 * 1024 * 1024])

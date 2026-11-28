@@ -1,6 +1,6 @@
 # Purpose: Choose Quick and Full scan locations from the running Windows profile.
-# Works with: monitoring.windows_inventory
-# Used by: ui.scan_actions, platform.runtime, entrypoint
+# Works with: monitoring.core.windows_inventory
+# Used by: ui.core.scan_actions, platform.runtime, entrypoint
 
 """Choose Quick and Full scan locations from the running Windows profile."""
 

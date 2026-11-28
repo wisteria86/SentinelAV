@@ -1,5 +1,5 @@
 # Purpose: Verify packaged learned inference using a benign Windows utility, never launched.
-# Works with: detection.pe_ensemble, paths, updates.artifacts, workspace
+# Works with: detection.helpers.pe_ensemble, paths, updates.artifacts, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Verify packaged learned inference using a benign Windows utility, never launched."""
@@ -11,7 +11,7 @@ import subprocess
 from sentinelav.workspace import Workspace
 from sentinelav.paths import RESOURCE_ROOT
 from sentinelav.updates.artifacts import active
-from sentinelav.detection.pe_ensemble import predict
+from sentinelav.detection.helpers.pe_ensemble import predict
 
 
 def main():

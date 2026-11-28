@@ -127,7 +127,7 @@ class ServiceViewTests(unittest.TestCase):
             patch(
                 'sentinelav.platform.windows_service.service_paths', return_value=(folder, folder)
             ),
-            patch('sentinelav.platform.windows_identity.current_sid', return_value=OWNER),
+            patch('sentinelav.platform.core.windows_identity.current_sid', return_value=OWNER),
             patch.object(service_changes, 'verify_windows_acl'),
             patch.object(service_changes, 'dpapi', side_effect=lambda raw, *args, **kw: raw),
         ):
