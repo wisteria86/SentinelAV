@@ -1,12 +1,12 @@
 # Purpose: Verify test pe imports behavior using controlled fixtures.
-# Works with: detection.file_formats, detection.pe_imports, tests.unit.test_static_analysis
+# Works with: detection.core.file_formats, detection.helpers.pe_imports, tests.unit.test_static_analysis
 # Used by: tests.unit.test_integrated_analysis
 
 import struct
 import unittest
 from tests.unit.test_static_analysis import fixture
-from sentinelav.detection.file_formats import pe_metadata, static_analysis
-from sentinelav.detection.pe_imports import inspect_imports
+from sentinelav.detection.core.file_formats import pe_metadata, static_analysis
+from sentinelav.detection.helpers.pe_imports import inspect_imports
 
 
 def imported_fixture(wide=False):

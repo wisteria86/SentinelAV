@@ -66,11 +66,11 @@ with tempfile.TemporaryDirectory() as temp:
         key = Ed25519PrivateKey.generate()
         with (
             patch(
-                'sentinelav.ui.defense_ui.QInputDialog.getText',
+                'sentinelav.ui.core.defense_ui.QInputDialog.getText',
                 side_effect=[('fixture', True), (public_hex(key), True)],
             ),
             patch(
-                'sentinelav.ui.defense_ui.QMessageBox.question',
+                'sentinelav.ui.core.defense_ui.QMessageBox.question',
                 return_value=QMessageBox.StandardButton.Yes,
             ),
         ):
@@ -81,9 +81,11 @@ with tempfile.TemporaryDirectory() as temp:
         candidate = root / 'model.json'
         candidate.write_text(json.dumps(signed(minimal_model(), 'model', key)))
         with (
-            patch('sentinelav.ui.defense_ui.QInputDialog.getItem', return_value=('model', True)),
             patch(
-                'sentinelav.ui.defense_ui.QFileDialog.getOpenFileName',
+                'sentinelav.ui.core.defense_ui.QInputDialog.getItem', return_value=('model', True)
+            ),
+            patch(
+                'sentinelav.ui.core.defense_ui.QFileDialog.getOpenFileName',
                 return_value=(str(candidate), 'JSON'),
             ),
         ):
@@ -108,7 +110,7 @@ with tempfile.TemporaryDirectory() as temp:
         )
         window.pending_table.selectRow(row)
         with patch(
-            'sentinelav.ui.response_ui.QMessageBox.question',
+            'sentinelav.ui.core.response_ui.QMessageBox.question',
             return_value=QMessageBox.StandardButton.Yes,
         ):
             window.quarantine_selected()
@@ -119,18 +121,20 @@ with tempfile.TemporaryDirectory() as temp:
         window.quarantine_table.selectRow(row)
         with (
             patch(
-                'sentinelav.ui.response_ui.QFileDialog.getSaveFileName',
+                'sentinelav.ui.core.response_ui.QFileDialog.getSaveFileName',
                 return_value=(str(target), 'TXT'),
             ),
             patch(
-                'sentinelav.ui.response_ui.QMessageBox.question',
+                'sentinelav.ui.core.response_ui.QMessageBox.question',
                 return_value=QMessageBox.StandardButton.Yes,
             ),
         ):
             window.restore_selected(False)
         wait(lambda: window.response_worker is None)
         assert target.read_bytes() == payload
-        with patch('sentinelav.ui.defense_ui.QInputDialog.getItem', return_value=('fixture', True)):
+        with patch(
+            'sentinelav.ui.core.defense_ui.QInputDialog.getItem', return_value=('fixture', True)
+        ):
             window.remove_analysis_publisher()
         assert json.loads((root / 'state/analysis-trust.json').read_text())['keys'] == {}
         assert (RESOURCE_ROOT / 'trusted-update-keys.json').read_bytes() == global_trust

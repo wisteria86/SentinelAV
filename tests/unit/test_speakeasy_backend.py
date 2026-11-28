@@ -1,12 +1,12 @@
 # Purpose: Verify test speakeasy backend behavior using controlled fixtures.
-# Works with: detection.file_formats, detection.speakeasy_backend, lab.advanced_check
+# Works with: detection.core.file_formats, detection.helpers.speakeasy_backend, lab.advanced_check
 # Used by: unittest discovery
 
 import importlib.util
 import unittest
 from sentinelav.lab.advanced_check import exit_fixture
-from sentinelav.detection.file_formats import pe_metadata
-from sentinelav.detection.speakeasy_backend import emulate
+from sentinelav.detection.core.file_formats import pe_metadata
+from sentinelav.detection.helpers.speakeasy_backend import emulate
 
 
 @unittest.skipUnless(importlib.util.find_spec('speakeasy'), 'Analysis dependencies not installed')

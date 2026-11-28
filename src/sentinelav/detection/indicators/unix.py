@@ -1,14 +1,14 @@
 # Purpose: Static ELF and Mach-O indicators using bounded header parsing and strings.
-# Works with: detection.threat_score, detection.indicators.strings
+# Works with: detection.helpers.threat_score, detection.indicators.strings
 # Used by: detection.indicators
 
 """Static ELF and Mach-O indicators using bounded header parsing and strings."""
 
 import re
 import struct
-from sentinelav.detection.file_formats import byte_statistics
+from sentinelav.detection.core.file_formats import byte_statistics
 from sentinelav.detection.indicators.strings import extract
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 ELF_RULES = (
     (

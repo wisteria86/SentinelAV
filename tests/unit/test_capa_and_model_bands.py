@@ -1,5 +1,5 @@
 # Purpose: Verify capa evidence mapping, its limits, and the calibrated EMBER score bands on synthetic inputs.
-# Works with: detection.capa_engine, detection.file_analysis, detection.threat_score
+# Works with: detection.helpers.capa_engine, detection.core.file_analysis, detection.helpers.threat_score
 
 """Verify capa evidence mapping, its limits, and the calibrated EMBER score bands on synthetic inputs."""
 
@@ -7,9 +7,9 @@ import os
 import unittest
 from unittest import mock
 
-from sentinelav.detection import capa_engine
-from sentinelav.detection.file_analysis import _model_items
-from sentinelav.detection.threat_score import score
+from sentinelav.detection.helpers import capa_engine
+from sentinelav.detection.core.file_analysis import _model_items
+from sentinelav.detection.helpers.threat_score import score
 from sentinelav.lab.qualification.bazaar_corpus import windows_target
 
 

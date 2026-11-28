@@ -1,6 +1,6 @@
 # Purpose: Read-only capability descriptions; dependency presence is not efficacy.
-# Works with: platform.emulation_support
-# Used by: ui.defense_settings
+# Works with: platform.core.emulation_support
+# Used by: ui.helpers.defense_settings
 
 """Read-only capability descriptions; dependency presence is not efficacy."""
 
@@ -37,7 +37,7 @@ def feature_status(options=None):
         if package == 'unicorn' and available:
             try:
                 import unicorn
-                from sentinelav.platform.emulation_support import compatibility
+                from sentinelav.platform.core.emulation_support import compatibility
 
                 support = compatibility(unicorn.__version__)
                 if not support['available']:

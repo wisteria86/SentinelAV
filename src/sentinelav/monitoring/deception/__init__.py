@@ -1,6 +1,6 @@
 # Purpose: Deploy, run and remove SentinelAV's deception features beyond the basic decoy files.
-# Works with: monitoring.deception.* , monitoring.honeypots
-# Used by: monitoring.monitor_loop, ui.deception_ui
+# Works with: monitoring.deception.* , monitoring.helpers.honeypots
+# Used by: monitoring.core.monitor_loop, ui.core.deception_ui
 
 """Deploy, run and remove SentinelAV's deception features beyond the basic decoy files.
 

@@ -1,5 +1,5 @@
 # Purpose: The test suite never authorizes a real runtime specimen or Windows mutation.
-# Works with: lab.runtime_job, platform.engine_policy, response.auto_response
+# Works with: lab.runtime_job, platform.core.engine_policy, response.auto_response
 # Used by: unittest discovery
 
 """The test suite never authorizes a real runtime specimen or Windows mutation."""
@@ -7,7 +7,7 @@
 import unittest
 from unittest.mock import patch
 from sentinelav.lab.runtime_job import run_job, AUTHORIZATION
-from sentinelav.platform.engine_policy import inspection_options
+from sentinelav.platform.core.engine_policy import inspection_options
 from sentinelav.response.auto_response import eligibility
 
 
@@ -73,7 +73,7 @@ class RuntimeGuardTests(unittest.TestCase):
     def test_missing_default_model_is_visible_rather_than_a_silent_pass(self):
         import tempfile
         from pathlib import Path
-        from sentinelav.detection.advanced_pipeline import AdvancedPipeline
+        from sentinelav.detection.core.advanced_pipeline import AdvancedPipeline
 
         with tempfile.TemporaryDirectory() as folder:
             trust = Path(folder) / 'trust.json'

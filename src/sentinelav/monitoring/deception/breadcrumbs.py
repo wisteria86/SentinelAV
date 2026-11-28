@@ -1,5 +1,5 @@
 # Purpose: Breadcrumbs that lead to decoy servers on a loopback address, the listeners behind them, and a tarpit mode.
-# Works with: monitoring.deception.common, monitoring.deception.registry_decoys, monitoring.honeypots
+# Works with: monitoring.deception.common, monitoring.deception.registry_decoys, monitoring.helpers.honeypots
 # Used by: monitoring.deception
 
 """Breadcrumbs that lead to decoy servers on a loopback address, the listeners behind them, and a tarpit mode.
@@ -27,7 +27,7 @@ from sentinelav.monitoring.deception.common import (
     profile_dirs,
     write_decoy,
 )
-from sentinelav.monitoring.honeypots import NetworkHoneypot
+from sentinelav.monitoring.helpers.honeypots import NetworkHoneypot
 
 
 def free_port(host=DECOY_HOST):

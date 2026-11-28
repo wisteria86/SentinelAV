@@ -1,5 +1,5 @@
 # Purpose: Static traits of boot-sector and master-boot-record code in disk and floppy images.
-# Works with: detection.threat_score, detection.file_types
+# Works with: detection.helpers.threat_score, detection.helpers.file_types
 # Used by: detection.indicators
 
 """Static traits of boot-sector code in disk and floppy images.
@@ -11,7 +11,7 @@ interrupt (INT 13h) so they can infect other disks. Nothing is executed.
 """
 
 import re
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 SECTOR = 512
 # DEC WORD [0413h] / SUB WORD [0413h],n / MOV AX,[0413h] ... MOV [0413h],AX

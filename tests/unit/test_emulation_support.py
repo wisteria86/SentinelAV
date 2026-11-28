@@ -1,5 +1,5 @@
 # Purpose: Verify test emulation support behavior using controlled fixtures.
-# Works with: platform.emulation_support
+# Works with: platform.core.emulation_support
 # Used by: unittest discovery
 
 import hashlib
@@ -9,18 +9,19 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
-from sentinelav.platform.emulation_support import compatibility, validated_native_build
+from sentinelav.platform.core.emulation_support import compatibility, validated_native_build
 
 
 class EmulationBuildTests(unittest.TestCase):
     def test_cfg_requires_verified_build_even_for_future_version(self):
         with (
             patch(
-                'sentinelav.platform.emulation_support.control_flow_guard_enabled',
+                'sentinelav.platform.core.emulation_support.control_flow_guard_enabled',
                 return_value=True,
             ),
             patch(
-                'sentinelav.platform.emulation_support.validated_native_build', return_value=False
+                'sentinelav.platform.core.emulation_support.validated_native_build',
+                return_value=False,
             ),
         ):
             self.assertFalse(compatibility('2.1.4')['available'])
@@ -29,11 +30,12 @@ class EmulationBuildTests(unittest.TestCase):
     def test_verified_build_can_run_with_cfg(self):
         with (
             patch(
-                'sentinelav.platform.emulation_support.control_flow_guard_enabled',
+                'sentinelav.platform.core.emulation_support.control_flow_guard_enabled',
                 return_value=True,
             ),
             patch(
-                'sentinelav.platform.emulation_support.validated_native_build', return_value=True
+                'sentinelav.platform.core.emulation_support.validated_native_build',
+                return_value=True,
             ),
         ):
             self.assertTrue(compatibility('2.1.4')['available'])

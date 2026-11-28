@@ -1,5 +1,5 @@
 # Purpose: Collect existing scan features and fit an offline review-only baseline.
-# Works with: detection.anomaly_model
+# Works with: detection.helpers.anomaly_model
 # Used by: tests.unit.test_anomaly_model
 
 """Collect existing scan features and fit an offline review-only baseline.
@@ -11,7 +11,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from sentinelav.detection.anomaly_model import fit_evaluate, validate
+from sentinelav.detection.helpers.anomaly_model import fit_evaluate, validate
 
 
 def read_json(path):

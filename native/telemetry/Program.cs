@@ -1,5 +1,5 @@
 // Purpose: Collect kernel file-write events and read bounded metadata frames inside test guests.
-// Works with: monitoring/kernel_telemetry.py; lab/qualification/backend_transport.py; scripts/Build-
+// Works with: monitoring/helpers/kernel_telemetry.py; lab/qualification/backend_transport.py; scripts/Build-
 //   KernelCollector.ps1
 // Used by: the matching native executable or library entry point
 

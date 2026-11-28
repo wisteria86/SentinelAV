@@ -1,5 +1,5 @@
 # Purpose: Verify test definition updates behavior using controlled fixtures.
-# Works with: detection.signature_db, updates.definition_updates, updates.hash_archive
+# Works with: detection.core.signature_db, updates.definition_updates, updates.hash_archive
 # Used by: unittest discovery
 
 from datetime import datetime, timezone, timedelta
@@ -22,7 +22,7 @@ from sentinelav.updates.definition_updates import (
     freshness,
 )
 from sentinelav.updates.hash_archive import import_archive, checksum
-from sentinelav.detection.signature_db import SignatureIndex
+from sentinelav.detection.core.signature_db import SignatureIndex
 
 
 class DefinitionUpdateTests(unittest.TestCase):

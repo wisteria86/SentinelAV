@@ -1,5 +1,5 @@
 # Purpose: Train local native-text models from declared, nonexecutable feature rows.
-# Works with: detection.pe_classifier, workspace
+# Works with: detection.helpers.pe_classifier, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Train local native-text models from declared, nonexecutable feature rows."""
@@ -9,7 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import math
-from sentinelav.detection.pe_classifier import FEATURE_REVISION, validate
+from sentinelav.detection.helpers.pe_classifier import FEATURE_REVISION, validate
 from sentinelav.workspace import Workspace, unlinked
 
 

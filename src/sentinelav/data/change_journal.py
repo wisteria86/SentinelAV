@@ -1,7 +1,7 @@
 # Purpose: Account-bound encrypted change state and durable remediation journal.
 # Works with: data.contracts, response.response, response.transaction, workspace
-# Used by: lab.qualification.guest_inventory, monitoring.change_monitor, response.auto_response,
-#   ui.app_changes_ui
+# Used by: lab.qualification.guest_inventory, monitoring.core.change_monitor, response.auto_response,
+#   ui.core.app_changes_ui
 
 """Account-bound encrypted change state and durable remediation journal."""
 

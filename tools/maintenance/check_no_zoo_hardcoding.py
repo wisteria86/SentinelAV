@@ -15,7 +15,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCES = ('src/sentinelav/detection', 'src/sentinelav/platform/engine_policy.py')
+SOURCES = ('src/sentinelav/detection', 'src/sentinelav/platform/core/engine_policy.py')
 # Everyday words that also occur inside a sample's folder name. Anything else from the inventory fails the check.
 ORDINARY_WORDS = {
     'format',

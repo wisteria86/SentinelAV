@@ -1,10 +1,10 @@
 # Purpose: Verify test sequences behavior using controlled fixtures.
-# Works with: monitoring.sequences
+# Works with: monitoring.core.sequences
 # Used by: tests.unit.test_monitoring
 
 import unittest
 from xml.sax.saxutils import escape
-from sentinelav.monitoring.sequences import SequenceDetector, parse_event
+from sentinelav.monitoring.core.sequences import SequenceDetector, parse_event
 
 GUID = '{12345678-1234-5678-1234-567812345678}'
 

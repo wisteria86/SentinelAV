@@ -1,6 +1,6 @@
 # Purpose: Allowlisted harmless lab profiles. No sample ingestion or arbitrary execution.
-# Works with: detection.engine, monitoring.behavior
-# Used by: entrypoint, ui.lab_pages, ui.lab_ui, ui.lab_ui_workers
+# Works with: detection.engine, monitoring.core.behavior
+# Used by: entrypoint, ui.helpers.lab_pages, ui.core.lab_ui, ui.helpers.lab_ui_workers
 
 """Allowlisted harmless lab profiles. No sample ingestion or arbitrary execution."""
 
@@ -13,7 +13,7 @@ import threading
 import time
 from types import SimpleNamespace
 import uuid
-from sentinelav.monitoring.behavior import BehaviorEngine, create_canary
+from sentinelav.monitoring.core.behavior import BehaviorEngine, create_canary
 from sentinelav.detection.engine import Scanner
 
 PROFILES = {

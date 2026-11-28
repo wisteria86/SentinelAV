@@ -1,11 +1,11 @@
 # Purpose: Verify test advanced evaluation behavior using controlled fixtures.
-# Works with: detection.active_content, tools.evaluation.evaluate_behavior, tools.evaluation.evaluate_benign
+# Works with: detection.helpers.active_content, tools.evaluation.evaluate_behavior, tools.evaluation.evaluate_benign
 # Used by: unittest discovery
 
 from pathlib import Path
 import tempfile
 import unittest
-from sentinelav.detection.active_content import active_sources
+from sentinelav.detection.helpers.active_content import active_sources
 from tools.evaluation.evaluate_behavior import controls
 from tools.evaluation.evaluate_benign import evaluate
 

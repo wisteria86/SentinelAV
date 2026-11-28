@@ -1,5 +1,5 @@
 # Purpose: Decoy browser, wallet, chat and FTP data stores, placed only for apps this PC does not have.
-# Works with: monitoring.deception.common, monitoring.honeypots
+# Works with: monitoring.deception.common, monitoring.helpers.honeypots
 # Used by: monitoring.deception
 
 """Decoy browser, wallet, chat and FTP data stores, placed only for apps this PC does not have.

@@ -1,6 +1,6 @@
 # Purpose: Opt-in, signed analysis-data refresh. Only GETs configured artifact URLs.
 # Works with: updates.artifacts
-# Used by: monitoring.monitor_loop
+# Used by: monitoring.core.monitor_loop
 
 """Opt-in, signed analysis-data refresh. Only GETs configured artifact URLs."""
 

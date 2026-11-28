@@ -1,6 +1,6 @@
 # Purpose: Export summaries without recorded contents, command lines or credentials.
 # Works with: sibling modules in response
-# Used by: ui.app_changes_ui, tests.unit.test_app_changes
+# Used by: ui.core.app_changes_ui, tests.unit.test_app_changes
 
 """Export summaries without recorded contents, command lines or credentials."""
 

@@ -92,7 +92,7 @@ def describe(scan):
 
 def read_member(archive, info, password):
     """Try the sidecar password first, then the standard sharing passwords, and keep the one that works."""
-    from sentinelav.detection.archive_formats import SHARING_PASSWORDS
+    from sentinelav.detection.helpers.archive_formats import SHARING_PASSWORDS
 
     candidates = [password[0]] + [item for item in SHARING_PASSWORDS if item != password[0]]
     error = None
@@ -199,7 +199,7 @@ def inspect_members(raw, password, root, scanner, state):
     """Scan each member of an archive (up to MAX_MEMBERS), counting inert files rather than listing
     them and noting any that ran out of time.
     """
-    from sentinelav.detection.archive_formats import open_zip
+    from sentinelav.detection.helpers.archive_formats import open_zip
 
     rows = []
     inert = 0
@@ -320,7 +320,7 @@ def execute(context, root):
     if not 1 <= len(batch['entries']) <= 64:
         raise ValueError('Invalid Zoo batch size')
     snapshot = use_snapshot()
-    from sentinelav.detection.clamav_engine import ensure_service
+    from sentinelav.detection.core.clamav_engine import ensure_service
 
     clamd, clamd_problem = ensure_service()
     scanner = IsolatedScanner(

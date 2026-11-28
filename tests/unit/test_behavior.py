@@ -1,12 +1,12 @@
 # Purpose: Verify test behavior behavior using controlled fixtures.
-# Works with: monitoring.behavior
+# Works with: monitoring.core.behavior
 # Used by: unittest discovery
 
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from sentinelav.monitoring.behavior import BehaviorEngine, create_canary
+from sentinelav.monitoring.core.behavior import BehaviorEngine, create_canary
 
 
 class BehaviorTests(unittest.TestCase):

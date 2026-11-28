@@ -1,5 +1,5 @@
 # Purpose: Indicators for raw payload files with no known format: shellcode, encoded programs and compiled Python.
-# Works with: detection.threat_score, detection.indicators.strings, detection.indicators.scripts
+# Works with: detection.helpers.threat_score, detection.indicators.strings, detection.indicators.scripts
 # Used by: detection.indicators
 
 """Indicators for raw payload files with no known format: shellcode, encoded programs and compiled Python.
@@ -11,7 +11,7 @@ checks read bytes only; nothing is decoded into a runnable file or executed.
 """
 
 import re
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 WINDOW = 1024 * 1024
 DOS_TEXT = b'This program cannot be run in DOS mode'

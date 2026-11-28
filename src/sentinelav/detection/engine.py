@@ -1,7 +1,7 @@
 # Purpose: Read-only detection engine, independent of Qt. Never executes inspected files.
-# Works with: detection.advanced_pipeline, detection.archive_inspection, detection.file_formats,
-#   detection.scan_flow, detection.signature_db
-# Used by: detection.inspection_worker, entrypoint, lab.lab, tests.unit.test_amsi_buffers
+# Works with: detection.core.advanced_pipeline, detection.core.archive_inspection, detection.core.file_formats,
+#   detection.core.scan_flow, detection.core.signature_db
+# Used by: detection.core.inspection_worker, entrypoint, lab.lab, tests.unit.test_amsi_buffers
 
 """Read-only detection engine, independent of Qt. Never executes inspected files."""
 
@@ -10,9 +10,9 @@ import json
 import os
 import time
 from pathlib import Path
-from sentinelav.detection.signature_db import SignatureIndex
-from sentinelav.detection.yara_rules import compile_rules, evidence
-from sentinelav.detection.archive_inspection import inspect_zip
+from sentinelav.detection.core.signature_db import SignatureIndex
+from sentinelav.detection.core.yara_rules import compile_rules, evidence
+from sentinelav.detection.core.archive_inspection import inspect_zip
 
 MIN_HASH_BYTES = 1
 
@@ -37,8 +37,8 @@ class DisabledSignatures:
         pass
 
 
-from .file_analysis import FileAnalysisMixin
-from .scan_flow import ScanFlowMixin
+from .core.file_analysis import FileAnalysisMixin
+from .core.scan_flow import ScanFlowMixin
 
 
 class Scanner(ScanFlowMixin, FileAnalysisMixin):
@@ -60,7 +60,7 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
         file read in full. exclusions are folders to skip, trusted_hashes are files a person has
         marked as safe, and options switches the individual layers on or off.
         """
-        from sentinelav.platform.engine_policy import inspection_options
+        from sentinelav.platform.core.engine_policy import inspection_options
 
         self.options = inspection_options(options)
         strict = self.options['signature_free']
@@ -79,18 +79,18 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
         self.warnings = list(self.rule_summary['warnings'])
         self.advanced = None
         if self.options['advanced']:
-            from sentinelav.detection.advanced_pipeline import AdvancedPipeline
+            from sentinelav.detection.core.advanced_pipeline import AdvancedPipeline
 
             self.advanced = AdvancedPipeline(self.options.get('analysis_store'), self.options)
         self.packs = []
         if self.options['rule_packs']:
-            from sentinelav.detection.rule_packs import load_packs
+            from sentinelav.detection.core.rule_packs import load_packs
 
             self.packs, problems = load_packs()
             self.warnings.extend(problems)
         self.md5 = None
         if self.options['md5_feed']:
-            from sentinelav.detection.md5_feed import Md5Feed
+            from sentinelav.detection.core.md5_feed import Md5Feed
 
             try:
                 self.md5 = Md5Feed()
@@ -100,7 +100,7 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
                 self.warnings.append('MD5 hash list unavailable: ' + str(error)[:120])
         self.clamav = None
         if self.options['clamav']:
-            from sentinelav.detection.clamav_engine import environment_ready, read_endpoint
+            from sentinelav.detection.core.clamav_engine import environment_ready, read_endpoint
 
             self.clamav = read_endpoint()
             # Reported once per scan, never as a per-file error. Not installed at all is shown on the Updates page instead.
@@ -165,7 +165,7 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
         """Send the bytes to ClamAV and add its answer to names (a named signature) or matches (a
         heuristic hint).
         """
-        from sentinelav.detection.clamav_engine import STREAM_LIMIT, scan_bytes
+        from sentinelav.detection.core.clamav_engine import STREAM_LIMIT, scan_bytes
 
         if len(data) > STREAM_LIMIT:
             return
@@ -227,7 +227,10 @@ class Scanner(ScanFlowMixin, FileAnalysisMixin):
                 else:
                     self.member_bytes += len(data)
                     try:
-                        from sentinelav.detection.file_formats import pe_metadata, static_analysis
+                        from sentinelav.detection.core.file_formats import (
+                            pe_metadata,
+                            static_analysis,
+                        )
 
                         metadata = pe_metadata(data)
                         decision = self.advanced.inspect(

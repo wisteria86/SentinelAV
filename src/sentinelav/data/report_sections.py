@@ -1,5 +1,5 @@
 # Purpose: Render detection evidence, inspection omissions, and quarantine outcomes in HTML reports.
-# Works with: data.reporting; ui.finalization
+# Works with: data.reporting; ui.core.finalization
 
 from html import escape
 

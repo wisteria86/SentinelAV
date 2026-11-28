@@ -1,5 +1,5 @@
 # Purpose: Fit a plain-JSON supervised model; never activates it or runs sample files.
-# Works with: detection.classifier, updates.artifacts
+# Works with: detection.helpers.classifier, updates.artifacts
 # Used by: the Python module loader or CLI entry point
 
 """Fit a plain-JSON supervised model; never activates it or runs sample files."""
@@ -8,7 +8,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from sentinelav.detection.classifier import train
+from sentinelav.detection.helpers.classifier import train
 from sentinelav.updates.artifacts import bounded_json
 
 

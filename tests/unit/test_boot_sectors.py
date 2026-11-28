@@ -1,5 +1,5 @@
 # Purpose: Verify boot-sector classification and residency indicators on synthetic, non-functional sectors.
-# Works with: detection.file_types, detection.indicators.boot, detection.threat_score
+# Works with: detection.helpers.file_types, detection.indicators.boot, detection.helpers.threat_score
 
 """Verify boot-sector classification and residency indicators on synthetic sectors.
 
@@ -9,9 +9,9 @@ they do not form a working program.
 
 import unittest
 
-from sentinelav.detection.file_types import classify
+from sentinelav.detection.helpers.file_types import classify
 from sentinelav.detection.indicators import boot, collect
-from sentinelav.detection.threat_score import score
+from sentinelav.detection.helpers.threat_score import score
 
 
 def sector(*fragments, at=0x3E):

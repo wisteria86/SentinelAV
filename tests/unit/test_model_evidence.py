@@ -1,17 +1,17 @@
 # Purpose: Keep learned-model evidence in its measured bands and below automatic action on its own.
-# Works with: detection.file_analysis, detection.threat_score
+# Works with: detection.core.file_analysis, detection.helpers.threat_score
 # Used by: test.ps1
 
 """Keep learned-model evidence in its measured bands and below automatic action on its own."""
 
 import unittest
 
-from sentinelav.detection.threat_score import automatic_eligible, indicator, score
+from sentinelav.detection.helpers.threat_score import automatic_eligible, indicator, score
 
 
 class ModelEvidenceTests(unittest.TestCase):
     def bands(self, value, review=False):
-        from sentinelav.detection.file_analysis import _model_items
+        from sentinelav.detection.core.file_analysis import _model_items
 
         return [
             (i['code'], i['weight'])
@@ -50,7 +50,7 @@ class ModelEvidenceTests(unittest.TestCase):
         )
 
     def test_a_signed_script_gets_the_same_trust_as_a_signed_program(self):
-        from sentinelav.detection.file_analysis import SIGNABLE_KINDS
+        from sentinelav.detection.core.file_analysis import SIGNABLE_KINDS
 
         self.assertLessEqual(
             {'pe', 'vbscript', 'powershell', 'javascript', 'batch', 'ole'}, SIGNABLE_KINDS

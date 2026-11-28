@@ -1,5 +1,5 @@
 # Purpose: Freeze the active definitions (ClamAV, rule packs, hash lists, certificate blocklist) into a hashed snapshot.
-# Works with: detection.definition_paths, detection.rule_packs, workspace
+# Works with: detection.helpers.definition_paths, detection.core.rule_packs, workspace
 # Used by: evaluation runs that map the snapshot read-only into Windows Sandbox
 
 """Freeze the active definitions into a hashed, read-only snapshot.
@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
-from sentinelav.detection.definition_paths import (
+from sentinelav.detection.helpers.definition_paths import (
     binaries,
     database_dir,
     definitions_dir,
@@ -56,7 +56,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('name', help='Snapshot name, for example eval-freeze-90')
     args = parser.parse_args()
-    from sentinelav.detection.rule_packs import load_packs
+    from sentinelav.detection.core.rule_packs import load_packs
 
     packs, problems = load_packs()  # Compiles and records the compiled form before copying.
     if problems:

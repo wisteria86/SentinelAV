@@ -186,7 +186,7 @@ def resource_identity(project):
     paths = list((root / 'analysis-data').glob('*.json')) + list(
         (root / 'analysis-data').glob('*.npz')
     )
-    from sentinelav.detection.definition_paths import signature_data_dir
+    from sentinelav.detection.helpers.definition_paths import signature_data_dir
 
     active = signature_data_dir(root) / 'active.json'
     if active.exists():

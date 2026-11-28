@@ -1,12 +1,12 @@
 # Purpose: Static indicators for macros, PDF actions and RTF objects; nothing is opened or rendered.
-# Works with: detection.documents, detection.threat_score, detection.indicators.scripts
+# Works with: detection.helpers.documents, detection.helpers.threat_score, detection.indicators.scripts
 # Used by: detection.indicators
 
 """Static indicators for macros, PDF actions and RTF objects; nothing is opened or rendered."""
 
 import re
-from sentinelav.detection.documents import macro_sources
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.documents import macro_sources
+from sentinelav.detection.helpers.threat_score import indicator
 
 AUTO_EXEC = re.compile(
     r'\b(auto_?open|auto_?close|auto_?exec|auto_?new|auto_?exit|document_(?:open|close|new)|workbook_(?:open|beforeclose)|filesave|fileopen|filesaveas|toolsmacro|viewvbcode)\b',

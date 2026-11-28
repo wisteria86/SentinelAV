@@ -1,11 +1,11 @@
 # Purpose: Public persistence API; inventory and continuous reconciliation are separate.
-# Works with: monitoring.change_monitor, monitoring.windows_inventory
-# Used by: lab.qualification.cleanup_fixtures, lab.qualification.guest_inventory, monitoring.monitor_loop,
+# Works with: monitoring.core.change_monitor, monitoring.core.windows_inventory
+# Used by: lab.qualification.cleanup_fixtures, lab.qualification.guest_inventory, monitoring.core.monitor_loop,
 #   platform.remediation_broker
 
 """Public persistence API; inventory and continuous reconciliation are separate."""
 
-from .windows_inventory import (
+from .core.windows_inventory import (
     MAX_FILE,
     RUN_KEYS,
     resource,
@@ -15,4 +15,4 @@ from .windows_inventory import (
     SERVICES_SCRIPT,
     WindowsInventory,
 )
-from .change_monitor import ChangeTracker, ChangeMonitor
+from .core.change_monitor import ChangeTracker, ChangeMonitor

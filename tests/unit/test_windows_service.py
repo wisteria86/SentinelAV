@@ -115,15 +115,17 @@ class ServiceHostTests(unittest.TestCase):
                 patch(
                     'sentinelav.platform.windows_service.service_paths', return_value=(base, data)
                 ),
-                patch('sentinelav.platform.windows_identity.current_sid', return_value='S-1-5-19'),
+                patch(
+                    'sentinelav.platform.core.windows_identity.current_sid', return_value='S-1-5-19'
+                ),
                 patch('sentinelav.platform.windows_service.ctypes.WinDLL', return_value=native),
                 patch(
-                    'sentinelav.platform.integrity.verify_installation',
+                    'sentinelav.platform.core.integrity.verify_installation',
                     return_value={'status': 'Verified'},
                 ),
-                patch('sentinelav.platform.integrity.verify_windows_acl', return_value=True),
+                patch('sentinelav.platform.core.integrity.verify_windows_acl', return_value=True),
                 patch('sentinelav.monitoring.monitoring.Monitor', FixtureMonitor),
-                patch('sentinelav.platform.amsi_broker.AmsiBroker', FixtureBroker),
+                patch('sentinelav.platform.core.amsi_broker.AmsiBroker', FixtureBroker),
             ):
                 self.assertEqual(windows_service.run_service(), 0)
             self.assertIn(2, states)

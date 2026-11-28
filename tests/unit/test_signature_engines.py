@@ -1,5 +1,5 @@
 # Purpose: Verify the ClamAV client, third-party rule packs and how their evidence is scored.
-# Works with: detection.clamav_engine, detection.rule_packs, detection.threat_score
+# Works with: detection.core.clamav_engine, detection.core.rule_packs, detection.helpers.threat_score
 
 """Verify the ClamAV client, third-party rule packs and how their evidence is scored."""
 
@@ -13,9 +13,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from sentinelav.detection import clamav_engine, rule_packs
-from sentinelav.detection.file_analysis import signature_items
-from sentinelav.detection.threat_score import arm_scores, automatic_eligible, score
+from sentinelav.detection.core import clamav_engine, rule_packs
+from sentinelav.detection.core.file_analysis import signature_items
+from sentinelav.detection.helpers.threat_score import arm_scores, automatic_eligible, score
 
 
 class FakeClamd:
@@ -96,7 +96,7 @@ class ClamAVClientTests(unittest.TestCase):
         )
         self.addCleanup(fake.close)
         with mock.patch(
-            'sentinelav.detection.clamav_engine.read_endpoint', return_value=fake.endpoint
+            'sentinelav.detection.core.clamav_engine.read_endpoint', return_value=fake.endpoint
         ):
             scanner = Scanner(
                 Path('resources/signatures.json'),
@@ -112,7 +112,7 @@ class ClamAVClientTests(unittest.TestCase):
         from sentinelav.detection.engine import Scanner
 
         with mock.patch(
-            'sentinelav.detection.clamav_engine.read_endpoint', return_value=('127.0.0.1', 1)
+            'sentinelav.detection.core.clamav_engine.read_endpoint', return_value=('127.0.0.1', 1)
         ):
             scanner = Scanner(
                 Path('resources/signatures.json'),

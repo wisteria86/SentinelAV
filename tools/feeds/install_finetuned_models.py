@@ -1,5 +1,5 @@
 # Purpose: Install the locally fine-tuned EMBER2024 ensemble and its confirmation model from pinned files.
-# Works with: detection.pe_ensemble, tools.feeds.install_benchmark_models, workspace
+# Works with: detection.helpers.pe_ensemble, tools.feeds.install_benchmark_models, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Install the locally fine-tuned EMBER2024 ensemble and its confirmation model from pinned files."""

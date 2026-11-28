@@ -1,6 +1,6 @@
 # Purpose: Compose the desktop window, feature mixins, and navigation.
-# Works with: data.storage, detection.inspection, entrypoint, paths, ui.app_changes_ui
-# Used by: entrypoint, ui.defense_settings, ui.defense_ui, ui.lab_ui
+# Works with: data.storage, detection.inspection, entrypoint, paths, ui.core.app_changes_ui
+# Used by: entrypoint, ui.helpers.defense_settings, ui.core.defense_ui, ui.core.lab_ui
 
 from sentinelav.paths import RESOURCE_ROOT
 import json
@@ -36,9 +36,9 @@ from sentinelav.data.storage import Store
 ROOT = RESOURCE_ROOT
 
 
-from .application_workers import ScanWorker
-from .scan_actions import ScanActionsMixin
-from .window_widgets import WindowWidgetsMixin
+from .core.application_workers import ScanWorker
+from .core.scan_actions import ScanActionsMixin
+from .core.window_widgets import WindowWidgetsMixin
 
 
 class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
@@ -161,16 +161,16 @@ class BaseWindow(ScanActionsMixin, WindowWidgetsMixin, QMainWindow):
 
 from sentinelav import __version__
 from sentinelav.ui.design import DesignMixin, STYLE, icon, art
-from sentinelav.ui.protection import ProtectionMixin
-from sentinelav.ui.response_ui import ResponseMixin
-from sentinelav.ui.finalization import FinalizationMixin
-from sentinelav.ui.lab_ui import LabMixin
-from sentinelav.ui.updates_ui import UpdatesMixin
-from sentinelav.ui.yara_ui import YaraMixin
-from sentinelav.ui.defense_ui import DefenseMixin
-from sentinelav.ui.app_changes_ui import AppChangesMixin
-from sentinelav.ui.honeypot_ui import HoneypotMixin
-from sentinelav.ui.deception_ui import DeceptionMixin
+from sentinelav.ui.core.protection import ProtectionMixin
+from sentinelav.ui.core.response_ui import ResponseMixin
+from sentinelav.ui.core.finalization import FinalizationMixin
+from sentinelav.ui.core.lab_ui import LabMixin
+from sentinelav.ui.core.updates_ui import UpdatesMixin
+from sentinelav.ui.core.yara_ui import YaraMixin
+from sentinelav.ui.core.defense_ui import DefenseMixin
+from sentinelav.ui.core.app_changes_ui import AppChangesMixin
+from sentinelav.ui.core.honeypot_ui import HoneypotMixin
+from sentinelav.ui.core.deception_ui import DeceptionMixin
 
 
 class Window(
@@ -237,7 +237,7 @@ class Window(
     def start_clamav(self):
         """Loading ClamAV signatures takes seconds, so it happens off the interface thread."""
         import threading
-        from sentinelav.detection.clamav_engine import ensure_service
+        from sentinelav.detection.core.clamav_engine import ensure_service
 
         enabled = self.store.get('inspection_options', {}).get('clamav', True)
 

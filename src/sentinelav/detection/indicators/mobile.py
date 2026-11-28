@@ -1,5 +1,5 @@
 # Purpose: Static Android and Java indicators read in memory from bounded archive members.
-# Works with: detection.threat_score, detection.indicators.strings
+# Works with: detection.helpers.threat_score, detection.indicators.strings
 # Used by: detection.indicators
 
 """Static Android and Java indicators read in memory from bounded archive members."""
@@ -8,7 +8,7 @@ import io
 import re
 import zipfile
 from sentinelav.detection.indicators.strings import extract
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.helpers.threat_score import indicator
 
 MEMBER_LIMIT = 32 * 1024 * 1024
 PERMISSIONS = (

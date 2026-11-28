@@ -1,5 +1,5 @@
 # Purpose: Generic PE structure, packing and imported-capability indicators.
-# Works with: detection.threat_score, detection.file_formats, detection.pe_imports
+# Works with: detection.helpers.threat_score, detection.core.file_formats, detection.helpers.pe_imports
 # Used by: detection.indicators
 
 """Generic PE structure, packing and imported-capability indicators.
@@ -7,8 +7,8 @@
 Each rule describes a technique. None mentions a malware family, sample name or hash.
 """
 
-from sentinelav.detection.file_formats import byte_statistics
-from sentinelav.detection.threat_score import indicator
+from sentinelav.detection.core.file_formats import byte_statistics
+from sentinelav.detection.helpers.threat_score import indicator
 
 PACKER_SECTIONS = {
     'upx0',

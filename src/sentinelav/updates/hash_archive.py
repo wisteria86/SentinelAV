@@ -1,6 +1,6 @@
 # Purpose: Stream an official-style MalwareBazaar CSV ZIP into a versioned hash DB.
 # Works with: paths, updates.definition_updates
-# Used by: ui.updates_ui, updates.definition_updates, updates.hash_snapshots, updates.update_envelope
+# Used by: ui.core.updates_ui, updates.definition_updates, updates.hash_snapshots, updates.update_envelope
 
 """Stream an official-style MalwareBazaar CSV ZIP into a versioned hash DB.
 
@@ -268,7 +268,7 @@ def main():
     parser.add_argument('archive', type=Path)
     parser.add_argument('--activate', action='store_true')
     args = parser.parse_args()
-    from sentinelav.detection.definition_paths import signature_data_dir
+    from sentinelav.detection.helpers.definition_paths import signature_data_dir
 
     metadata = import_archive(
         args.archive,

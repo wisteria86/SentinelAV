@@ -1,6 +1,6 @@
 # Purpose: Manual pre-execution verdict; does not intercept system-wide launches.
 # Works with: sibling modules in detection
-# Used by: ui.defense_ui, ui.defense_ui_workers, tests.unit.test_defense_layers
+# Used by: ui.core.defense_ui, ui.helpers.defense_ui_workers, tests.unit.test_defense_layers
 
 """Manual pre-execution verdict; does not intercept system-wide launches."""
 

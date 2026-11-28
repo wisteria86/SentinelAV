@@ -1,6 +1,6 @@
 # Purpose: High-confidence and approved-hash quarantine policy. Never auto-terminates processes.
-# Works with: data.change_journal, data.contracts, data.storage, detection.fusion, detection.inspection
-# Used by: lab.qualification.guest_inventory, monitoring.monitor_loop, tests.unit.test_defense_layers,
+# Works with: data.change_journal, data.contracts, data.storage, detection.helpers.fusion, detection.inspection
+# Used by: lab.qualification.guest_inventory, monitoring.core.monitor_loop, tests.unit.test_defense_layers,
 #   tests.unit.test_runtime_guards
 
 """High-confidence and approved-hash quarantine policy. Never auto-terminates processes."""
@@ -283,7 +283,7 @@ class AutoResponder:
         if not policy.get('auto_persistence') or not store.get('watch_app_changes', False):
             return
         from sentinelav.updates.artifacts import active
-        from sentinelav.detection.fusion import gates
+        from sentinelav.detection.helpers.fusion import gates
         from sentinelav.data.contracts import fingerprint
         from sentinelav.data.change_journal import ChangeJournal
         from sentinelav.response.remediation import (

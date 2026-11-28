@@ -1,5 +1,5 @@
 # Purpose: Prepare metadata-only signature-free evaluation readiness; never opens samples.
-# Works with: detection.fusion, lab.corpus_evaluation, paths, updates.artifacts, workspace
+# Works with: detection.helpers.fusion, lab.corpus_evaluation, paths, updates.artifacts, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Prepare metadata-only signature-free evaluation readiness; never opens samples."""
@@ -44,7 +44,7 @@ def readiness(manifest=None):
     if set(models.get('formats', [])) != {'Win32', 'Win64', 'Dot_Net'}:
         blockers.append('Validated model coverage for all Windows PE classes is unavailable')
     try:
-        from sentinelav.detection.fusion import gates
+        from sentinelav.detection.helpers.fusion import gates
 
         policy, _ = active(
             RESOURCE_ROOT / 'analysis-data', RESOURCE_ROOT / 'trusted-update-keys.json', 'policy'

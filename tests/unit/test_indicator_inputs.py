@@ -1,5 +1,5 @@
 # Purpose: Run every indicator module on real-typed bytes, so a type slip cannot silently disable a format.
-# Works with: detection.indicators, detection.file_types
+# Works with: detection.indicators, detection.helpers.file_types
 # Used by: test.ps1
 
 """Run every indicator module on real-typed bytes, so a type slip cannot silently disable a format.
@@ -13,7 +13,7 @@ import struct
 import unittest
 import zipfile
 
-from sentinelav.detection.file_types import classify
+from sentinelav.detection.helpers.file_types import classify
 from sentinelav.detection.indicators import collect, documents
 
 OLE_HEADER = bytes.fromhex('d0cf11e0a1b11ae1')

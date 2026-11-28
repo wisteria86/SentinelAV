@@ -1,6 +1,6 @@
 # Purpose: Explicit per-user publisher pinning, separate from OS and definition trust.
 # Works with: updates.artifacts
-# Used by: ui.defense_settings, tests.unit.test_analysis_artifacts, tools.feeds.enable_learned_detection,
+# Used by: ui.helpers.defense_settings, tests.unit.test_analysis_artifacts, tools.feeds.enable_learned_detection,
 #   tools.feeds.install_benchmark_models
 
 """Explicit per-user publisher pinning, separate from OS and definition trust."""

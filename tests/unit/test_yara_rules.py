@@ -1,5 +1,5 @@
 # Purpose: Verify test yara rules behavior using controlled fixtures.
-# Works with: detection.engine, detection.yara_rules, paths
+# Works with: detection.engine, detection.core.yara_rules, paths
 # Used by: unittest discovery
 
 from sentinelav.paths import RESOURCE_ROOT
@@ -12,7 +12,7 @@ import unittest
 import struct
 from unittest.mock import Mock
 from sentinelav.detection.engine import Scanner
-from sentinelav.detection.yara_rules import compile_rules, RuleValidationError
+from sentinelav.detection.core.yara_rules import compile_rules, RuleValidationError
 
 ROOT = RESOURCE_ROOT
 

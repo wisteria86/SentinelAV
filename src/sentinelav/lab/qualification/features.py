@@ -1,5 +1,5 @@
 # Purpose: Read-only feature benchmarking. No model signing, activation or tuning.
-# Works with: detection.pe_classifier, detection.pe_ensemble, lab.qualification.scoring, paths,
+# Works with: detection.helpers.pe_classifier, detection.helpers.pe_ensemble, lab.qualification.scoring, paths,
 #   updates.artifacts
 # Used by: lab.qualification.runner
 
@@ -16,8 +16,8 @@ def regression(work, cancelled, progress, resource_root=None):
 
     This only measures; it never changes or signs a model.
     """
-    from sentinelav.detection.pe_classifier import extractor_class
-    from sentinelav.detection.pe_ensemble import predict_vector
+    from sentinelav.detection.helpers.pe_classifier import extractor_class
+    from sentinelav.detection.helpers.pe_ensemble import predict_vector
     from sentinelav.updates.artifacts import active
     from sentinelav.paths import RESOURCE_ROOT
     from .scoring import upper_bound

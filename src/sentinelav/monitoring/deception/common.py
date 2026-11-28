@@ -1,5 +1,5 @@
 # Purpose: Shared helpers for deception features: decoy file records, owning-process lookup and event shape.
-# Works with: monitoring.honeypots
+# Works with: monitoring.helpers.honeypots
 # Used by: monitoring.deception.*
 
 """Shared helpers for deception features: decoy file records, owning-process lookup and event shape."""

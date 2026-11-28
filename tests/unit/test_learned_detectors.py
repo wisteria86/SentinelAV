@@ -1,5 +1,5 @@
 # Purpose: Verify test learned detectors behavior using controlled fixtures.
-# Works with: detection.engine, detection.inspection, detection.neural_bytes, detection.pe_ensemble,
+# Works with: detection.engine, detection.inspection, detection.helpers.neural_bytes, detection.helpers.pe_ensemble,
 #   lab.advanced_check
 # Used by: unittest discovery
 
@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import unittest
 from sentinelav.paths import RESOURCE_ROOT
-from sentinelav.detection.pe_ensemble import combine, validate
+from sentinelav.detection.helpers.pe_ensemble import combine, validate
 
 
 class LogitPoolingTests(unittest.TestCase):
@@ -110,7 +110,7 @@ class PublishedModelTests(unittest.TestCase):
 class NeuralModelTests(unittest.TestCase):
     def test_chunking_does_not_change_logits(self):
         import numpy as np
-        from sentinelav.detection.neural_bytes import logits, weights, predict
+        from sentinelav.detection.helpers.neural_bytes import logits, weights, predict
 
         data = bytes(range(256)) * 13
         state = weights()
@@ -128,7 +128,7 @@ class NeuralModelTests(unittest.TestCase):
         import numpy as np
         import torch
         import torch.nn.functional as f
-        from sentinelav.detection.neural_bytes import weights, logits
+        from sentinelav.detection.helpers.neural_bytes import weights, logits
 
         data = bytes(range(256)) * 13
         state = weights()

@@ -1,5 +1,5 @@
 # Purpose: Approved metadata inventories. Never opens specimen plaintext on the host.
-# Works with: detection.pe_classifier, detection.pe_ensemble, lab.qualification.contracts,
+# Works with: detection.helpers.pe_classifier, detection.helpers.pe_ensemble, lab.qualification.contracts,
 #   lab.qualification.scoring, paths
 # Used by: lab.qualification.runner
 
@@ -61,8 +61,8 @@ def feature_qualification(work, fmt, cancelled, progress, resource_root=None):
     per-week and per-family breakdowns.
     """
     from sentinelav.paths import RESOURCE_ROOT
-    from sentinelav.detection.pe_classifier import extractor_class
-    from sentinelav.detection.pe_ensemble import predict_vector
+    from sentinelav.detection.helpers.pe_classifier import extractor_class
+    from sentinelav.detection.helpers.pe_ensemble import predict_vector
     from sentinelav.updates.artifacts import active
     from .scoring import upper_bound
 

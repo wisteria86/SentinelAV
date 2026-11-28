@@ -1,6 +1,6 @@
 # Purpose: Versioned evidence contracts shared by tracking and remediation.
 # Works with: sibling modules in data
-# Used by: data.change_journal, detection.fusion, detection.pe_ensemble, detection.scan_flow
+# Used by: data.change_journal, detection.helpers.fusion, detection.helpers.pe_ensemble, detection.core.scan_flow
 
 """Versioned evidence contracts shared by tracking and remediation."""
 

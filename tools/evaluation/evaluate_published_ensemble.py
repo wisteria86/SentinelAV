@@ -1,5 +1,5 @@
 # Purpose: Calibrate threshold on reserved features, then evaluate separate held-out rows.
-# Works with: detection.pe_ensemble, paths, response.response, updates.artifacts, workspace
+# Works with: detection.helpers.pe_ensemble, paths, response.response, updates.artifacts, workspace
 # Used by: the Python module loader or CLI entry point
 
 """Calibrate threshold on reserved features, then evaluate separate held-out rows."""
@@ -12,7 +12,7 @@ import time
 import numpy as np
 from scipy.stats import beta
 from thrember.features import PEFeatureExtractor
-from sentinelav.detection.pe_ensemble import booster, combine, validate
+from sentinelav.detection.helpers.pe_ensemble import booster, combine, validate
 from sentinelav.paths import RESOURCE_ROOT
 from sentinelav.updates.artifacts import active, canonical, activate
 from sentinelav.response.response import dpapi

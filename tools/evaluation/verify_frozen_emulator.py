@@ -1,5 +1,5 @@
 # Purpose: Freeze this regression runner to verify native emulation with CFG enabled.
-# Works with: platform.emulation_support, tests.unit.test_integrated_analysis
+# Works with: platform.core.emulation_support, tests.unit.test_integrated_analysis
 # Used by: the Python module loader or CLI entry point
 
 """Freeze this regression runner to verify native emulation with CFG enabled.
@@ -10,7 +10,10 @@ Requires the same DLL and build receipt as the application bundle.
 
 import json
 import unittest
-from sentinelav.platform.emulation_support import control_flow_guard_enabled, validated_native_build
+from sentinelav.platform.core.emulation_support import (
+    control_flow_guard_enabled,
+    validated_native_build,
+)
 from tests.unit.test_integrated_analysis import IntegratedAnalysisTests
 
 if __name__ == '__main__':

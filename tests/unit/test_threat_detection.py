@@ -1,5 +1,5 @@
 # Purpose: Verify scoring, generalized indicators and archive reach with inert generated fixtures.
-# Works with: detection.threat_score, detection.indicators, detection.engine, detection.archive_inspection
+# Works with: detection.helpers.threat_score, detection.indicators, detection.engine, detection.core.archive_inspection
 # Used by: test.ps1
 
 """Verify scoring, generalized indicators and archive reach with inert generated fixtures. No malware is involved."""
@@ -14,9 +14,14 @@ import zipfile
 from pathlib import Path
 
 from sentinelav.detection.engine import Scanner
-from sentinelav.detection.file_types import classify
+from sentinelav.detection.helpers.file_types import classify
 from sentinelav.detection.indicators import dos, documents, scripts, strings
-from sentinelav.detection.threat_score import arm_scores, automatic_eligible, indicator, score
+from sentinelav.detection.helpers.threat_score import (
+    arm_scores,
+    automatic_eligible,
+    indicator,
+    score,
+)
 from sentinelav.paths import RESOURCE_ROOT
 
 # Assembled at runtime so no EICAR string is stored on disk where host antivirus would remove the test.

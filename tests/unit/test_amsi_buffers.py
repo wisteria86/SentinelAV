@@ -1,5 +1,5 @@
 # Purpose: Verify test amsi buffers behavior using controlled fixtures.
-# Works with: detection.buffer_scan, detection.engine, detection.inspection, paths, platform.amsi_broker
+# Works with: detection.core.buffer_scan, detection.engine, detection.inspection, paths, platform.core.amsi_broker
 # Used by: unittest discovery
 
 import base64
@@ -10,11 +10,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from sentinelav.detection.buffer_scan import MAX_BUFFER, inspect_buffer
+from sentinelav.detection.core.buffer_scan import MAX_BUFFER, inspect_buffer
 from sentinelav.detection.engine import Scanner
 from sentinelav.detection.inspection import IsolatedScanner
 from sentinelav.paths import RESOURCE_ROOT
-from sentinelav.platform.amsi_broker import AmsiBroker, response_status
+from sentinelav.platform.core.amsi_broker import AmsiBroker, response_status
 
 
 class BufferTests(unittest.TestCase):

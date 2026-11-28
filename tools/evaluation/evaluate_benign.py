@@ -1,5 +1,5 @@
 # Purpose: Read-only, repeatable evaluation of presumed-benign installed files.
-# Works with: detection.engine, paths, platform.engine_policy, workspace
+# Works with: detection.engine, paths, platform.core.engine_policy, workspace
 # Used by: tests.unit.test_advanced_evaluation, tests.unit.test_benign_evaluation
 
 """Read-only, repeatable evaluation of presumed-benign installed files.
@@ -21,7 +21,7 @@ import time
 import uuid
 import psutil
 from sentinelav.detection.engine import Scanner
-from sentinelav.platform.engine_policy import inspection_options
+from sentinelav.platform.core.engine_policy import inspection_options
 
 ROOT = RESOURCE_ROOT
 

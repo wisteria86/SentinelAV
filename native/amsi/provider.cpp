@@ -1,5 +1,5 @@
 // Purpose: Implement the COM AMSI provider and forward bounded buffers to the local broker.
-// Works with: provider.h; provider.def; platform/amsi_broker.py; scripts/build-amsi.ps1
+// Works with: provider.h; provider.def; platform/core/amsi_broker.py; scripts/build-amsi.ps1
 // Used by: the matching native executable or library entry point
 
 #include "provider.h"
