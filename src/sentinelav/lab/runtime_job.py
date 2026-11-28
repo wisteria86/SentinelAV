@@ -24,6 +24,9 @@ AUTHORIZATION='RUN_ONLY_IN_DISPOSABLE_OFFLINE_GUEST'
 
 
 def resolve_sample(job,base):
+    """Find the specimen file for a runtime job: an explicit path, or the guest corpus entry with the
+    job's SHA-256.
+    """
     if job.get('sample'): return Path(job['sample']).absolute()
     from sentinelav.updates.artifacts import bounded_json
     from sentinelav.lab.corpus_evaluation import load_manifest
@@ -38,6 +41,13 @@ def resolve_sample(job,base):
 
 
 def run_job(job, *, _guest_check=None, _health_check=None):
+    """Run one malware specimen inside the disposable offline test guest and record what it does.
+
+    The job must carry the explicit authorization string and we must really be inside the offline
+    guest. The specimen is copied to a fresh folder, started suspended, placed in a job object
+    (memory and process limits), then resumed and observed through Sysmon for the time budget.
+    Finally it is stopped and a report is written. The guest must be discarded afterwards.
+    """
     if not isinstance(job,dict) or job.get('schema')!=1 or set(job)-{'schema','authorization','sample','sha256','seconds','process_limit','arguments'}:
         raise ValueError('Expected a schema 1 runtime job with explicit supported fields')
     if not isinstance(job.get('sha256'),str) or not re.fullmatch('[0-9a-f]{64}',job['sha256']):
@@ -72,12 +82,14 @@ def run_job(job, *, _guest_check=None, _health_check=None):
         report['omissions'].append('Sysmon unavailable: '+str(error)[:300]); reader=None
     kernel=ctypes.WinDLL('kernel32',use_last_error=True)
     class Startup(ctypes.Structure):
+        """STARTUPINFOW structure for CreateProcessW."""
         _fields_=[('cb',wintypes.DWORD),('reserved',wintypes.LPWSTR),('desktop',wintypes.LPWSTR),('title',wintypes.LPWSTR),
             ('x',wintypes.DWORD),('y',wintypes.DWORD),('xs',wintypes.DWORD),('ys',wintypes.DWORD),
             ('charsx',wintypes.DWORD),('charsy',wintypes.DWORD),('fill',wintypes.DWORD),('flags',wintypes.DWORD),
             ('show',wintypes.WORD),('reservedbytes',wintypes.WORD),('reservedptr',ctypes.c_void_p),
             ('stdin',wintypes.HANDLE),('stdout',wintypes.HANDLE),('stderr',wintypes.HANDLE)]
     class Info(ctypes.Structure):
+        """PROCESS_INFORMATION structure filled in by CreateProcessW."""
         _fields_=[('process',wintypes.HANDLE),('thread',wintypes.HANDLE),('pid',wintypes.DWORD),('tid',wintypes.DWORD)]
     kernel.CreateProcessW.argtypes=[wintypes.LPCWSTR,wintypes.LPWSTR,ctypes.c_void_p,ctypes.c_void_p,wintypes.BOOL,wintypes.DWORD,
         ctypes.c_void_p,wintypes.LPCWSTR,ctypes.POINTER(Startup),ctypes.POINTER(Info)]

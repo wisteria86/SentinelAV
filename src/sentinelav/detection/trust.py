@@ -23,32 +23,41 @@ WTD_CACHE_ONLY=0x1000
 
 
 class GUID(ctypes.Structure):
+    """Windows GUID structure for ctypes."""
     _fields_=[('data',ctypes.c_ubyte*16)]
     @classmethod
     def of(cls,value):
+        """Build a GUID structure from a Python UUID."""
         result=cls();ctypes.memmove(result.data,value.bytes_le,16);return result
 
 
 class FileInfo(ctypes.Structure):
+    """WINTRUST_FILE_INFO: describes a file whose embedded signature should be checked."""
     _fields_=[('size',wintypes.DWORD),('path',wintypes.LPCWSTR),('handle',wintypes.HANDLE),('subject',ctypes.c_void_p)]
 
 
 class CatalogInfo(ctypes.Structure):
+    """WINTRUST_CATALOG_INFO: describes a file whose signature lives in a Windows catalog file."""
     _fields_=[('size',wintypes.DWORD),('version',wintypes.DWORD),('catalog',wintypes.LPCWSTR),('tag',wintypes.LPCWSTR),
         ('member',wintypes.LPCWSTR),('handle',wintypes.HANDLE),('hash',ctypes.c_void_p),('hash_size',wintypes.DWORD),('context',ctypes.c_void_p),('admin',ctypes.c_void_p)]
 
 
 class TrustData(ctypes.Structure):
+    """WINTRUST_DATA: the request passed to WinVerifyTrust."""
     _fields_=[('size',wintypes.DWORD),('policy',ctypes.c_void_p),('sip',ctypes.c_void_p),('ui',wintypes.DWORD),('revoke',wintypes.DWORD),
         ('choice',wintypes.DWORD),('info',ctypes.c_void_p),('state_action',wintypes.DWORD),('state',wintypes.HANDLE),('reference',wintypes.LPCWSTR),
         ('provider',wintypes.DWORD),('ui_context',wintypes.DWORD),('signature',ctypes.c_void_p)]
 
 
 class CatalogName(ctypes.Structure):
+    """CATALOG_INFO: receives the path of the catalog file that covers a file."""
     _fields_=[('size',wintypes.DWORD),('name',wintypes.WCHAR*260)]
 
 
 def _verify(choice,info):
+    """Ask Windows (WinVerifyTrust) to validate a signature, with no UI and no network revocation
+    check. Returns True if it is valid.
+    """
     wintrust=ctypes.WinDLL('wintrust',use_last_error=True)
     wintrust.WinVerifyTrust.argtypes=[wintypes.HWND,ctypes.c_void_p,ctypes.c_void_p]
     wintrust.WinVerifyTrust.restype=ctypes.c_long
@@ -62,6 +71,9 @@ def _verify(choice,info):
 
 
 def _catalog(path):
+    """Check whether the file is signed through a Windows catalog (as most built-in system files are)
+    rather than an embedded signature.
+    """
     wintrust=ctypes.WinDLL('wintrust',use_last_error=True)
     kernel=ctypes.WinDLL('kernel32',use_last_error=True)
     kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]

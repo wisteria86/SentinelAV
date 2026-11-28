@@ -10,7 +10,11 @@ from .lab_ui_workers import CapabilityWorker
 
 
 class LabPagesMixin:
+    """Builds the Malware Lab page."""
     def lab_page(self):
+        """Build the Malware Lab page: Overview, Test Queue, Live Activity, Results and Runtime tabs,
+        plus run and stop buttons.
+        """
         layout=self.page('Malware Lab','Run harmless local simulations or explicitly controlled offline guest jobs.')
         badge=QLabel('SAFE SIMULATIONS · SEPARATE OFFLINE GUEST JOBS')
         badge.setStyleSheet('color:#995319;font-weight:600;background:#f9e8cf;border-radius:8px;padding:9px 12px;')
@@ -94,6 +98,7 @@ class LabPagesMixin:
         self.refresh_lab_results()
 
     def check_lab_system(self):
+        """Check which virtualisation tools are available, in a background worker."""
         if self.capability_worker:
             return
         self.lab_check.setEnabled(False)
@@ -104,9 +109,11 @@ class LabPagesMixin:
         self.capability_worker.start()
 
     def lab_capabilities(self,result):
+        """Show the result of the system check."""
         self.lab_readiness.setText(f"Hyper-V tools: {'available' if result['hyperv_tools'] else 'unavailable'} · VM service: {result['vm_service']}\n"+result['note'])
 
     def capability_finished(self):
+        """Tidy up after the system check and re-enable its button."""
         self.capability_worker.deleteLater()
         self.capability_worker=None
         self.lab_check.setEnabled(True)

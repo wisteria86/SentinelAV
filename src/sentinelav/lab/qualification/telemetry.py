@@ -17,6 +17,7 @@ from sentinelav.monitoring.sequences import parse_event
 
 @dataclass
 class TelemetryEventV1:
+    """One normalised telemetry event from Sysmon or ETW."""
     source: str
     event_type: str
     timestamp: float
@@ -31,6 +32,7 @@ class TelemetryEventV1:
 
 @dataclass
 class TelemetryHealthV1:
+    """Health of one telemetry source: ready, last observation time, lost events and any error."""
     source: str
     ready: bool = False
     last_observation: float = 0
@@ -40,13 +42,16 @@ class TelemetryHealthV1:
 
 
 class SysmonObserver:
+    """Reads new events from the Sysmon event log in order, counting any gaps as lost events."""
     def __init__(self):
+        """Start reading from the newest existing Sysmon record (older history is ignored)."""
         import win32evtlog
         self.api=win32evtlog;self.cursor=0;self.health=TelemetryHealthV1('Sysmon')
         self.channel='Microsoft-Windows-Sysmon/Operational'
         self.cursor=self.latest();self.health.ready=True
 
     def latest(self):
+        """Return the newest Sysmon record id, or 0 if the log is empty."""
         a=self.api;handle=a.EvtQuery(self.channel,a.EvtQueryReverseDirection,'*')
         try:
             try:events=a.EvtNext(handle,1)
@@ -59,6 +64,8 @@ class SysmonObserver:
         finally:handle.Close()
 
     def poll(self):
+        """Return up to 2048 new Sysmon events as normalised dictionaries. Raises if the log was reset.
+        """
         a=self.api
         if self.latest()<self.cursor:
             self.health.lost+=1;self.health.ready=False;raise RuntimeError('Sysmon log reset')
@@ -90,7 +97,13 @@ class SysmonObserver:
 
 
 class TelemetrySession:
+    """Runs Sysmon and ETW observers together and keeps the events that relate to the evaluation.
+
+    Only events touching the test folder or processes the case started are kept. probe() proves the
+    observers can see process, file and registry activity before anything is trusted.
+    """
     def __init__(self,collector,root,max_events=20000,rolling_summary=False,probe_pid=None):
+        """Start both observers and the background collection thread."""
         self.root=Path(root);self.events=deque(maxlen=max_events);self.counts=Counter();self.probes={};self.probe_evidence=[]
         self.stop=threading.Event();self.error='';self.truncated=False;self.lock=threading.Lock()
         self.rolling_summary=rolling_summary;self.retention_evicted=0
@@ -102,6 +115,9 @@ class TelemetrySession:
         self.thread=threading.Thread(target=self.collect,daemon=True);self.thread.start()
 
     def collect(self):
+        """Background thread: gather new events every 0.2 seconds, track which processes belong to the
+        case, and keep the related events.
+        """
         while not self.stop.wait(.2):
             try:
                 events=self.sysmon.poll()
@@ -136,14 +152,21 @@ class TelemetrySession:
                 self.error=type(e).__name__+': '+str(e)[:300];self.sysmon.health.ready=False;return
 
     def etw_loss_counts(self):
+        """Return every ETW loss counter (reader, native queue, provider, unresolved paths and
+        identities).
+        """
         return dict(reader_drops=self.etw.dropped,native_queue_drops=self.etw.native_dropped,
             provider_losses=self.etw.etw_lost,unresolved_paths=self.etw.unresolved_paths,
             unresolved_identities=self.etw.unresolved_identities)
 
     def healthy(self):
+        """Tell whether both observers are running, recent and lossless."""
         return not self.error and self.thread.is_alive() and self.sysmon.health.ready and self.etw.ready and self.etw.last_heartbeat>0 and time.time()-self.etw.last_heartbeat<6 and not any(self.etw_loss_counts().values()) and not self.sysmon.health.lost and not self.truncated
 
     def probe(self,timeout=20,writer=None):
+        """Make known harmless activity (a child process, a file create and write, a registry change
+        and removal) and wait until every piece is observed. Raises if not.
+        """
         import winreg
         start=time.monotonic()
         path=writer.path if writer else self.root/('SentinelAVLabProbe-'+uuid.uuid4().hex+'.txt')
@@ -191,6 +214,8 @@ class TelemetrySession:
             if not writer:path.unlink(missing_ok=True)
 
     def snapshot(self,limit=32):
+        """Return a summary of recent events, counts, health, probe results and losses for the report.
+        """
         with self.lock:events=list(self.events)
         losses=self.etw_loss_counts()
         etw_lost=sum(losses.values())
@@ -202,4 +227,5 @@ class TelemetrySession:
             retention_policy='rolling-summary' if self.rolling_summary else 'complete-case',retention_evicted=self.retention_evicted)
 
     def close(self):
+        """Stop collection and the ETW collector."""
         self.stop.set();self.thread.join(10);self.etw.close()

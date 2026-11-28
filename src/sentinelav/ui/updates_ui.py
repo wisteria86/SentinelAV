@@ -13,16 +13,21 @@ from sentinelav.updates.hash_archive import import_archive
 
 
 class DefinitionWorker(QThread):
+    """Background thread for definition updates: CSV and archive imports, signed packages, corrections,
+    rollback and ClamAV signature downloads.
+    """
     completed=Signal(dict)
     failed=Signal(str)
     progress=Signal(str)
 
     def __init__(self,root,kind,path=None):
+        """Remember the resources folder, the kind of update and its input file."""
         super().__init__()
         self.root,self.kind,self.path=Path(root),kind,path
         self.cancelled=threading.Event()
 
     def run(self):
+        """Run the requested update and emit completed(metadata) or failed(message)."""
         from sentinelav.detection.definition_paths import signature_data_dir
         folder=signature_data_dir(self.root)
         try:
@@ -39,6 +44,7 @@ class DefinitionWorker(QThread):
                 result=dict(clamav=definitions_summary())
             elif self.kind=='full':
                 def report(count):
+                    """Relay import progress, stopping early if the window asked to cancel."""
                     if self.cancelled.is_set(): raise InterruptedError('Import cancelled before activation')
                     self.progress.emit(f'Validated {count:,} CSV rows…')
                 result=import_archive(self.path,folder,True,report)
@@ -64,7 +70,9 @@ def layer_status():
 
 
 class UpdatesMixin:
+    """Adds the Definitions settings tab and runs definition updates."""
     def settings_page(self):
+        """Add the Definitions tab with its status line and update buttons."""
         super().settings_page()
         tabs=self.stack.widget(5).findChild(QTabWidget)
         page=QWidget()
@@ -92,6 +100,8 @@ class UpdatesMixin:
         self.refresh_definition_health()
 
     def refresh_definition_health(self):
+        """Show the hash-database size, age and source, plus the status of every extra signature layer.
+        """
         from sentinelav.ui.application import ROOT
         try:
             from sentinelav.detection.definition_paths import signature_data_dir
@@ -105,6 +115,7 @@ class UpdatesMixin:
             self.definition_health.setText('Definition status unavailable: '+str(error))
 
     def begin_definition_update(self,kind):
+        """Ask for the update file if needed and run the update in a DefinitionWorker."""
         if self.definition_worker or self.worker or self.response_worker or self.lab_worker or self.preferences_worker:
             self.definition_result.setText('Finish the current scan, response, lab, or settings operation first.')
             return
@@ -124,6 +135,7 @@ class UpdatesMixin:
         self.definition_worker.start()
 
     def definition_update_done(self,metadata):
+        """Refresh the status and report what was activated."""
         self.refresh_definition_health()
         if 'clamav' in metadata:
             files=', '.join(item['name'] for item in metadata['clamav']['files'])
@@ -138,38 +150,45 @@ class UpdatesMixin:
             self.definition_result.setText(self.definition_result.text()+' Local audit recording failed.')
 
     def definition_update_finished(self):
+        """Tidy up after the update worker and re-enable the buttons."""
         self.definition_worker.deleteLater()
         self.definition_worker=None
         for button in self.definition_buttons: button.setEnabled(True)
 
     def ready_for_response(self):
+        """Block response actions during a definition update."""
         if self.definition_worker:
             self.response_status.setText('Wait for the definition update to finish.')
             return False
         return super().ready_for_response()
 
     def start_scan(self,roots,kind):
+        """Block scans during a definition update."""
         if self.definition_worker:
             self.statusBar().showMessage('Wait for the definition update to finish.',5000)
             return
         super().start_scan(roots,kind)
 
     def begin_protection(self):
+        """Block starting protection during a definition update."""
         if self.definition_worker:
             self.statusBar().showMessage('Wait for the definition update to finish.',5000)
             return
         super().begin_protection()
 
     def start_lab(self):
+        """Block lab runs during a definition update."""
         if self.definition_worker:
             self.lab_note.setText('Wait for the definition update to finish.')
             return
         super().start_lab()
 
     def check_schedule(self):
+        """Skip scheduled scans during a definition update."""
         if not self.definition_worker: super().check_schedule()
 
     def closeEvent(self,event):
+        """Cancel a running import and close once it has stopped."""
         if self.definition_worker:
             self.definition_worker.cancelled.set()
             event.ignore()

@@ -61,6 +61,9 @@ def constants(code):
 
 
 def _has(term,names,text):
+    """Check one search term: '=name' must be an exact class-file constant, anything else just has to
+    appear in the text.
+    """
     return term[1:] in names if term.startswith('=') else term in text
 
 
@@ -81,6 +84,9 @@ def _members(data):
 
 
 def android_indicators(data,kind):
+    """Find warning signs in an Android app: suspicious permission combinations and code that sends
+    SMS, runs shell commands, loads code at runtime or abuses device-admin rights.
+    """
     if kind=='apk':
         manifest,code=_members(data)
     else:manifest,code=b'',[bytes(data)]
@@ -102,6 +108,10 @@ def android_indicators(data,kind):
 
 
 def java_indicators(data,kind):
+    """Find warning signs in Java code (a .jar or a single .class): obfuscated or encrypted classes and
+    dangerous API combinations such as running commands, loading remote classes or stealing session
+    tokens.
+    """
     if kind=='jar':_,code=_members(data)
     else:code=[bytes(data)]
     names=set().union(*(constants(item) for item in code))

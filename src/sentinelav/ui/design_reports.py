@@ -8,7 +8,9 @@ from .design_components import icon
 
 
 class ReportsPageMixin:
+    """Builds the Reports page."""
     def reports_page(self):
+        """Build the Reports page: report tabs, export button and the history table."""
         layout = self.page('Reports', 'View your scan history, detected threats, and system activity.')
         row = QHBoxLayout()
         self.report_tabs = []
@@ -33,10 +35,12 @@ class ReportsPageMixin:
         self.report_mode = 0
 
     def open_history(self, row, column):
+        """Open the full report of a double-clicked scan (only on the Scan History tab)."""
         if self.report_mode == 0:
             self.show_report(row, column)
 
     def change_report(self, index):
+        """Switch report tab and refill the table."""
         self.report_mode = index
         for i, b in enumerate(self.report_tabs):
             b.setChecked(i == index)

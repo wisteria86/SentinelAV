@@ -28,6 +28,9 @@ def seven_zip_tool():
 
 
 def _listing(tool,path,password):
+    """Ask 7-Zip to list an archive's files, returning (name, size, encrypted) tuples, or None if the
+    password was wrong.
+    """
     run=subprocess.run([tool,'l','-slt','-ba','-p'+password,str(path)],capture_output=True,timeout=60,creationflags=0x08000000)
     if run.returncode!=0:return None
     entries=[]
@@ -39,6 +42,12 @@ def _listing(tool,path,password):
 
 
 def tool_members(data,suffix,limit=TOOL_LIMIT,passwords=('',*SHARING_PASSWORDS)):
+    """List and read an archive's members through the external 7-Zip program.
+
+    The archive is written to a short-lived temporary copy, listed, and all members are extracted in
+    one pass to memory, cut apart using their declared sizes. Each password (none, then the sharing
+    passwords) is tried in turn. Raises RuntimeError if 7-Zip is missing or cannot read it.
+    """
     from sentinelav.detection.archive_formats import Member
     tool=seven_zip_tool()
     if not tool:raise RuntimeError(f'{suffix} members were not inspected: 7-Zip is not available')
@@ -65,4 +74,5 @@ def tool_members(data,suffix,limit=TOOL_LIMIT,passwords=('',*SHARING_PASSWORDS))
 
 
 def cab_members(data):
+    """List and read the members of a Windows cabinet (.cab) file through 7-Zip."""
     return tool_members(data,'.cab',CAB_LIMIT,('',))

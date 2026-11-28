@@ -9,12 +9,16 @@ from sentinelav.detection.preexecution import verdict
 
 
 class InspectionWorker(QThread):
+    """Background thread for a manual memory inspection or pre-execution file check."""
     completed=Signal(dict)
     failed=Signal(str)
     def __init__(self,root,kind,target,options):
+        """kind is 'memory' (target is (pid, start time)) or 'file' (target is a path)."""
         super().__init__()
         self.root,self.kind,self.target,self.options=root,kind,target,options
     def run(self):
+        """Run the inspection in an isolated scanner and emit completed(result) or failed(message).
+        """
         scanner=None
         try:
             scanner=IsolatedScanner(self.root/'signatures.json',self.root/'rules',options=self.options)

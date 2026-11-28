@@ -10,6 +10,12 @@ from .contracts import Observation,CaseResult,QualificationSummary,digest,valida
 
 
 def upper_bound(false_positives, total):
+    """Return the 95% upper confidence bound on a false-positive rate, given false_positives mistakes
+    out of total benign files.
+
+    With zero mistakes this is 1 - 0.05^(1/n) (the 'rule of three' idea); otherwise the exact
+    Clopper-Pearson bound.
+    """
     if type(false_positives) is not int or type(total) is not int or not 0<=false_positives<=total:
         raise ValueError('Invalid binomial counts')
     if not total or false_positives==total:return 1.0
@@ -19,6 +25,12 @@ def upper_bound(false_positives, total):
 
 
 def score_case(case, observation, versions):
+    """Decide a case's result from its observation, failing closed.
+
+    Collateral damage or a false automatic action always fails; incomplete, lost or truncated
+    evidence is inconclusive; then every expected measurement must be present and match. Only if all
+    of that holds does the case pass.
+    """
     o=Observation(**observation)
     if o.case_id!=case['id'] or o.versions_digest!=digest(versions):
         raise ValueError('Observation does not belong to frozen case/build')
@@ -37,6 +49,10 @@ def score_case(case, observation, versions):
 
 
 def detection_metrics(rows):
+    """Compute detection statistics for sample rows: true and false positives, misses, recall (over
+    eligible and over all selected samples), the false-positive upper bound, and how many were only
+    warnings or partial.
+    """
     validate_samples(rows)
     malware=[r for r in rows if r['label']=='malware'];benign=[r for r in rows if r['label']=='benign']
     measured=lambda rs:[r for r in rs if r.get('available') and r.get('coverage_complete')]
@@ -53,6 +69,13 @@ def detection_metrics(rows):
 
 
 def qualify(manifest, results):
+    """Turn all case results into the overall qualification verdict.
+
+    Every passing result is re-scored to be sure it really passes. Then each gate is checked (per-
+    format temporal classification, raw detection, automatic-action safety, every required track,
+    and 7-day soak), each with minimum sample sizes. Any failure fails the run; anything missing
+    blocks it.
+    """
     cases={c['id']:c for c in manifest['cases']};seen={}
     samples=[]
     validated=[]
@@ -74,7 +97,9 @@ def qualify(manifest, results):
     validate_samples(samples,digest(manifest['versions']))
     missing=[c['id'] for c in cases.values() if c['required'] and (c['id'] not in seen or seen[c['id']]['status']!='passed')]
     gates={}
-    def blocked(name,reason):gates[name]=dict(status='blocked',reason=reason)
+    def blocked(name,reason):
+        """Mark a gate as blocked, with the reason."""
+        gates[name]=dict(status='blocked',reason=reason)
     # Feature candidates, not warnings from raw scanners, measure statistical
     # classification. Keep each supported format as its own mandatory gate.
     for fmt in ('Win32','Win64','Dot_Net'):

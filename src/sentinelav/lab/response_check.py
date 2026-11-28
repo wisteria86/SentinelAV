@@ -18,11 +18,13 @@ from PySide6.QtWidgets import QFileDialog, QPushButton, QTabWidget
 
 
 def require(condition, message):
+    """Raise a self-test failure with the message if the condition is false."""
     if not condition:
         raise RuntimeError('Response self-test: '+message)
 
 
 def wait_for(app, predicate, seconds=30):
+    """Keep the Qt event loop running until predicate() is true, failing after `seconds`."""
     deadline=time.monotonic()+seconds
     while not predicate():
         require(time.monotonic()<deadline,'worker timed out')
@@ -32,8 +34,15 @@ def wait_for(app, predicate, seconds=30):
 
 
 def check_response_ui(app, window, evidence_dir):
+    """Self-test the quarantine and restore workflow through the real window controls.
+
+    A harmless marker file is scanned, quarantined (checking the encrypted copy contains no
+    plaintext), restore onto an existing file is refused, then the file is restored and detected
+    again. Only the dialog answers are faked. Returns a PASS record with evidence.
+    """
     confirmations=[]
     def confirm(title,text):
+        """Fake confirmation dialog that records its title and always answers Yes."""
         confirmations.append(title)
         return True
 

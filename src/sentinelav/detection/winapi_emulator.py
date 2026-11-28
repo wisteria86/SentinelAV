@@ -17,6 +17,13 @@ from .emulated_calls import EmulatedCallsMixin
 
 class WinAPIModel(EmulatedCallsMixin):
     # Stack argument counts are ABI descriptions, not malware-specific rules.
+    """The small, self-made Windows environment used by the 'minimal' emulator.
+
+    Every import of the emulated program is pointed at a tiny 'stub' address. When the program jumps
+    to a stub, dispatch() reads the call's arguments, runs our fake implementation (from
+    EmulatedCallsMixin), puts the return value in the right register and returns to the caller, just
+    as a real Windows function would. All state (heap, files, handles) is virtual and capped.
+    """
     ARGUMENTS={
         'virtualalloc':4,'virtualfree':3,'virtualprotect':4,
         'getprocessheap':0,'heapalloc':3,'heapfree':3,
@@ -38,6 +45,9 @@ class WinAPIModel(EmulatedCallsMixin):
     }
 
     def __init__(self,machine,wide,registers,stub_base,heap_base,image_base=0):
+        """Set up an empty virtual environment on top of a Unicorn CPU (machine), with regions reserved
+        for import stubs and the heap.
+        """
         self.machine,self.wide,self.reg=machine,wide,registers
         self.width=8 if wide else 4
         self.stub_base,self.heap_base=stub_base,heap_base
@@ -48,26 +58,39 @@ class WinAPIModel(EmulatedCallsMixin):
         self.image_base=image_base; self.strings={}; self.tls={}; self.next_tls=0
 
     def output_text(self,address,capacity,text,wide=False):
+        """Write a string into the program's buffer like a Windows API would, failing (error 122,
+        buffer too small) when it does not fit.
+        """
         if not 0<=capacity<=32768: raise ValueError('Emulated string output capacity')
         if capacity<=len(text): self.error=122; return 0
         self.write(address,text.encode('utf-16le' if wide else 'utf-8')+(b'\0\0' if wide else b'\0'))
         return len(text)
 
     def event(self,kind,**fields):
+        """Record one interesting action (file write, registry write, network attempt, ...), keeping at
+        most 256.
+        """
         if len(self.events)<256: self.events.append(dict(kind=kind,**fields))
 
     def read(self,address,size):
+        """Read bytes from emulated memory (at most 4 MB at once)."""
         if not 0<=size<=4*1024*1024: raise ValueError('Emulated memory operation exceeds limit')
         return bytes(self.machine.mem_read(address,size))
 
     def write(self,address,data):
+        """Write bytes into emulated memory (at most 4 MB at once)."""
         if len(data)>4*1024*1024: raise ValueError('Emulated write exceeds limit')
         self.machine.mem_write(address,bytes(data))
 
-    def pointer(self,address): return int.from_bytes(self.read(address,self.width),'little')
-    def store_pointer(self,address,value): self.write(address,int(value).to_bytes(self.width,'little',signed=False))
+    def pointer(self,address):
+        """Read one pointer-sized number from emulated memory."""
+        return int.from_bytes(self.read(address,self.width),'little')
+    def store_pointer(self,address,value):
+        """Write one pointer-sized number into emulated memory."""
+        self.write(address,int(value).to_bytes(self.width,'little',signed=False))
 
     def text(self,address,wide=False):
+        """Read a zero-terminated string (ANSI, or UTF-16 if wide) from emulated memory."""
         if not address: return ''
         output=bytearray(); width=2 if wide else 1
         for index in range(4096):
@@ -77,6 +100,9 @@ class WinAPIModel(EmulatedCallsMixin):
         raise ValueError('Emulated string exceeds limit')
 
     def allocate(self,size,address=0):
+        """Hand out a fresh block from the virtual heap, rounded up to whole 4 KB pages, within a 32 MB
+        budget.
+        """
         if not 0<size<=16*1024*1024: raise ValueError('Emulated allocation size cap')
         size=(size+4095)&~4095
         if self.heap_bytes+size>32*1024*1024: raise ValueError('Emulated heap budget')
@@ -87,17 +113,20 @@ class WinAPIModel(EmulatedCallsMixin):
         return address
 
     def handle(self,kind,value):
+        """Create a new fake handle for a file, registry key, module or network object."""
         self.next_handle+=1
         self.handles[self.next_handle]=dict(kind=kind,value=value,position=0)
         return self.next_handle
 
     def module(self,name):
+        """Return the fake module handle for a DLL name, creating it on first use."""
         name=name.replace('\\','/').rsplit('/',1)[-1].casefold()
         if len(self.modules)>=128 and name not in self.modules: raise ValueError('Emulated module cap')
         if name not in self.modules: self.modules[name]=self.handle('module',name)
         return self.modules[name]
 
     def bind(self,library,name):
+        """Return the stub address for a library function, creating a new stub on first use."""
         key=(library.casefold(),name.casefold())
         if key not in self.reverse:
             if len(self.stubs)>=2048: raise ValueError('Emulated import stub cap')
@@ -107,12 +136,18 @@ class WinAPIModel(EmulatedCallsMixin):
         return self.reverse[key]
 
     def arguments(self,count):
+        """Read a call's arguments from the stack (32-bit) or from registers and stack (64-bit calling
+        convention).
+        """
         stack=self.machine.reg_read(self.reg.UC_X86_REG_RSP if self.wide else self.reg.UC_X86_REG_ESP)
         if not self.wide: return stack,[self.pointer(stack+4+i*4) for i in range(count)]
         registers=(self.reg.UC_X86_REG_RCX,self.reg.UC_X86_REG_RDX,self.reg.UC_X86_REG_R8,self.reg.UC_X86_REG_R9)
         return stack,[self.machine.reg_read(registers[i]) if i<4 else self.pointer(stack+40+(i-4)*8) for i in range(count)]
 
     def dispatch(self,address):
+        """Handle a call to a stub: run the fake API, set the return value, clean up the stack and
+        return to the caller.
+        """
         library,name=self.stubs[address]
         dll=library.replace('\\','/').rsplit('/',1)[-1].casefold()
         if dll not in {'kernel32.dll','kernelbase.dll','ntdll.dll','advapi32.dll','winhttp.dll',

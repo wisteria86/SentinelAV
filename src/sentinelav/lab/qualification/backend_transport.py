@@ -18,7 +18,17 @@ FRAME_WORKERS=16
 
 
 class GuestTransportMixin:
+    """Moves small pieces of data into and out of an evaluation guest without any writable shared
+    folder.
+
+    Data goes in as tiny Base64 chunks written by guest commands. Results come out through exit
+    codes only: each command reports three bytes of the export file as its exit status, and the host
+    stitches them back together. Slow, but strictly one-way and bounded.
+    """
     def setup_telemetry(self):
+        """Install Sysmon (after checking its Microsoft signature) and the telemetry collector inside
+        the guest, and fail clearly if any step does not succeed.
+        """
         code=r'''$ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $log='C:\SentinelAV-Test\TelemetrySetup'
@@ -70,6 +80,9 @@ exit $code
             raise Blocked('Guest telemetry setup failed at '+str(details.get('stage'))+': '+str(details.get('error','No diagnostic supplied')))
 
     def execute(self,context):
+        """Send one evaluation job into the guest, run SentinelAV on it there, and read back its
+        bounded result export.
+        """
         nonce=identifier(context['nonce']);raw=base64.b64encode(json.dumps(context).encode()).decode()
         jobpath='C:/SentinelAV-Test/Jobs/'+nonce+'.json'
         if len(raw)>1400000:raise ValueError('Guest job metadata too large')
@@ -95,6 +108,9 @@ exit $code
         return result
 
     def read_metadata(self,path,compressed=True):
+        """Read an approved evidence file from the guest, three bytes at a time through exit codes,
+        using the fastest available channel. Returns the decoded JSON.
+        """
         import re
         if not re.fullmatch(r'C:/SentinelAV-Test/(?:Qualification/[a-zA-Z0-9_.-]{1,100}/export\.bin|TelemetrySetup/result\.json)',path):
             raise ValueError('Guest metadata path is not an approved evidence location')
@@ -115,6 +131,7 @@ exit $code
         self.progress('Reading bounded guest evidence: '+str(size)+' bytes ('+('native' if native else 'batch-frame' if framed else 'PowerShell')+' transport)')
         began=time.monotonic()
         def word(offset):
+            """Read three bytes at `offset` from the guest file as one exit code."""
             if self.cancelled() or time.monotonic()-began>3600:raise InterruptedError('Metadata export cancelled/timed out')
             code=prefix+'$v=0;for($i=0;$i -lt 3;$i++){if(('+str(offset)+'+$i) -lt $b.Length){$v=$v -bor ([int]$b[('+str(offset)+'+$i)] -shl (8*$i))}};exit (1073741824+$v)'
             if framed:
@@ -143,6 +160,7 @@ exit $code
         except (RuntimeError,OSError,InterruptedError):return False
 
     def batch_frame(self,token,offset):
+        """Read one prepared frame by running its tiny batch file and returning the exit code."""
         uuid.UUID(hex=token)
         if type(offset) is not int or offset<0:raise ValueError('Invalid evidence offset')
         command='cmd.exe /d /c C:\\SentinelAV-Test\\Qualification\\'+token+'\\frames\\'+str(offset)+'.cmd'
@@ -152,6 +170,8 @@ exit $code
         return value
 
     def metadata_frame(self,token,offset):
+        """Read one frame through the native collector's export mode (offset -1 returns the file size).
+        """
         if token!='setup':uuid.UUID(hex=token)
         if type(offset) is not int or not -1<=offset<32768:raise ValueError('Invalid native evidence offset')
         command=subprocess.list2cmdline(['C:/Program Files/SentinelAV-Lab-Collector/SentinelAV.Telemetry.exe','--lab-export',token,str(offset)])

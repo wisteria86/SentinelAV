@@ -16,7 +16,11 @@ MAX_FILE=1024*1024
 RUN_KEYS=(r'Software\Microsoft\Windows\CurrentVersion\Run',r'Software\Microsoft\Windows\CurrentVersion\RunOnce')
 
 
-def resource(kind,**fields):return dict(kind=kind,id=fingerprint(dict(kind=kind,**fields)),**fields)
+def resource(kind,**fields):
+    """Describe one watched item (a registry value, file, task or service) with a stable id derived
+    from its fields.
+    """
+    return dict(kind=kind,id=fingerprint(dict(kind=kind,**fields)),**fields)
 
 
 def powershell(script,data=None):
@@ -33,6 +37,9 @@ def powershell(script,data=None):
 
 
 def file_state(path):
+    """Take a snapshot of a small file (up to 1 MiB): its hash, size and content, refusing hard links
+    and files that change while being read.
+    """
     path=unlinked(path)
     try:
         with path.open('rb') as stream:
@@ -74,12 +81,26 @@ $ErrorActionPreference='Stop';[Console]::OutputEncoding=[Text.Encoding]::UTF8
 
 
 class WindowsInventory:
+    """Lists the places Windows uses to start programs automatically.
+
+    That means the Run and RunOnce registry keys (32 and 64-bit views), scheduled tasks outside
+    Microsoft's own folder, services, the Startup folders, and any configuration files the user
+    chose to track. Everything is read-only.
+    """
     def __init__(self,settings=(),service_scope=False):
+        """Remember which extra setting files to track (up to 64). service_scope=True skips per-user
+        locations when running as the system service.
+        """
         if not isinstance(settings,(list,tuple)) or len(settings)>64 or any(not isinstance(p,str) or not Path(p).is_absolute() for p in settings):raise ValueError('Track up to 64 explicit absolute configuration files')
         self.settings=list(settings)
         self.service_scope=service_scope
 
     def collect(self):
+        """Read every autostart location and return {'rows', 'errors', 'complete'}.
+
+        rows is a list of (resource, state) pairs. complete lists the kinds that were read in full;
+        only those can be trusted to show that an entry was removed.
+        """
         rows=[];errors=[];complete=set()
         if os.name!='nt':return dict(rows=[],errors=['Windows change tracking requires Windows'],complete=[])
         import winreg
@@ -137,6 +158,7 @@ class WindowsInventory:
         return dict(rows=rows,errors=errors,complete=sorted(complete))
 
     def read(self,target):
+        """Read the current state of one resource directly."""
         kind=target['kind']
         if kind in ('startup_file','setting_file'):return file_state(target['path'])
         if kind=='registry':

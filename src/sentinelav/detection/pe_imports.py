@@ -7,6 +7,11 @@ import struct
 
 
 def inspect_imports(data,metadata):
+    """List a Windows program's imported libraries and functions.
+
+    If the import table is damaged part-way through, whatever was read before the damage is still
+    returned (marked Incomplete) instead of being thrown away.
+    """
     progress=dict(libraries=[],functions=0)
     try:return _inspect_imports(data,metadata,progress)
     except ValueError as error:
@@ -15,6 +20,7 @@ def inspect_imports(data,metadata):
 
 
 def _inspect_imports(data, metadata,progress):
+    """Do the actual import-table walk, recording progress in `progress` as it goes."""
     offset=struct.unpack_from('<I',data,0x3c)[0]
     optional=offset+24
     size=struct.unpack_from('<H',data,offset+20)[0]
@@ -35,6 +41,8 @@ def _inspect_imports(data, metadata,progress):
     header_bytes=struct.unpack_from('<I',data,optional+60)[0]
 
     def locate(address,length):
+        """Translate a virtual address into a file offset, refusing unmapped or ambiguous addresses.
+        """
         matches=[]
         if address<header_bytes and address+length<=min(header_bytes,len(data)):
             matches.append((address,min(header_bytes,len(data))))
@@ -50,6 +58,8 @@ def _inspect_imports(data, metadata,progress):
 
     name_bytes=0
     def string(address):
+        """Read one printable ASCII name at a virtual address, enforcing the overall name-size budget.
+        """
         nonlocal name_bytes
         start,end=locate(address,1)
         end=min(end,start+512)

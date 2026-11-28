@@ -20,6 +20,11 @@ FILE = 'cscb.csv'
 
 @lru_cache(maxsize=1)
 def _entries(location, stamp):
+    """Read the blocklist CSV into a {thumbprint: details} dictionary.
+
+    `stamp` is the file's modification time. Because it is part of the cache key, the cache
+    refreshes automatically when the file is updated.
+    """
     from pathlib import Path
     path = Path(location)
     if not stamp:
@@ -35,6 +40,9 @@ def _entries(location, stamp):
 
 
 def entries():
+    """Return the current certificate blocklist as {SHA-256 thumbprint: details}, or {} if it has not
+    been downloaded.
+    """
     path = definitions_dir('cert-blocklist') / FILE
     stamp = path.stat().st_mtime_ns if path.is_file() else 0
     return _entries(str(path), stamp)
@@ -44,6 +52,8 @@ def security_directory(data):
     """Return the raw WIN_CERTIFICATE area of a PE image, or b''."""
     if len(data) < 0x40 or data[:2] != b'MZ':
         return b''
+    # Follow the DOS header to the PE header, then find the data-directory table, whose position
+    # depends on 32- vs 64-bit format.
     offset = struct.unpack_from('<I', data, 0x3C)[0]
     if offset + 24 > len(data) or data[offset:offset + 4] != b'PE\0\0':
         return b''
@@ -70,6 +80,8 @@ def thumbprints(data):
     found = []
     position = 0
     while position + 8 <= len(area):
+        # Each WIN_CERTIFICATE record starts with its length and type; type 2 holds a PKCS#7
+        # signature. Records are padded to 8 bytes.
         length, _, kind = struct.unpack_from('<IHH', area, position)
         if length < 8 or position + length > len(area):
             break
@@ -95,6 +107,9 @@ def blocklisted(data):
 
 
 def install(source):
+    """Replace the installed blocklist with the file at `source` and return how many entries it
+    contains.
+    """
     target = definitions_dir('cert-blocklist') / FILE
     target.write_bytes(source.read_bytes())
     return len(entries())

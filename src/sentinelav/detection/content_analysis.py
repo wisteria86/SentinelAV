@@ -19,6 +19,16 @@ WINDOW=3*1024*1024
 
 
 def normalized_variants(data,suffix='',max_total=16*1024*1024):
+    """Produce decoded versions of a script so hidden content can be scanned with the normal rules.
+
+    Malware often hides its real code by encoding it. Starting from the original, we repeatedly try
+    simple, safe decodings: UTF-16 text, Base64 strings, joined-up string concatenations ('a' + 'b')
+    and hex or unicode escape sequences. Every new result is queued and decoded again, up to four
+    levels deep. Nothing is ever executed.
+
+    Returns (variants, omissions): variants is a list of (description, bytes) pairs, where the
+    description records the chain of decodings, for example 'original/base64-literal/utf16'.
+    """
     omissions=[]
     # Obfuscated droppers are often padded to megabytes; decode the head and tail instead of giving up.
     if len(data)>WINDOW+1024*1024:
@@ -27,6 +37,8 @@ def normalized_variants(data,suffix='',max_total=16*1024*1024):
     seen={hashlib.sha256(data).digest()}
     variants=[]
     total=0
+    # Breadth-first search over decodings: each decoded result goes back in the queue to be decoded
+    # again.
     while queue and len(variants)<32:
         raw,chain,depth=queue.popleft()
         if depth>=4: continue
@@ -70,6 +82,9 @@ def inspect_containers(data,analyze,cancelled=lambda:False):
     limit=16*1024*1024
 
     def inspect(name,payload):
+        """Scan one extracted piece of content and record any match, enforcing the shared count and
+        size limits.
+        """
         nonlocal expanded,entries
         entries+=1; expanded+=len(payload)
         if cancelled(): raise ValueError('Container inspection cancelled')

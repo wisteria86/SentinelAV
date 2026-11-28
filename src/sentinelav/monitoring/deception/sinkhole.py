@@ -27,15 +27,19 @@ LIMIT = 50000
 
 
 def hosts_path():
+    """Return the path of the Windows hosts file."""
     return Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'drivers' / 'etc' / 'hosts'
 
 
 def fetch(url=SOURCE, timeout=30):
+    """Download the public URLhaus host list and return its malware domains."""
     with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'SentinelAV-sinkhole/1'}), timeout=timeout) as response:
         return parse(response.read(8 * 1024 * 1024).decode('utf-8', 'replace'))
 
 
 def parse(text):
+    """Extract the valid domain names from hosts-file text (at most LIMIT of them, sorted and unique).
+    """
     domains = []
     for line in text.splitlines():
         parts = line.split('#', 1)[0].split()
@@ -45,10 +49,14 @@ def parse(text):
 
 
 def without_block(text):
+    """Return hosts-file text with SentinelAV's marked block removed."""
     return re.sub(re.escape(BEGIN) + r'.*?' + re.escape(END) + r'\r?\n?', '', text, flags=re.S)
 
 
 def apply(domains, path=None):
+    """Write the domains into the hosts file inside our marked block (replacing any older block), flush
+    the DNS cache, and return how many were written.
+    """
     path = Path(path or hosts_path())
     current = path.read_text(encoding='utf-8', errors='replace')
     block = '\n'.join([BEGIN] + [f'{SINK} {domain}' for domain in domains] + [END]) + '\n'
@@ -59,6 +67,7 @@ def apply(domains, path=None):
 
 
 def remove(path=None):
+    """Remove our marked block from the hosts file, if present."""
     path = Path(path or hosts_path())
     try:
         current = path.read_text(encoding='utf-8', errors='replace')
@@ -70,6 +79,7 @@ def remove(path=None):
 
 
 def _flush():
+    """Clear the Windows DNS cache so hosts-file changes take effect immediately."""
     if os.name == 'nt':
         subprocess.run(['ipconfig', '/flushdns'], capture_output=True, creationflags=0x08000000, timeout=30)
 
@@ -80,6 +90,8 @@ def requested_name(first):
     if match:
         return match.group(1).decode('ascii', 'replace')
     try:
+        # No Host header, so try to read the server name from a TLS ClientHello by stepping over its
+        # fixed-layout fields.
         if first[:1] != b'\x16' or first[5:6] != b'\x01':
             return ''
         offset = 5 + 4 + 2 + 32  # record header, handshake header, version, random
@@ -100,11 +112,15 @@ def requested_name(first):
 
 
 class SinkholeListener:
+    """Listens on the sinkhole address and reports which program tried to reach which malware domain.
+    """
     def __init__(self, emit, behavior=None, ports=(80, 443), host=SINK, owner=connection_owner):
+        """Prepare listeners for the given ports on the sinkhole address; start() opens them."""
         self.emit, self.behavior, self.ports, self.host, self.owner = emit, behavior, ports, host, owner
         self.sockets, self.skipped, self.stop_event = [], [], threading.Event()
 
     def start(self):
+        """Open a listener on each port that is free and return the ports actually opened."""
         for port in self.ports:
             server = socket.socket()
             try:
@@ -120,6 +136,9 @@ class SinkholeListener:
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
+        """Accept connections, work out the requested domain from the first bytes, and raise an alert
+        naming the process.
+        """
         while not self.stop_event.is_set():
             try:
                 connection, (address, peer_port) = server.accept()
@@ -138,6 +157,7 @@ class SinkholeListener:
             flag(self.behavior, process, f'Tried to reach the malware domain {domain}', 60)
 
     def stop(self):
+        """Stop all listeners."""
         self.stop_event.set()
         for server in self.sockets:
             server.close()

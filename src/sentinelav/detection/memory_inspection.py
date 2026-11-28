@@ -12,6 +12,14 @@ import psutil
 
 
 def inspect_memory(pid,creation,analyze,max_bytes=32*1024*1024,max_regions=128,seconds=5):
+    """Scan the executable memory of a running process that belongs to the current user.
+
+    We walk through the process's memory regions, read each committed executable region (within
+    byte, region and time limits), and scan it with the normal rules plus special memory-only YARA
+    rules. The process is identified by both its id and its start time, so a reused process id can
+    never point us at the wrong program. Raw memory is never saved; matches are only flagged for
+    review.
+    """
     if os.name!='nt': raise RuntimeError('Memory inspection requires Windows')
     if type(pid) is not int or pid<=4 or not isinstance(creation,(int,float)):
         raise ValueError('Invalid process identity')
@@ -30,9 +38,11 @@ def inspect_memory(pid,creation,analyze,max_bytes=32*1024*1024,max_regions=128,s
     kernel.VirtualQueryEx.restype=ctypes.c_size_t
     kernel.ReadProcessMemory.argtypes=[wintypes.HANDLE,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
     class Region(ctypes.Structure):
+        """Mirror of the Windows MEMORY_BASIC_INFORMATION structure that VirtualQueryEx fills in."""
         _fields_=[('base',ctypes.c_ulonglong),('allocation_base',ctypes.c_ulonglong),('allocation_protect',wintypes.DWORD),
                   ('alignment',wintypes.DWORD),('size',ctypes.c_ulonglong),('state',wintypes.DWORD),
                   ('protect',wintypes.DWORD),('kind',wintypes.DWORD),('alignment2',wintypes.DWORD)]
+    # 0x0400 | 0x0010 = permission to query information and read memory, nothing more.
     handle=kernel.OpenProcess(0x0400|0x0010,False,pid)
     if not handle: raise ctypes.WinError(ctypes.get_last_error())
     total=regions=queries=private_executable=0
@@ -52,6 +62,8 @@ def inspect_memory(pid,creation,analyze,max_bytes=32*1024*1024,max_regions=128,s
             if next_address<=address: break
             address=next_address
             executable=bool(region.protect&0xf0)
+            # Skip regions that are not committed (0x1000), are guard or no-access pages, or are not
+            # executable.
             if region.state!=0x1000 or region.protect&0x101 or not executable: continue
             if region.kind==0x20000: private_executable+=1
             amount=min(region.size,1024*1024,max_bytes-total)

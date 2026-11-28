@@ -22,6 +22,7 @@ EXECUTE = 0x10 | 0x20 | 0x40 | 0x80
 
 
 class Region(ctypes.Structure):
+    """MEMORY_BASIC_INFORMATION structure filled in by VirtualQuery."""
     _fields_ = [('BaseAddress', ctypes.c_void_p), ('AllocationBase', ctypes.c_void_p), ('AllocationProtect', wintypes.DWORD),
                 ('PartitionId', wintypes.WORD), ('RegionSize', ctypes.c_size_t), ('State', wintypes.DWORD),
                 ('Protect', wintypes.DWORD), ('Type', wintypes.DWORD)]
@@ -42,11 +43,13 @@ def executable_private_regions():
 
 
 def thread_ids():
+    """Return the ids of every thread in this process."""
     import psutil
     return {thread.id for thread in psutil.Process().threads()}
 
 
 def module_ranges():
+    """Return the (start, end) address range of every module (EXE or DLL) loaded in this process."""
     psapi, kernel32 = ctypes.windll.psapi, ctypes.windll.kernel32
     kernel32.GetCurrentProcess.restype = wintypes.HANDLE
     psapi.EnumProcessModules.argtypes = [wintypes.HANDLE, ctypes.POINTER(ctypes.c_void_p), wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
@@ -56,6 +59,7 @@ def module_ranges():
     psapi.EnumProcessModules(process, handles, ctypes.sizeof(handles), ctypes.byref(needed))
 
     class Info(ctypes.Structure):
+        """MODULEINFO structure filled in by GetModuleInformation."""
         _fields_ = [('base', ctypes.c_void_p), ('size', wintypes.DWORD), ('entry', ctypes.c_void_p)]
     ranges = []
     for handle in handles[:needed.value // ctypes.sizeof(ctypes.c_void_p)]:
@@ -92,6 +96,11 @@ def foreign_threads(thread_list):
 
 
 def run(role, status_path, parent_pid, interval=2.0):
+    """Watch this decoy process for injected code until the parent monitor exits.
+
+    Every `interval` seconds, any new executable private memory and any new thread starting outside
+    a loaded module is written as a JSON line to the status file.
+    """
     import psutil
     baseline_regions, baseline_threads = executable_private_regions(), thread_ids()
     reported = set()
@@ -111,6 +120,9 @@ def run(role, status_path, parent_pid, interval=2.0):
 
 
 def main(argv=None):
+    """Entry point when started as a decoy (`--decoy-role`): fake analysis tools just idle; bait
+    processes watch for injected code.
+    """
     argv = list(sys.argv[1:] if argv is None else argv)
     role, status, parent = argv[argv.index('--decoy-role') + 1], argv[argv.index('--decoy-status') + 1], int(argv[argv.index('--decoy-parent') + 1])
     if role == 'analysis':

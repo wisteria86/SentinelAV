@@ -24,6 +24,9 @@ STAGER_START=(b'\xfc\xe8',b'\xfc\x48\x83\xe4\xf0\xe8',b'\xfc\x48\x81\xe4')
 
 def shellcode(data):
     # Shellcode is small and finds its functions early; memory dumps and disk images also hold such code, but deep inside.
+    """Recognise bare machine code ('shellcode') that finds Windows functions by itself, the way
+    loaders and exploit payloads do.
+    """
     if len(data)>16*1024*1024:return []
     head=bytes(data[:WINDOW])
     peb=PEB.search(head,0,256*1024)
@@ -45,6 +48,8 @@ def encoded_program(data):
     if DOS_TEXT in head:return []  # A plain program is classified as one elsewhere
     if DOS_TEXT in tail:
         return [indicator('backwards_program','dropper',45,'The file holds a Windows program stored back to front, which only a loader would undo.',category='Dropper')]
+    # Try every possible one-byte XOR key on the well-known DOS stub text; if one matches, a program
+    # is hidden inside.
     for key in range(1,256):
         probe=bytes(b^key for b in DOS_TEXT)
         if probe in head:
@@ -53,6 +58,7 @@ def encoded_program(data):
 
 
 def data_indicators(data):
+    """Run every raw-payload check on a file of unknown format."""
     return shellcode(data)+encoded_program(data)
 
 
@@ -72,6 +78,9 @@ PYC_RULES=(
 
 
 def pyc_indicators(data):
+    """Find loader and stealer patterns in a compiled Python (.pyc) file by looking at which names
+    occur together.
+    """
     text=compiled_python(data)
     found=[]
     for code,group,weight,category,explanation,patterns in PYC_RULES:

@@ -35,6 +35,8 @@ WORDS = ('river', 'candle', 'orbit', 'velvet', 'harbor', 'lemon', 'quartz', 'mea
 
 
 def _content(kind):
+    """Build the text of a decoy file of the given kind: the visible marker plus obviously fake values.
+    """
     token = secrets.token_hex(8)
     body = {
         'credentials': f'email: decoy.{token}@example.invalid\npassword: Decoy-{token}\nbank pin: 0000\n',
@@ -47,12 +49,14 @@ def _content(kind):
 
 
 def _hide(path):
+    """Mark a file as hidden and excluded from Windows Search indexing."""
     if os.name == 'nt':
         import ctypes
         ctypes.windll.kernel32.SetFileAttributesW(str(path), HIDDEN | NOT_INDEXED)
 
 
 def _record(path, kind, content):
+    """Remember a decoy's path, kind, hash and timestamps, so later changes can be detected."""
     info = path.stat()
     return dict(path=str(path), kind=kind, sha256=hashlib.sha256(content).hexdigest(), atime_ns=info.st_atime_ns,
         mtime_ns=info.st_mtime_ns, size=info.st_size)
@@ -124,14 +128,21 @@ class HoneypotWatcher:
     """Polls decoys for reads (last-access time), changes, renames and deletions."""
 
     def __init__(self, entries, emit, behavior=None, find_holders=holders, clock=time.monotonic):
+        """Watch the given decoys. emit receives alerts, behavior (optional) receives per-process
+        indicators, and find_holders and clock can be replaced in tests.
+        """
         self.entries = [dict(entry) for entry in entries]
         self.emit, self.behavior, self.find_holders, self.clock = emit, behavior, find_holders, clock
         self.reported = {}
 
     def paths(self):
+        """Return the normalised paths of every watched decoy."""
         return {os.path.normcase(entry['path']) for entry in self.entries}
 
     def _state(self, entry):
+        """Check one decoy and return what happened to it ('read', 'modified', 'deleted or renamed',
+        ...), or None if it is untouched.
+        """
         path = Path(entry['path'])
         try:
             info = path.stat()
@@ -156,6 +167,13 @@ class HoneypotWatcher:
         return None
 
     def poll(self):
+        """Check every decoy and raise an alert for each new touch (the same touch is reported at most
+        once a minute).
+
+        If the process that has the file open can be found, it is named in the alert and reported to
+        the behaviour engine. Three or more trap files changing at once is called out as ransomware-
+        like.
+        """
         touched = []
         for entry in self.entries:
             state = self._state(entry)
@@ -193,10 +211,14 @@ class NetworkHoneypot:
     """Low-interaction listener: logs who connects, sends nothing back, and keeps bounded records."""
 
     def __init__(self, emit, ports=DEFAULT_PORTS, host='0.0.0.0', limit=256):
+        """Prepare listeners for the given ports (they are opened by start())."""
         self.emit, self.ports, self.host, self.limit = emit, tuple(ports), host, limit
         self.sockets, self.skipped, self.stop_event, self.records = [], [], threading.Event(), []
 
     def start(self):
+        """Open a listener on each port that is free (ports already in use are skipped) and return the
+        ports actually opened.
+        """
         for port in self.ports:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
@@ -214,6 +236,9 @@ class NetworkHoneypot:
         return [server.getsockname()[1] for server in self.sockets]
 
     def _serve(self, server, port):
+        """Accept connections on one port, read the first few bytes, and raise an alert for each
+        visitor.
+        """
         while not self.stop_event.is_set():
             try:
                 connection, (address, peer_port) = server.accept()
@@ -234,6 +259,7 @@ class NetworkHoneypot:
                 'Nothing legitimate uses this port here, so this is likely a scan or an attempt to spread.'))
 
     def stop(self):
+        """Stop all listeners."""
         self.stop_event.set()
         for server in self.sockets:
             server.close()

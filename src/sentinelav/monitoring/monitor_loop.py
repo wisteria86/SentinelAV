@@ -17,12 +17,24 @@ from .health import verified_network_processes
 
 
 class MonitorLoopMixin:
+    """The main real-time protection loop used by Monitor."""
     def run(self):
+        """Start every enabled protection source and keep them running until stop is set.
+
+        Setup: create the persistent scanner, optional update, reputation, auto-response, behaviour,
+        honeypot, deception and kernel components, and start watching the chosen folders. Then,
+        roughly every 100 ms, the loop polls each source on its own schedule (processes every 3 s,
+        Sysmon every 15 s, network every 5 s, canaries every 2 s), scans one queued file, and
+        publishes a status summary every 2 s. On exit every component is closed, and failures are
+        reported rather than hidden.
+        """
         observer = Observer()
         try:
             if self.config.get('watch_app_changes') and self.config.get('data_dir'):
                 from sentinelav.monitoring.app_changes import ChangeMonitor
                 def change_event(event):
+                    """Pass on an app-change event and queue any programs it references for scanning.
+                    """
                     self.emit(event)
                     for candidate in event.get('candidate_paths',[]):self.pending.add(candidate,'App Changes')
                 self.change_monitor=ChangeMonitor(Path(self.config['data_dir'])/'app-changes',self.config.get('tracked_settings',[]),change_event,service_owner=self.config.get('service_owner'))
@@ -114,6 +126,8 @@ class MonitorLoopMixin:
             next_process = next_sysmon = next_status = next_network = next_canary = 0
             network_available = self.config.get('network',False)
             denied = 0
+            # Main loop. Each source is polled on its own timer so a slow one never starves the
+            # others.
             while not self.stop.is_set():
                 now = time.monotonic()
                 if self.artifact_updater:
@@ -187,6 +201,7 @@ class MonitorLoopMixin:
                             if not roots and not self.config['processes'] and not reader and not self.change_monitor:
                                 raise RuntimeError('No monitoring sources remain available')
                         next_network = now + 5
+                # Scan at most one queued file per round, so the loop stays responsive.
                 item = self.pending.pop()
                 if item:
                     self.inspect(scanner, *item)

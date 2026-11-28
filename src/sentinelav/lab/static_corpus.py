@@ -37,6 +37,9 @@ ZEUS_VALIDATION_SPECS=(
 
 
 def validate_archive(raw,spec):
+    """Check that a downloaded sample archive is exactly the pinned one (size and Git blob hash) and
+    that it holds a small number of encrypted members, including the expected one.
+    """
     if len(raw)!=spec['size'] or hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()!=spec['blob']:
         raise ValueError('Pinned archive identity mismatch')
     with zipfile.ZipFile(BytesIO(raw)) as archive:
@@ -52,6 +55,9 @@ def validate_archive(raw,spec):
 
 
 def decode_archive(raw,spec):
+    """Decrypt the pinned member from a sample archive and verify its checksum against the published
+    value. Returns (content bytes, metadata).
+    """
     metadata=validate_archive(raw,spec)
     with zipfile.ZipFile(BytesIO(raw)) as archive:
         info=archive.getinfo(spec['member'])
@@ -69,6 +75,13 @@ def decode_archive(raw,spec):
 
 
 def main(key_text,holdout=False,zeus_validation=False,signature_free=False,prepare_only=False):
+    """Build and evaluate the fixed static test corpus inside the offline guest.
+
+    The sealed (AES-encrypted) sample archives are decrypted with the transfer key, each pinned
+    sample is extracted under a fixed harmless name, and a set of signed Windows system files is
+    added as benign controls. Depending on the options it then runs the normal evaluation plus hash-
+    disabled and emulation variants, or a strict signature-free evaluation, and writes the reports.
+    """
     if not verified_offline_guest(): raise ValueError('Offline Windows test guest required')
     if holdout and zeus_validation: raise ValueError('Choose one fixed corpus profile')
     root=Path('C:/SentinelAV-Test')

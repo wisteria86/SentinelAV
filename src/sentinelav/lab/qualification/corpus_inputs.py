@@ -11,6 +11,9 @@ import re
 
 
 def unpack(context,root):
+    """Decrypt one approved batch of specimens inside the guest and write each under its hash,
+    verifying every identity.
+    """
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from sentinelav.workspace import unlinked
     inv=context['case']['parameters']['inventory_data']
@@ -42,6 +45,8 @@ def unpack(context,root):
 
 
 def scan_rows(context,root,entries):
+    """Scan each unpacked specimen in an isolated scanner and turn the results into measurement rows.
+    """
     from sentinelav.detection.inspection import IsolatedScanner
     from sentinelav.paths import RESOURCE_ROOT
     from .guest_context import options

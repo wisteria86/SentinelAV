@@ -25,6 +25,7 @@ from .update_envelope import read_json
 
 
 def ensure_directory(folder):
+    """Create the update folder if needed, refusing any linked part of the path."""
     folder=Path(folder).absolute()
     for part in [folder,*folder.parents]:
         if part.is_symlink() or part.is_junction():
@@ -35,6 +36,9 @@ def ensure_directory(folder):
 
 @contextmanager
 def update_lock(folder):
+    """Hold the definition-update lock for the duration of a `with` block; raises ValueError if another
+    update is running.
+    """
     folder=ensure_directory(folder)
     lock=QLockFile(str(folder/'update.lock'))
     lock.setStaleLockTime(0)
@@ -45,6 +49,9 @@ def update_lock(folder):
 
 
 def load_active(folder,verify=False):
+    """Read and validate the active definition manifest. With verify=True the database file's checksum
+    is checked too.
+    """
     folder=Path(folder)
     metadata=read_json(folder/'active.json')
     if not isinstance(metadata,dict): raise ValueError('Invalid active manifest')

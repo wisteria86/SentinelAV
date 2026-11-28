@@ -14,11 +14,18 @@ from sentinelav.updates.artifacts import bounded_json,canonical
 
 
 def fingerprint(public):
+    """Return the SHA-256 of an Ed25519 public key given in hex, after checking its format."""
     if not isinstance(public,str) or not re.fullmatch(r'[0-9a-fA-F]{64}',public): raise ValueError('Expected 32-byte Ed25519 public key in hex')
     return hashlib.sha256(bytes.fromhex(public)).hexdigest()
 
 
 def update_pin(path,key_id,public=None):
+    """Add (public given) or remove (public=None) a trusted publisher key in the trust file, then save
+    it atomically.
+
+    Replacing an existing key under the same id is refused; the old pin must be removed explicitly
+    first.
+    """
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',key_id): raise ValueError('Invalid publisher key ID')
     path=Path(path).absolute()
     if any(p.is_symlink() or p.is_junction() for p in (path,*path.parents)): raise ValueError('Linked trust path')

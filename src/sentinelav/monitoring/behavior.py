@@ -13,6 +13,11 @@ from pathlib import Path
 
 
 def create_canary(folder):
+    """Create a harmless 'canary' file in a folder and return its path and hash.
+
+    Canaries are bait: nobody should ever touch them, so if one changes, ransomware is a likely
+    culprit.
+    """
     path = Path(folder)/f'SentinelAV-canary-{uuid.uuid4().hex[:10]}.txt'
     content = b'SentinelAV monitoring canary. Leave this harmless file unchanged.\r\n'
     with path.open('xb') as stream:
@@ -26,9 +31,19 @@ COMMON_PORTS={21,22,25,53,80,110,123,143,443,465,587,853,993,995,3478,5222,5228,
 
 
 class BehaviorEngine:
+    """Watches activity for suspicious behaviour and raises explainable alerts.
+
+    Every observation adds a weighted indicator to an 'entity' (a process or a watched folder).
+    Indicators older than WINDOW seconds are forgotten. When an entity's total weight reaches 30 a
+    Warning is raised, and at 70 (with at least two different indicators) an Alert. Each alert lists
+    its reasons, and the same alert is not repeated within a minute.
+    """
     WINDOW = 60
 
     def __init__(self, emit, canaries=(), networks=(), clock=time.monotonic):
+        """Set up empty state. emit receives alert events, canaries are the bait files to watch,
+        networks are IP ranges the user flagged as bad, and clock can be replaced in tests.
+        """
         self.emit, self.clock = emit, clock
         self.canaries = list(canaries)
         self.networks = [ipaddress.ip_network(n.strip(),strict=False) for n in networks if n.strip()]
@@ -46,6 +61,9 @@ class BehaviorEngine:
         while len(self.flagged_images)>4096:self.flagged_images.popitem(last=False)
 
     def attributed_file_event(self,event,roots,exclusions):
+        """Handle a file write that kernel telemetry tied to a specific process: flag bursts of writes
+        and any write to a canary.
+        """
         info=event['process']; path=Path(event['path']).resolve()
         if not info.get('create_time') or self.excluded(path,exclusions) or not any(path.is_relative_to(root) for root in roots): return
         if info.get('exe') and self.excluded(info['exe'],exclusions): return
@@ -63,10 +81,14 @@ class BehaviorEngine:
         while len(self.attributed_writes)>512: self.attributed_writes.popitem(last=False)
 
     def excluded(self, path, exclusions):
+        """Tell whether a path is inside one of the excluded folders."""
         path = Path(path).resolve()
         return any(path == p or p in path.parents for p in exclusions)
 
     def indicator(self, entity, category, weight, reason, **metadata):
+        """Record one indicator for an entity and raise a Warning or Alert if its combined score is
+        high enough.
+        """
         now = self.clock()
         facts = self.entities.setdefault(entity,{})
         self.entities.move_to_end(entity)
@@ -92,6 +114,9 @@ class BehaviorEngine:
                        entity=entity, classification='Suspicious activity; review required', **metadata))
 
     def file_event(self, kind, path, roots, exclusions):
+        """Handle a file change in a watched folder, flagging bursts of changes or renames (a typical
+        sign of ransomware encrypting files).
+        """
         path = Path(path).resolve()
         if self.excluded(path,exclusions):
             return
@@ -112,6 +137,9 @@ class BehaviorEngine:
             self.indicator(entity,'rename_burst',40,f"{counts['moved']} distinct rename destinations within 10 seconds",path=str(root))
 
     def check_canaries(self, roots, exclusions):
+        """Check every canary file and raise an indicator the first time one is changed, missing,
+        replaced or unreadable.
+        """
         for entry in self.canaries:
             path = Path(entry['path']).absolute()
             root = next((r for r in roots if path.is_relative_to(r)),None)
@@ -134,6 +162,12 @@ class BehaviorEngine:
             self.canary_states[str(path)] = state
 
     def process(self, info, parent_name='', context_only=False,ancestors=()):
+        """Check a newly seen process: running from Temp or Downloads, a command shell started by an
+        Office program, or PowerShell with an encoded command.
+
+        With context_only=True only the location is checked. Returns the entity name for the
+        process, or None if it has no start time.
+        """
         if not info.get('create_time'):
             return None
         entity = f"process:{info['pid']}:{info['create_time']}"
@@ -156,6 +190,10 @@ class BehaviorEngine:
         return entity
 
     def network(self, connections, processes):
+        """Check established network connections: links to flagged IP ranges, connections from programs
+        the scanner flagged, unusual ports from user folders, and contacting many different servers
+        quickly.
+        """
         now = self.clock()
         for connection in connections:
             if connection.status != 'ESTABLISHED' or not connection.raddr:

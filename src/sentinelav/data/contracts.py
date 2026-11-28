@@ -14,13 +14,25 @@ KINDS={'registry','startup_file','task','service','setting_file'}
 
 
 def canonical(value):
+    """Encode a value as compact, sorted JSON bytes, so the same data always gives exactly the same
+    bytes (and therefore the same hash).
+    """
     return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
 
 
-def fingerprint(value): return hashlib.sha256(canonical(value)).hexdigest()
+def fingerprint(value):
+    """Return the SHA-256 hash of a value's canonical JSON form, used as a stable identity."""
+    return hashlib.sha256(canonical(value)).hexdigest()
 
 
 def change_record(resource,before,after,*,baseline=False,attribution='Unattributed',process=None):
+    """Build a new change record describing how a resource went from `before` to `after`.
+
+    The record carries hashes of both states so later tampering can be detected. `attribution` says
+    how sure we are about who made the change; 'Verified' is only allowed when we know the exact
+    writing process (its id and start time). `baseline` marks changes that already existed when
+    monitoring started.
+    """
     if resource.get('kind') not in KINDS or not resource.get('id'): raise ValueError('Unsupported change resource')
     if attribution not in ATTRIBUTIONS: raise ValueError('Invalid attribution')
     if attribution=='Verified' and (not process or not process.get('pid') or not process.get('creation')):
@@ -32,6 +44,9 @@ def change_record(resource,before,after,*,baseline=False,attribution='Unattribut
 
 
 def validate_change(record):
+    """Check that a change record is well formed and that its hashes still match its contents, then
+    return it unchanged. Raises ValueError otherwise.
+    """
     if record.get('schema')!=SCHEMA or record.get('attribution') not in ATTRIBUTIONS: raise ValueError('Invalid change schema')
     if record.get('resource',{}).get('kind') not in KINDS: raise ValueError('Unsupported resource')
     for side in ('before','after'):

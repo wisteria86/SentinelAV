@@ -32,6 +32,11 @@ from .guest_lifecycle import deployment, performance, soak
 
 
 def execute(context):
+    """Run one typed evaluation case inside the guest and write its compressed result export.
+
+    Only a fixed set of case actions is supported (functional tests, self-test, inspection,
+    telemetry, deployment, performance, soak, inventory cases); anything else is refused.
+    """
     if not guard(context):raise ValueError('Registered offline test guest required before reading specimens')
     case=CaseDefinition(**context['case']);nonce=identifier(context['nonce']);root=BASE/'Qualification'/nonce
     root.mkdir(parents=True,exist_ok=False)
@@ -77,6 +82,10 @@ def execute(context):
 
 
 def main(path):
+    """Guest entry point (`--qualification-job`): read the job file, check we are in the right offline
+    guest, run the case, and on failure write a redacted diagnostic export instead. Returns 0, 72
+    (blocked) or 73 (failed).
+    """
     path=Path(path).absolute()
     from sentinelav.workspace import unlinked
     unlinked(path)

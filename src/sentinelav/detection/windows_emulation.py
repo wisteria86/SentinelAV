@@ -10,6 +10,13 @@ from sentinelav.detection.winapi_emulator import WinAPIModel
 
 
 def emulate_windows(data,metadata,analyze):
+    """Run a Windows program in our minimal emulated Windows and scan what it produces.
+
+    The program is mapped into a Unicorn CPU, its imports are wired to WinAPIModel stubs, and then
+    its TLS callbacks and entry point are run within a tight time and instruction budget. Afterwards
+    every changed memory page and every virtual file it wrote is scanned. The recorded API events
+    (file, registry, network) are returned too, so the caller can spot suspicious behaviour.
+    """
     try:
         import unicorn as uc
         from unicorn import x86_const as registers
@@ -29,6 +36,8 @@ def emulate_windows(data,metadata,analyze):
         machine=uc.Uc(uc.UC_ARCH_X86,uc.UC_MODE_64 if image.wide else uc.UC_MODE_32)
         used=[(image.base,image.base+((image.size+4095)&~4095))]
         def reserve(candidates,size):
+            """Pick the first candidate address range that does not overlap anything already mapped.
+            """
             for address in candidates:
                 if all(address+size<=begin or address>=end for begin,end in used):
                     used.append((address,address+size)); return address
@@ -46,6 +55,7 @@ def emulate_windows(data,metadata,analyze):
         machine.mem_write(stubs,b'\x90'*65536)
         shim=WinAPIModel(machine,image.wide,registers,stubs,heap,image.base)
         shim.files['c:\\sample\\subject.exe']=bytearray(data); shim.file_bytes=len(data)
+        # Point every import-table entry at a stub, so calls into Windows land in our model.
         for item in image.imports()+image.imports(delay=True):
             name=item['name'] or '#'+str(item['ordinal'])
             shim.module(item['library'])
@@ -59,6 +69,9 @@ def emulate_windows(data,metadata,analyze):
         machine.reg_write(registers.UC_X86_REG_RSP if image.wide else registers.UC_X86_REG_ESP,sp)
         dirty=set(); outcome={'returned':False,'budget':False}; steps=[0]
         def code(engine,address,size,context):
+            """Per-instruction hook: stop when the routine returns to our sentinel address, and
+            dispatch calls that land on an import stub.
+            """
             steps[0]+=1
             if address==sentinel: outcome['returned']=True; engine.emu_stop(); return
             if address in shim.stubs:
@@ -70,6 +83,7 @@ def emulate_windows(data,metadata,analyze):
                     result['diagnostics'].append(dict(kind='api_stop',library=library[:128],api=name[:128],ip_rva=None,reason=str(error)[:180]))
                     result['omissions'].append('API model stopped: '+str(error)[:180]); engine.emu_stop()
         def invalid(engine,access,address,length,value,context):
+            """Hook for invalid memory access: record where the fault happened and stop."""
             pc=engine.reg_read(registers.UC_X86_REG_RIP if image.wide else registers.UC_X86_REG_EIP)
             result['termination_reason']='memory_fault'
             result['diagnostics'].append(dict(kind='memory_fault',access=int(access),bytes=length,
@@ -77,6 +91,8 @@ def emulate_windows(data,metadata,analyze):
                 address_region='null' if address<4096 else 'image' if image.base<=address<image.base+image.size else 'unmapped'))
             return False
         def written(engine,access,address,length,value,context):
+            """Memory-write hook: remember changed pages in the image and heap, up to 256 of them.
+            """
             if image.base<=address<image.base+image.size or heap<=address<shim.next_heap:
                 for page in range(address&~4095,(address+length+4095)&~4095,4096):
                     if len(dirty)<256: dirty.add(page)
@@ -85,6 +101,8 @@ def emulate_windows(data,metadata,analyze):
         machine.hook_add(uc.UC_HOOK_MEM_INVALID,invalid)
         callbacks=image.tls_callbacks()
         deadline=time.monotonic()+1.0
+        # Run the TLS callbacks first (as Windows does), then the program's entry point, sharing one
+        # overall budget.
         for index,routine in enumerate(callbacks+[image.base+image.entry]):
             remaining=deadline-time.monotonic()
             if remaining<=0 or steps[0]>=200000: result['omissions'].append('Cumulative emulation budget reached'); break

@@ -25,7 +25,11 @@ from .protection_events import ProtectionEventsMixin
 class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
 
 
+    """Starts, stops and tracks real-time protection from the window."""
     def begin_protection(self):
+        """Validate the protection settings, save them, and start monitoring in-process or through the
+        background engine.
+        """
         if self.protection_worker is not None:
             return
         folders = [p.strip() for p in self.watch_folders.toPlainText().splitlines() if p.strip()]
@@ -69,6 +73,9 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
         self.protection_worker.start()
 
     def reconnect_background(self):
+        """Reconnect to a background engine that is already running (for example after reopening the
+        window).
+        """
         if self.protection_worker or self.closing or not self.store.get('background_engine',False):
             return
         from sentinelav.ui.background_ui import BackgroundWorker
@@ -82,11 +89,13 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
         self.protection_worker.start()
 
     def set_protection_controls(self, active):
+        """Lock the protection settings while monitoring runs, and enable the Stop button."""
         for control in [self.watch_folders,self.add_watch,self.process_option,self.sysmon_option,self.start_protection,self.behavior_option,self.network_option,self.background_option]:
             control.setEnabled(not active)
         self.stop_protection_button.setEnabled(active)
 
     def stop_protection(self):
+        """Ask monitoring to stop."""
         if self.protection_worker:
             self.monitor_state = 'Stopping'
             self.protection_title.setText('Stopping monitoring…')
@@ -95,12 +104,16 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
             self.refresh()
 
     def protection_error(self, error):
+        """Record and display a monitoring failure."""
         self.protection_failure = error
         self.receive_event(dict(time=time.strftime('%Y-%m-%d %H:%M:%S'),
                                 kind='Monitoring failed', details=error, source='Protection',level='Warning'))
         self.protection_stats.setText(error)
 
     def protection_finished(self):
+        """Update the page once monitoring has stopped (or the connection to the background engine was
+        lost).
+        """
         remote = hasattr(self.protection_worker,'detach')
         self.protection_worker.deleteLater()
         self.protection_worker = None
@@ -113,6 +126,9 @@ class ProtectionMixin(ProtectionPagesMixin, ProtectionEventsMixin):
 
 
     def closeEvent(self, event):
+        """On close, cancel scans and stop (or detach from) monitoring, then close once everything has
+        finished.
+        """
         if self.worker is not None or self.protection_worker is not None:
             if not self.closing:
                 self.closing = True

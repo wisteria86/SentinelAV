@@ -9,6 +9,9 @@ import re
 
 
 def resources(inv,root):
+    """Turn an inventory's expected artifacts into concrete resources, allowing only owned lab files,
+    Run values, tasks and services.
+    """
     result=[]
     for artifact in inv.get('expected_artifacts',[]):
         if artifact.get('kind')=='file':
@@ -27,6 +30,7 @@ def resources(inv,root):
 
 
 def inspect_resources(artifacts):
+    """Check whether each expected artifact still exists (and what it contains) after a clean-up."""
     import winreg
     observed=[]
     for a in artifacts:

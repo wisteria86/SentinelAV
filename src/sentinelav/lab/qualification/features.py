@@ -10,6 +10,11 @@ from pathlib import Path
 
 
 def regression(work,cancelled,progress,resource_root=None):
+    """Re-score the frozen 4,000-row .NET test set with the active model and report recall and false
+    positives.
+
+    This only measures; it never changes or signs a model.
+    """
     from sentinelav.detection.pe_classifier import extractor_class
     from sentinelav.detection.pe_ensemble import predict_vector
     from sentinelav.updates.artifacts import active

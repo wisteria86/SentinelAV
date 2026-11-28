@@ -19,7 +19,11 @@ from .lab_pages import LabPagesMixin
 class LabMixin(LabPagesMixin):
 
 
+    """Runs the safe lab simulations and shows their results."""
     def start_lab(self):
+        """Start the selected safe simulation profiles in a background worker (only when nothing else
+        is running).
+        """
         if getattr(self,'runtime_worker',None):
             self.lab_note.setText('Wait for the guest runtime job and disposal to finish.'); return
         if self.lab_worker or self.worker or self.response_worker or self.preferences_worker:
@@ -47,17 +51,22 @@ class LabMixin(LabPagesMixin):
         self.lab_worker.start()
 
     def stop_lab(self):
+        """Ask the running simulation to stop and clean up its temporary files."""
         if self.lab_worker:
             self.lab_worker.runner.stop.set()
             self.lab_stop.setEnabled(False)
             self.lab_state.setText('Stopping and cleaning temporary fixtures…')
 
     def lab_activity_event(self,event):
+        """Add one live activity line to the Live Activity table (keeping the last 200)."""
         self.lab_activity.append(event)
         self.lab_activity=self.lab_activity[-200:]
         self.fill(self.lab_activity_table,[(e['time'],e['kind'],e['details']) for e in self.lab_activity])
 
     def lab_completed(self,run):
+        """Save the finished run, log it, and show whether fixture cleanup succeeded (failed cleanup
+        blocks further runs).
+        """
         self.store.save_lab_run(run)
         self.audit_response('Safe lab simulation completed',f"{run['id']}: {run['status']}; fixture cleanup: {run['workspace_reset']}")
         self.lab_state.setText('Simulation: '+run['status'])
@@ -67,10 +76,12 @@ class LabMixin(LabPagesMixin):
         self.lab_tabs.setCurrentIndex(3)
 
     def lab_failed(self,error):
+        """Show why the simulation could not start."""
         self.lab_state.setText('Simulation could not start')
         self.lab_note.setText(error)
 
     def lab_finished(self):
+        """Tidy up after the lab worker and restore the controls."""
         self.lab_worker.deleteLater()
         self.lab_worker=None
         self.lab_stop.setEnabled(False)
@@ -78,10 +89,12 @@ class LabMixin(LabPagesMixin):
         self.lab_start.setEnabled(self.lab_cleanup_ok)
 
     def refresh_lab_results(self):
+        """Reload the saved lab runs into the Results table."""
         self.lab_runs=self.store.lab_runs()
         self.fill(self.lab_results_table,[(r['date'],len(r['profiles']),r['status'],'Verified' if r['workspace_reset'] else 'Failed') for r in self.lab_runs])
 
     def selected_lab_run(self,row=None):
+        """Return the selected (or given) saved run, or None with a hint if nothing is selected."""
         row=self.lab_results_table.currentRow() if row is None or isinstance(row,bool) else row
         if row<0 or row>=len(self.lab_runs):
             self.lab_note.setText('Select a saved simulation result first.')
@@ -89,6 +102,7 @@ class LabMixin(LabPagesMixin):
         return self.lab_runs[row]
 
     def show_lab_result(self,row=None,column=None):
+        """Show the full evidence of a saved run in a dialog."""
         run=self.selected_lab_run(row)
         if run:
             box=QMessageBox(self)
@@ -98,6 +112,7 @@ class LabMixin(LabPagesMixin):
             box.exec()
 
     def export_lab_result(self):
+        """Save the selected run's evidence as a JSON file."""
         run=self.selected_lab_run()
         if not run:
             return
@@ -109,12 +124,14 @@ class LabMixin(LabPagesMixin):
                 self.lab_note.setText('Export failed: '+str(error))
 
     def ready_for_response(self):
+        """Block response actions while a lab job is running."""
         if self.lab_worker or getattr(self,'runtime_worker',None):
             self.response_status.setText('Finish or stop the safe simulation first.')
             return False
         return super().ready_for_response()
 
     def start_scan(self,roots,kind):
+        """Block scans while a lab job is running."""
         if self.lab_worker or getattr(self,'runtime_worker',None):
             self.navigate(6)
             self.lab_note.setText('Finish or stop the current lab simulation before scanning.')
@@ -122,10 +139,12 @@ class LabMixin(LabPagesMixin):
         super().start_scan(roots,kind)
 
     def check_schedule(self):
+        """Skip scheduled scans while a lab job is running."""
         if not self.lab_worker and not getattr(self,'runtime_worker',None):
             super().check_schedule()
 
     def closeEvent(self,event):
+        """Wait for lab jobs (including guest disposal) to finish before closing."""
         if getattr(self,'runtime_worker',None):
             self.runtime_note.setText('Waiting for the owned runtime controller to finish guest disposal before closing…')
             event.ignore(); QTimer.singleShot(250,self.close); return

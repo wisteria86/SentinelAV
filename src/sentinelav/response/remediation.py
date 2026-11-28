@@ -20,11 +20,26 @@ from .remediation_resources import command_paths,referenced_paths,task_disabled,
 from .remediation_backend import WindowsRemediationBackend
 
 class Remediator:
+    """Plans and carries out clean-up (or restoration) of recorded system changes, with safety checks
+    at every step.
+
+    The flow is always: plan (check the current state still matches the record and that a fresh scan
+    confirms the threat), get explicit approval, then execute (check again right before acting, act,
+    and verify the result). Every step is saved to the journal, so an interrupted run can be
+    reviewed afterwards with reconcile().
+    """
     def __init__(self,journal,backend,verify,responder=None,verify_buffer=None):
+        """journal stores changes and plans, backend reads and changes system resources, verify(path)
+        re-scans a file, responder quarantines files and stops processes, and verify_buffer(bytes)
+        scans content that is about to be restored.
+        """
         self.journal,self.backend,self.verify,self.responder=journal,backend,verify,responder
         self.verify_buffer=verify_buffer
 
     def verified_references(self,record):
+        """Re-scan every file a change refers to and return the fresh detections that are exactly those
+        files.
+        """
         findings=[]
         for path in referenced_paths(record):
             identity=os.path.normcase(os.path.abspath(path))
@@ -38,6 +53,14 @@ class Remediator:
         return findings
 
     def plan(self,change_ids,mode='cleanup',with_related=True):
+        """Create an approval-ready plan for the given changes, either 'cleanup' (undo malicious
+        changes) or 'restore' (put back the previous state).
+
+        For cleanup, each change must still match its record and point at a file a fresh scan
+        detects. With with_related=True the plan also stops running copies of the detected programs
+        and quarantines them, in a safe order: disable autostarts, stop processes, then quarantine
+        files. The plan is saved and expires after two minutes.
+        """
         if mode not in ('cleanup','restore') or not change_ids or len(set(change_ids))!=len(change_ids) or len(change_ids)>64:raise ValueError('Invalid remediation request')
         actions=[]
         for identity in change_ids:
@@ -89,6 +112,8 @@ class Remediator:
                     if os.path.normcase(str(Path(info['exe']).resolve()))!=os.path.normcase(target['path']):continue
                     process=dict(kind='process',id=f"{proc.pid}:{info['create_time']}",pid=proc.pid,creation=info['create_time'])
                     terminations.append(dict(change_id='process-'+process['id'],resource=process,action='terminate',expected=self.backend.read(process),desired=None,evidence=[detection]))
+            # Order matters: disable the autostart entries first so nothing restarts the program,
+            # then stop it, then quarantine the files.
             # Disable respawn points, then stop verified images, then quarantine payloads.
             startup=[a for a in actions if a['action']=='quarantine']
             actions=[a for a in actions if a['action']!='quarantine']+terminations+startup+quarantines
@@ -97,9 +122,16 @@ class Remediator:
         self.journal.operation(plan);return plan
 
     def execute(self,identity,approved=False):
+        """Execute an approved plan while holding the journal's exclusive lock."""
         with self.journal.exclusive():return self._execute(identity,approved)
 
     def _execute(self,identity,approved=False):
+        """Do the actual execution: re-check each action against the current state and fresh evidence,
+        apply it, verify the effect, and record the result.
+
+        After a cleanup, a final check looks for remaining autostarts or payload files, so the
+        receipt never claims more than was really achieved.
+        """
         plan=self.journal.get_operation(identity)
         if not approved or plan['state']!='Planned' or time.time()>plan['expires']:raise ValueError('Fresh explicit approval is required for this plan')
         plan['state']='Executing';plan['results']=[];self.journal.operation(plan)
@@ -157,9 +189,16 @@ class Remediator:
         plan['kind']='RemediationReceipt';self.journal.operation(plan);return plan
 
     def reconcile(self):
+        """Review interrupted plans while holding the journal's exclusive lock."""
         with self.journal.exclusive():return self._reconcile()
 
     def _reconcile(self):
+        """Turn every plan left in the 'Executing' state into a receipt that honestly says what
+        happened.
+
+        Actions that never started are marked skipped; actions that may have been half-applied are
+        checked against the current state. Nothing is ever replayed automatically.
+        """
         results=[]
         # Finish enumeration before changing SQLite rows or protected files.
         for plan in list(self.journal.recovery_operations()):

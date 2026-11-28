@@ -10,7 +10,11 @@ from PySide6.QtWidgets import QLabel, QHBoxLayout, QPlainTextEdit, QCheckBox, QF
 
 
 class ProtectionPagesMixin:
+    """Builds the Real-Time Protection page and its Advanced settings."""
     def protection_page(self):
+        """Build the Real-Time Protection page: watched folders, source checkboxes, start/stop buttons
+        and the live event list.
+        """
         layout = self.page('Real-Time Protection', 'Monitor selected sources in this window or through the optional background engine.')
         self.protection_title = QLabel('Monitoring is off', objectName='value')
         layout.addWidget(self.protection_title)
@@ -68,6 +72,7 @@ class ProtectionPagesMixin:
         layout.addStretch()
 
     def settings_page(self):
+        """Add the Advanced settings tab with canary files and network IP indicators."""
         super().settings_page()
         tabs = self.stack.widget(5).findChild(QTabWidget)
         advanced = QWidget()
@@ -93,6 +98,8 @@ class ProtectionPagesMixin:
         tabs.addTab(advanced,'Advanced')
 
     def add_canary(self):
+        """Create a canary file in a chosen folder, track it, and add the folder to the watch list.
+        """
         if self.protection_worker:
             QMessageBox.information(self,'Monitoring active','Stop monitoring before changing canary tracking.')
             return
@@ -115,6 +122,7 @@ class ProtectionPagesMixin:
             QMessageBox.warning(self,'Canary creation failed',str(error))
 
     def remove_canary(self):
+        """Stop tracking the selected canary (the file itself is left alone)."""
         if self.protection_worker:
             QMessageBox.information(self,'Monitoring active','Stop monitoring before changing canary tracking.')
             return
@@ -126,6 +134,7 @@ class ProtectionPagesMixin:
             self.canary_list.takeItem(row)
 
     def save_settings(self):
+        """Validate the IP indicators and exclusions, then save."""
         networks = [v.strip() for v in self.network_indicators.toPlainText().splitlines() if v.strip()]
         try:
             for value in networks:
@@ -141,12 +150,14 @@ class ProtectionPagesMixin:
         super().save_settings()
 
     def open_history(self,row,column):
+        """Open the details of a double-clicked protection event (on the Protection Events tab)."""
         if self.report_mode == 2:
             self.show_event_details(self.store.events()[row])
         else:
             super().open_history(row,column)
 
     def add_watch_folder(self):
+        """Let the user pick a folder and add it to the watch list."""
         path = QFileDialog.getExistingDirectory(self, 'Watch folder')
         if path:
             paths = self.watch_folders.toPlainText().splitlines()

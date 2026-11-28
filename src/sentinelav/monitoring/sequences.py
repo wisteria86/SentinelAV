@@ -20,6 +20,9 @@ NS={'e':'http://schemas.microsoft.com/win/2004/08/events/event'}
 
 
 def parse_event(xml):
+    """Parse one Sysmon event's XML safely into {'id', 'record', 'fields'}, rejecting oversized or
+    unexpected input.
+    """
     if not isinstance(xml,str) or len(xml)>64*1024 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():
         raise ValueError('Invalid or oversized event XML')
     try: root=ET.fromstring(xml)
@@ -45,6 +48,9 @@ def parse_event(xml):
 
 
 def categories(event):
+    """Map a Sysmon event to a behaviour step such as 'encoded_interpreter', 'autorun_write' or
+    'external_connection', or None if it is not interesting.
+    """
     fields=event['fields']
     if event['id']==1:
         image=fields.get('Image','').replace('\\','/').rsplit('/',1)[-1].casefold()
@@ -69,7 +75,15 @@ def categories(event):
 
 
 class SequenceDetector:
+    """Detects one ordered chain of behaviour steps performed by the same process.
+
+    A policy file lists the steps (for example: encoded PowerShell, then an autorun registry write,
+    then an outside connection). When one process does them all, in order and within the time
+    window, an alert is raised. Processes are tracked by Sysmon's unique process GUID, never guessed
+    from timing.
+    """
     def __init__(self,emit,clock=time.monotonic,window=120,capacity=2048,policy=None):
+        """Load and validate the sequence policy (from the default file unless one is given)."""
         self.emit,self.clock,self.window,self.capacity=emit,clock,window,capacity
         self.entities=OrderedDict()
         self.last_record=0
@@ -88,6 +102,9 @@ class SequenceDetector:
         self.pattern=tuple(steps)
 
     def consume(self,event):
+        """Feed one parsed Sysmon event in, advancing that process's progress through the sequence and
+        alerting when it completes.
+        """
         if event['record']<=self.last_record: return
         self.last_record=event['record']
         now=self.clock()
@@ -130,6 +147,7 @@ class SequenceDetector:
 class BehaviorCorrelator:
     """Multiple ordered policies and attributed destructive-activity windows."""
     def __init__(self,emit,clock=time.monotonic):
+        """Load every additional sequence policy and prepare the detectors."""
         self.emit,self.clock=emit,clock
         path=RESOURCE_ROOT/'behavior/additional-sequences.json'
         if path.is_symlink() or path.stat().st_size>32768: raise ValueError('Invalid behavior policies')
@@ -142,6 +160,9 @@ class BehaviorCorrelator:
         self.parents=OrderedDict()
 
     def consume(self,event):
+        """Feed one event to every detector, remember parent links, and alert when one process creates
+        and deletes many files within 10 seconds (a possible sign of destructive activity).
+        """
         if event['record']<=self.last_record: return
         self.last_record=event['record']
         for detector in self.detectors: detector.consume(event)

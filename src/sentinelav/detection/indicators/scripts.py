@@ -105,6 +105,7 @@ _COMPILED=[(kinds,code,group,weight,category,text,[re.compile(p,re.I|re.S) for p
 
 
 def _decode(data):
+    """Turn script bytes into text, detecting UTF-16 and falling back to UTF-8."""
     raw=bytes(data[:8*1024*1024])
     if raw[:2] in (b'\xff\xfe',b'\xfe\xff'):
         try:return raw.decode('utf-16')
@@ -135,6 +136,12 @@ def variants_of(data,kind,omissions):
 
 
 def indicators(data,kind,omissions=None,text=None):
+    """Check a script against every behaviour rule in RULES.
+
+    The rules are tried on the original text and on all its decoded forms, so hiding code behind
+    encoding does not help. If a rule only matched after decoding, an extra 'content concealment'
+    indicator is added too.
+    """
     omissions=[] if omissions is None else omissions
     texts=[text] if text is not None else variants_of(data,kind,omissions)
     found={};hidden=False

@@ -25,6 +25,7 @@ def verify_windows_acl(path,service_writable=False):
     code=advapi.GetNamedSecurityInfoW(str(path),1,1|4,ctypes.byref(owner),None,ctypes.byref(dacl),None,ctypes.byref(descriptor))
     if code: raise OSError(code,'Cannot verify protected path ACL')
     def sid_text(sid):
+        """Turn a binary Windows SID into its 'S-1-...' text form."""
         text=wintypes.LPWSTR()
         if not advapi.ConvertSidToStringSidW(sid,ctypes.byref(text)): raise RuntimeError('Cannot decode ACL SID')
         try: return text.value
@@ -51,6 +52,7 @@ def verify_windows_acl(path,service_writable=False):
 
 
 def file_hash(path):
+    """Return the SHA-256 of a file, read in 1 MB chunks."""
     digest=hashlib.sha256()
     with path.open('rb') as stream:
         while chunk:=stream.read(1024*1024): digest.update(chunk)
@@ -58,6 +60,11 @@ def file_hash(path):
 
 
 def verify_installation(root,protected=False):
+    """Check every installed file against the hashes in code-integrity.json.
+
+    With protected=True the folder, manifest and every file must also have locked-down permissions.
+    Raises ValueError on the first mismatch.
+    """
     root=Path(root).resolve()
     manifest=root/'code-integrity.json'
     if protected:

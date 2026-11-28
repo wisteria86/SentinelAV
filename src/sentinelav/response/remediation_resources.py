@@ -32,6 +32,9 @@ def command_paths(command):
     return result
 
 def referenced_paths(record):
+    """Return the file paths a recorded resource points at: the file itself, a process's program, or
+    the programs named in a Run value, service or task.
+    """
     target=record['resource'];state=record.get('after') or {}
     if not state.get('exists'):return []
     if target['kind'] in ('startup_file','setting_file','file'):return [target['path']]
@@ -50,6 +53,7 @@ def referenced_paths(record):
     return []
 
 def task_disabled(state):
+    """Tell whether a scheduled task's XML definition says it is disabled."""
     xml=state.get('xml','')
     if len(xml)>131072 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():raise ValueError('Unsafe task definition')
     root=ET.fromstring(xml)
@@ -94,6 +98,9 @@ if($data.resource.kind -eq 'task'){
 '''
 
 def effect_matches(target,actual,action,desired):
+    """Check that an action really took effect: a restored resource matches its desired state, and a
+    disabled one is disabled or gone.
+    """
     if action=='restore':
         if target['kind'] in ('setting_file','startup_file'):
             return not actual.get('exists') if not desired.get('exists') else actual.get('sha256')==desired.get('sha256') and actual.get('exists')

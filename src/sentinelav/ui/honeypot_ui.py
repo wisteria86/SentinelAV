@@ -7,7 +7,11 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QMessag
 
 
 class HoneypotMixin:
+    """Settings and lifecycle for decoy files and the network honeypot."""
     def settings_page(self):
+        """Add the honeypot options, port list, remove button and status line to the Advanced settings
+        tab.
+        """
         super().settings_page()
         tabs = self.stack.widget(5).findChild(QTabWidget)
         advanced = next(tabs.widget(i) for i in range(tabs.count()) if tabs.tabText(i) == 'Advanced')
@@ -34,11 +38,13 @@ class HoneypotMixin:
         layout.insertWidget(3, self.honeypot_status)
 
     def honeypot_summary(self):
+        """Describe how many decoy files are deployed and whether the network listener is on."""
         count = len(self.store.get('honeypots', []))
         network = 'network listener opt-in, off' if not self.store.get('network_honeypot_enabled', False) else 'network listener on'
         return f'{count} decoy files deployed · {network}. Windows Firewall may ask before the listener accepts connections.'
 
     def save_settings(self):
+        """Validate the port list (1-8 ports) and save the honeypot settings."""
         if hasattr(self, 'honeypot_option'):
             try:
                 ports = [int(value) for value in self.network_honeypot_ports.text().replace(' ', '').split(',') if value]
@@ -72,11 +78,17 @@ class HoneypotMixin:
         return entries
 
     def honeypot_config(self):
+        """Return the honeypot part of the protection configuration: the decoy file entries and the
+        ports to listen on.
+        """
         entries = self.ensure_honeypots()
         ports = self.store.get('network_honeypot_ports', [23, 2323, 5900]) if self.store.get('network_honeypot_enabled', False) else []
         return dict(honeypots=entries, network_honeypot=ports)
 
     def remove_honeypots(self):
+        """Remove the decoy files (only while monitoring is stopped), keeping any that were changed for
+        the user to inspect.
+        """
         if self.protection_worker:
             QMessageBox.information(self, 'Monitoring active', 'Stop monitoring before removing decoys.')
             return

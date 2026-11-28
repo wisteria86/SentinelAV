@@ -7,6 +7,12 @@ from pathlib import Path
 
 
 def verdict(path,report,approved_hashes=()):
+    """Give a manual 'is it OK to run this file?' answer based on an earlier scan report.
+
+    The answer is Block if something was detected, Indeterminate if the scan was incomplete or the
+    file changed since, Not approved if its hash is not on the allow-list, and approved only
+    otherwise. It only advises; it never stops or starts programs itself.
+    """
     path=Path(path).resolve()
     identity=report.get('file_identity')
     if report.get('detections'): return dict(decision='Block',reason='Detection present',system_wide_enforcement=False)

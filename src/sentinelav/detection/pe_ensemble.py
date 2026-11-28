@@ -12,6 +12,9 @@ from sentinelav.detection.pe_classifier import FEATURE_REVISION,features
 
 
 def validate(model):
+    """Check that an ensemble model has all four experts (general, 32-bit, 64-bit, .NET), that each one
+    is untampered, and that the thresholds are sane.
+    """
     if model.get('schema')!=3 or model.get('algorithm')!='lightgbm-pe-ensemble-v1':raise ValueError('Invalid PE ensemble')
     if model.get('extractor_revision')!=FEATURE_REVISION:raise ValueError('Ensemble extractor mismatch')
     if type(model.get('feature_count')) is not int or model['feature_count']!=2568:raise ValueError('Unexpected EMBER v3 dimensions')
@@ -33,12 +36,17 @@ def validate(model):
 
 @lru_cache(maxsize=4)
 def booster(digest,text):
+    """Build (and cache) a LightGBM model from its text, checking the text against its hash first.
+    """
     import lightgbm
     if hashlib.sha256(text.encode()).hexdigest()!=digest:raise ValueError('Model changed')
     return lightgbm.Booster(model_str=text)
 
 
 def combine(scores):
+    """Merge several 0..1 scores by averaging them in log-odds space, so confident experts weigh more
+    than a plain average would give them.
+    """
     if not scores or any(not math.isfinite(s) or not 0<=s<=1 for s in scores):raise ValueError('Invalid expert score')
     logits=[math.log(max(1e-12,s)/max(1e-12,1-s)) for s in scores]
     z=max(-700,min(700,sum(logits)/len(logits)))
@@ -46,6 +54,9 @@ def combine(scores):
 
 
 def predict_vector(model,vector,kind):
+    """Score one feature vector with the matching specialist and the general model, and combine the two
+    opinions.
+    """
     if kind not in ('Win32','Win64','Dot_Net'):raise ValueError('Unsupported PE class')
     if len(vector)!=model['feature_count']:raise ValueError('Ensemble input dimension mismatch')
     scores={}
@@ -65,6 +76,11 @@ def predict_vector(model,vector,kind):
 
 
 def predict(model,data,confirm=None):
+    """Score a Windows program with the ensemble.
+
+    If `confirm` (a second, independently trained model) is given and the first verdict is 'review',
+    the second model must agree before the result counts as confirmed.
+    """
     import pefile
     validate(model)
     image=pefile.PE(data=bytes(data),fast_load=True)

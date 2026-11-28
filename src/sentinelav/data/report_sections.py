@@ -5,7 +5,10 @@ from html import escape
 
 
 def table(title, columns, rows):
+    """Render a titled HTML table, escaping every value. Shows 'None recorded' when there are no rows.
+    """
     def cell(tag, text):
+        """Wrap one escaped value in a <td> or <th> tag."""
         return f'<{tag}>'+escape(str(text), quote=True)+f'</{tag}>'
     rendered = ['<tr>'+''.join(cell('td', value) for value in row)+'</tr>' for row in rows]
     return ('<h2>'+escape(title)+'</h2><table><tr>'
@@ -14,6 +17,9 @@ def table(title, columns, rows):
 
 
 def evidence_sections(data):
+    """Build the detailed evidence part of the HTML report: every finding, any gaps in scan coverage,
+    and the quarantine history.
+    """
     scans = data['scans']
     detections = [(scan['started'], finding['path'], finding.get('verdict', 'Malicious'), finding.get('score', ''), finding.get('confidence', ''),
                    finding.get('threat_name', ''), '; '.join(finding['reasons']), finding['sha256'])

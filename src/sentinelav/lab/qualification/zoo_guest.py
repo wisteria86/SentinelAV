@@ -45,6 +45,7 @@ def verdict(scan):
 
 
 def fixture_suffix(name):
+    """Return a safe file extension for a member name (letters and digits only), or '.bin'."""
     suffix = Path(str(name)).suffix.lower()
     return suffix if SAFE_SUFFIX.fullmatch(suffix) else '.bin'
 
@@ -78,6 +79,11 @@ def read_member(archive, info, password):
 
 
 def scan_member(archive, info, password, root, scanner, state):
+    """Decrypt one archive member, scan it under a fixed name, and return a result row.
+
+    For the first malicious samples in a batch it also exercises the quarantine/restore/delete cycle
+    and a real-time detection check.
+    """
     if not info.flag_bits & 1:
         return dict(outcome='inspection_failure', reason='Unencrypted member rejected')
     if info.file_size > MAX_MEMBER:
@@ -118,6 +124,7 @@ def scan_member(archive, info, password, root, scanner, state):
 
 
 def inspect_archive(entry, root, scanner, state, key):
+    """Unseal one corpus archive inside the guest, verify its identity, and scan its members."""
     if entry.get('unsupported'):
         return [dict(outcome='unsupported', reason='Repository entry is outside encrypted ZIP scope')]
     if entry.get('stage_error'):
@@ -137,6 +144,9 @@ def inspect_archive(entry, root, scanner, state, key):
 
 
 def inspect_members(raw, password, root, scanner, state):
+    """Scan each member of an archive (up to MAX_MEMBERS), counting inert files rather than listing
+    them and noting any that ran out of time.
+    """
     from sentinelav.detection.archive_formats import open_zip
     rows = []
     inert = 0
@@ -167,6 +177,7 @@ def inspect_members(raw, password, root, scanner, state):
 
 
 def inspect_cached(entry, root, scanner, key, files, state):
+    """Scan the pinned member of one of the fixed quick-test fixtures from its sealed copy."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from sentinelav.lab.static_corpus import AAD, SPECS, validate_archive
     from sentinelav.workspace import unlinked
@@ -201,6 +212,9 @@ def use_snapshot():
 
 
 def execute(context, root):
+    """Run one corpus batch inside the Windows Sandbox: start ClamAV, scan every archive in the batch
+    with the shipping settings, and return per-member outcomes.
+    """
     import json
     from cryptography.exceptions import InvalidTag
     from sentinelav.detection.inspection import IsolatedScanner

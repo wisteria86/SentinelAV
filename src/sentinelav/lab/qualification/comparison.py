@@ -8,6 +8,9 @@ from pathlib import Path
 
 
 def import_soak(manifest,logs,case):
+    """Find a compatible, verified 7-day soak result from an earlier run and reuse it for this case.
+    Returns None if there is none.
+    """
     import hashlib
     for folder in sorted(Path(logs).iterdir(),reverse=True):
         if not folder.is_dir():continue
@@ -29,6 +32,9 @@ def import_soak(manifest,logs,case):
 
 
 def paired(old_misses,new_misses,total):
+    """Compare the missed samples of two runs on the same cohort: how many were recovered, how many
+    newly missed, with a bootstrap 95% interval.
+    """
     old=set(old_misses);new=set(new_misses)
     recovered=len(old-new);regressed=len(new-old)
     if not total or len(old|new)>total:raise ValueError('Invalid paired cohort')
@@ -41,6 +47,9 @@ def paired(old_misses,new_misses,total):
 
 
 def previous(store):
+    """Find the most recent earlier run with the same cases and protocol, and compare its detection
+    results with this one, pair by pair.
+    """
     current=store.manifest
     for folder in sorted(store.path.parent.iterdir(),reverse=True):
         if folder==store.path or not folder.is_dir():continue

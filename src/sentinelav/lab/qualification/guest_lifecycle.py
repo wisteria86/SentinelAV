@@ -18,6 +18,9 @@ from .guest_support import start_engine
 
 
 def deployment(root):
+    """Install, upgrade, repair and uninstall the app in the guest, checking that user data is kept and
+    Defender settings are not touched.
+    """
     installer=Path('C:/SentinelAV-Input/Installer.exe')
     if not installer.exists():raise FileNotFoundError('Frozen installer not staged')
     destination=root/'Installed';control=root/'protected-control.txt';control.write_text('preserve')
@@ -38,6 +41,9 @@ def deployment(root):
 
 
 def performance(root,context):
+    """Measure how much real-time protection slows a fixed file workload (five paired runs), plus idle
+    CPU and memory use.
+    """
     import statistics
     import psutil
     process,data,watch,app=start_engine(root,'normal',context)
@@ -84,6 +90,9 @@ def performance(root,context):
 
 
 def soak(root,case,context):
+    """Keep background protection running for the case duration, checking health, memory and telemetry
+    continuity every couple of seconds.
+    """
     from .telemetry import TelemetrySession
     from sentinelav.monitoring.background import request
     process,data,watch,app=start_engine(root,'normal',context);collector=Path(os.environ['ProgramFiles'])/'SentinelAV-Lab-Collector/SentinelAV.Telemetry.exe'

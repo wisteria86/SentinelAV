@@ -23,6 +23,8 @@ MAX_PAYLOAD=32*1024*1024
 
 
 def unique_object(pairs):
+    """JSON object hook that refuses duplicate keys (which could hide a second, conflicting value).
+    """
     value={}
     for key,item in pairs:
         if key in value: raise ValueError('Duplicate JSON field')
@@ -31,6 +33,7 @@ def unique_object(pairs):
 
 
 def read_json(path,limit=16384):
+    """Read a small JSON file, refusing linked or oversized files and duplicate keys."""
     path=Path(path)
     if path.is_symlink() or path.is_junction() or path.stat().st_size>limit:
         raise ValueError('Linked or oversized update metadata rejected')
@@ -38,6 +41,9 @@ def read_json(path,limit=16384):
 
 
 def changes_from_csv(path):
+    """Turn a MalwareBazaar CSV into a validated set of upserts. Returns (changes, SHA-256 of the
+    file).
+    """
     path=Path(path)
     if not 0<path.stat().st_size<=MAX_PAYLOAD:
         raise ValueError('Recent CSV exceeds size limit')
@@ -53,6 +59,9 @@ def changes_from_csv(path):
 
 
 def validate_changes(changes):
+    """Check that a set of changes contains only well-formed upserts and removals, with no hash
+    appearing twice.
+    """
     if not isinstance(changes,dict) or set(changes)!={'upserts','removals'}:
         raise ValueError('Expected upserts and removals')
     upserts,removals=changes['upserts'],changes['removals']
@@ -84,6 +93,12 @@ def validate_changes(changes):
 
 
 def verify_package(path,trust_path,now=None):
+    """Open and verify a signed update package (a ZIP of manifest, changes and signature).
+
+    The publisher key must already be pinned, the signature must be valid, the validity window must
+    cover now and last at most 14 days, and the changes must match their recorded hash. Returns
+    (changes, manifest).
+    """
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.exceptions import InvalidSignature
     now=now or datetime.now(timezone.utc)

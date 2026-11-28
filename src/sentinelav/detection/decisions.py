@@ -8,6 +8,13 @@ from dataclasses import asdict,dataclass,field
 
 @dataclass(frozen=True)
 class Evidence:
+    """One piece of evidence about a file.
+
+    source says where it came from (for example 'yara', 'model' or 'emulation'), category is a short
+    machine-readable code, and description is a human-readable explanation. confirmed is True for
+    definite matches such as a signature hit; unconfirmed evidence only asks for review. details
+    holds any extra data.
+    """
     source: str
     category: str
     description: str
@@ -16,6 +23,13 @@ class Evidence:
 
 
 def decide(items,omissions=(),policy=None):
+    """Combine a list of Evidence into one decision dictionary.
+
+    The verdict is 'Detected' if any confirmed evidence comes from a trusted source, 'Review' if
+    there is only unconfirmed evidence, 'Indeterminate' if nothing was found but parts of the file
+    could not be checked, and 'No match' otherwise. If a signed fusion policy is supplied, it may
+    add one more confirmed fact when several indicators agree.
+    """
     facts=[]; seen=set()
     for item in items:
         key=(item.source,item.category,item.description,item.confirmed)

@@ -76,6 +76,11 @@ def shortcut_indicators(data):
 
 
 def indicators(data,kind='pe',text=None):
+    """Check the readable strings of a compiled file against the generic behaviour rules in RULES.
+
+    Some rules need several different matches before they count (the 'minimum' column), because one
+    stray word proves little.
+    """
     text=extract(data) if text is None else text
     found=[]
     for code,group,weight,category,explanation,minimum,pattern in _COMPILED:

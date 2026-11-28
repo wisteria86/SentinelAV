@@ -28,15 +28,22 @@ MAX_BYTES=4*1024*1024
 
 
 def identity(value):
+    """Check that a value is a 32-character lower-case hex id and return it, raising ValueError
+    otherwise.
+    """
     if not isinstance(value,str) or not UUID.fullmatch(value):raise ValueError('Invalid broker identity')
     return value
 
 
 def request_folder():
+    """Return the per-user folder where the app leaves broker requests."""
     return unlinked(Path(os.environ['LOCALAPPDATA'])/'SentinelAV/broker-requests')
 
 
 def protected_root(owner):
+    """Return the admin-only folder that holds broker plans and results for one deployment owner (a
+    user SID).
+    """
     from sentinelav.platform.windows_service import service_paths
     if not re.fullmatch(r'S-1-5-21-(?:\d+-){3}\d+',owner):raise ValueError('Invalid deployment owner')
     return unlinked(service_paths()[0]/'response'/owner)
@@ -68,6 +75,7 @@ def secure_create(path,directory=False,owner=None):
 
 
 def write_protected(path,value,owner):
+    """Encrypt a value and write it to an admin-owned file, replacing it atomically."""
     path=unlinked(path);pending=path.with_name(uuid.uuid4().hex+'.pending')
     raw=canonical(value)
     if len(raw)>MAX_BYTES:raise ValueError('Protected broker record exceeds budget')
@@ -80,6 +88,7 @@ def write_protected(path,value,owner):
 
 
 def read_protected(path):
+    """Check an admin-owned file's permissions, then decrypt and return its contents."""
     path=unlinked(path);verify_windows_acl(path)
     with path.open('rb') as stream:raw=stream.read(MAX_BYTES+65537)
     if len(raw)>MAX_BYTES+65536:raise ValueError('Protected broker record too large')
@@ -87,25 +96,44 @@ def read_protected(path):
 
 
 class BrokerJournal:
-    def __init__(self,root,owner,rows=()):self.root,self.owner,self.rows=root,owner,{r['id']:r for r in rows}
-    def change(self,key):return self.rows[identity(key)]
-    def operation(self,value):write_protected(self.root/('plan-'+identity(value['id'])+'.bin'),value,self.owner)
-    def get_operation(self,key):return read_protected(self.root/('plan-'+identity(key)+'.bin'))
+    """A journal (like ChangeJournal) whose plans live in admin-owned, encrypted files, used by the
+    elevated broker.
+    """
+    def __init__(self,root,owner,rows=()):
+        """root is the protected folder, owner the deployment owner's SID, and rows the change records
+        read from the service.
+        """
+        self.root,self.owner,self.rows=root,owner,{r['id']:r for r in rows}
+    def change(self,key):
+        """Return one change record by id."""
+        return self.rows[identity(key)]
+    def operation(self,value):
+        """Save a remediation plan or receipt."""
+        write_protected(self.root/('plan-'+identity(value['id'])+'.bin'),value,self.owner)
+    def get_operation(self,key):
+        """Load a remediation plan or receipt by id."""
+        return read_protected(self.root/('plan-'+identity(key)+'.bin'))
     def operations(self):
+        """Return the 64 most recent plans and receipts."""
         paths=sorted(self.root.glob('plan-*.bin'),key=lambda p:p.stat().st_mtime,reverse=True)
         return [read_protected(p) for p in paths[:64]]
 
     def exclusive(self):
+        """Return the lock that lets only one broker run act at a time."""
         from sentinelav.response.transaction import exclusive_file
         return exclusive_file(self.root/'execution.lock',create=lambda path:secure_create(path,owner=self.owner),verify=verify_windows_acl)
 
     def recovery_operations(self):
+        """Yield every plan that was still executing when a broker run stopped."""
         for path in self.root.glob('plan-*.bin'):
             value=read_protected(path)
             if value.get('state')=='Executing':yield value
 
 
 def validate_request(request):
+    """Check a broker request is exactly a 'prepare' (with 1-16 change ids) or an 'execute' (with one
+    plan id), and nothing more.
+    """
     if not isinstance(request,dict) or request.get('schema')!=1:raise ValueError('Invalid broker request')
     if request.get('operation')=='prepare':
         if set(request)!={'schema','operation','change_ids'}:raise ValueError('Unsupported broker input')
@@ -120,6 +148,9 @@ def validate_request(request):
 
 
 def require_deployment():
+    """Make sure the broker is running as an administrator from the protected installation, as the
+    configured owner. Returns the owner's SID.
+    """
     if os.name!='nt' or not getattr(sys,'frozen',False):raise RuntimeError('Broker requires a protected packaged installation')
     if not ctypes.WinDLL('shell32').IsUserAnAdmin():raise PermissionError('UAC administrator authorization required')
     executable=unlinked(Path(sys.executable))
@@ -136,6 +167,9 @@ def require_deployment():
 
 
 def process_request(request,journal,engine,confirm=None):
+    """Handle one validated request: 'prepare' builds a plan for machine-wide autostarts; 'execute'
+    runs a plan once the administrator confirms it.
+    """
     validate_request(request)
     if request['operation']=='prepare':
         for key in request['change_ids']:
@@ -152,6 +186,9 @@ def process_request(request,journal,engine,confirm=None):
 
 
 def confirm_plan(plan):
+    """Show the administrator exactly what the plan will do in a Windows message box and return True
+    only if they choose Yes.
+    """
     if plan.get('state')!='Planned' or time.time()>plan['expires']:raise ValueError('Plan expired; prepare a fresh review')
     lines=[]
     for action in plan['actions']:
@@ -165,12 +202,21 @@ def confirm_plan(plan):
 
 
 def production_detection(finding):
+    """Tell whether a detection comes from real signatures (an exact hash or a pinned production YARA
+    rule), not from test or demo markers.
+    """
     if any(reason.startswith('SHA-256: ') and not re.search(r'\b(test|demo|eicar|harmless)\b',reason,re.I) for reason in finding.get('reasons',[])):return True
     return any(not row.get('demo',True) and isinstance(row.get('source_sha256'),str) and re.fullmatch(r'[0-9a-f]{64}',row['source_sha256'])
         for row in finding.get('yara_matches',[]))
 
 
 def run(key):
+    """Entry point of the elevated broker process (`--remediation-broker <id>`).
+
+    It reads the request the app left behind, verifies the installation, re-scans with only the
+    protected bundled signatures, handles the request, and writes the result to an admin-owned file
+    for the app to read. Returns 0 on success.
+    """
     key=identity(key);owner=require_deployment();root=protected_root(owner)
     secure_create(root.parent,directory=True,owner=owner);secure_create(root,directory=True,owner=owner)
     scanner=None
@@ -185,7 +231,9 @@ def run(key):
         # Only protected packaged signatures/rules; no user-controlled model,
         # exclusions, rules, trusted hashes, options or scan verdicts.
         scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',persistent=True)
-        def verify(path):return [row for row in scanner.scan([path],lambda:False,lambda *args:None)['detections'] if production_detection(row)]
+        def verify(path):
+            """Re-scan one file and keep only production-grade detections."""
+            return [row for row in scanner.scan([path],lambda:False,lambda *args:None)['detections'] if production_detection(row)]
         from sentinelav.monitoring.app_changes import WindowsInventory
         from sentinelav.response.remediation import Remediator,WindowsRemediationBackend
         engine=Remediator(journal,WindowsRemediationBackend(WindowsInventory(service_scope=True)),verify)
@@ -209,6 +257,7 @@ def launch(request):
     request_path=unlinked(folder/(key+'.json'))
     with request_path.open('x',encoding='utf-8') as stream:json.dump(request,stream)
     class Execute(ctypes.Structure):
+        """SHELLEXECUTEINFOW structure for ShellExecuteExW."""
         _fields_=[('size',wintypes.DWORD),('mask',wintypes.ULONG),('window',wintypes.HWND),('verb',wintypes.LPCWSTR),
             ('file',wintypes.LPCWSTR),('parameters',wintypes.LPCWSTR),('directory',wintypes.LPCWSTR),('show',ctypes.c_int),
             ('instance',wintypes.HINSTANCE),('idlist',ctypes.c_void_p),('class_name',wintypes.LPCWSTR),('class_key',wintypes.HKEY),

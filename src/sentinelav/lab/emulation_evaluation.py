@@ -8,6 +8,9 @@ STATUSES=('Not run','Not applicable','Unavailable','Partial','Complete')
 
 
 def metrics(row):
+    """Summarise the emulation part of one evaluation row: status, bounded counters, whether emulation
+    found anything, and why it stopped.
+    """
     scan=row.get('scan',{})
     coverage=scan.get('advanced_analysis',{}).get('coverage',{}).get('emulation')
     if not coverage:
@@ -24,6 +27,7 @@ def metrics(row):
         unavailable=status=='Unavailable',not_applicable=status=='Not applicable',
         analysis_missing=status=='Not run')
     def bounded(key,maximum):
+        """Read one integer counter, clamped between 0 and `maximum`."""
         value=coverage.get(key)
         return min(maximum,max(0,value)) if type(value) is int else 0
     findings=any(e.get('source')=='emulation' and e.get('confirmed')

@@ -19,6 +19,7 @@ from sentinelav.response.response import ResponseService
 
 
 def _workspace(root, label):
+    """Create a fresh, uniquely named folder with 'files' and 'state' subfolders for one check."""
     folder = root / (label + '-' + uuid.uuid4().hex[:12])
     (folder / 'files').mkdir(parents=True)
     (folder / 'state').mkdir()

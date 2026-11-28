@@ -8,19 +8,25 @@ class MonitoringHealth:
     """Loss stays visible until a new session; an empty queue cannot undo it."""
 
     def __init__(self):
+        """Start with no recorded failures or losses."""
         self.failures = {}
         self.losses = {}
 
     def unavailable(self, source, reason):
+        """Record that a telemetry source has failed, with the reason."""
         self.failures[source] = str(reason)[:500]
 
     def lost(self, source, count, *, cumulative=False):
+        """Record that a source lost `count` observations. With cumulative=True, count is a running
+        total from the source rather than a new amount.
+        """
         count = max(0, int(count))
         if count:
             previous = self.losses.get(source, 0)
             self.losses[source] = max(previous, count) if cumulative else previous + count
 
     def status(self):
+        """Summarise every failure and loss for the status display."""
         reasons = [f'{source}: {reason}' for source, reason in self.failures.items()]
         reasons += [f'{source}: {count} observations lost or unattributed' for source, count in self.losses.items()]
         return dict(telemetry_error='; '.join(reasons),

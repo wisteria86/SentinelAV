@@ -26,6 +26,9 @@ def fixed_drives():
 
 
 def quick_folders():
+    """Return the folders a Quick Scan checks: Downloads, Desktop, temporary folders, Startup folders
+    and the Public profile (only those that exist).
+    """
     home=Path.home();env=os.environ.get
     candidates=[home/'Downloads',home/'Desktop',home/'OneDrive/Desktop',Path(env('TEMP',str(home/'AppData/Local/Temp'))),
         Path(env('APPDATA',str(home/'AppData/Roaming')))/'Microsoft/Windows/Start Menu/Programs/Startup',
@@ -48,6 +51,7 @@ def default_watch_folders():
 
 
 def running_images():
+    """Return the file paths of every program that is currently running."""
     images=set()
     for process in psutil.process_iter(['exe']):
         try:
@@ -57,6 +61,7 @@ def running_images():
 
 
 def _command_targets(text):
+    """Yield every program path found inside a command line."""
     for match in EXECUTABLE_REFERENCE.finditer(str(text or '')):
         yield match[1] or match[2]
 
@@ -92,6 +97,7 @@ def quick_targets():
 
 
 def full_targets():
+    """A Full Scan covers every local fixed drive."""
     return fixed_drives()
 
 

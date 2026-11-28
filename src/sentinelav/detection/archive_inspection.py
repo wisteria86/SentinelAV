@@ -25,6 +25,9 @@ CONTAINER_KINDS={'zip','tar','gzip','bzip2','xz','7z','rar','cab'}
 
 
 def container_kind(data,name=''):
+    """Return the archive type of some content ('zip', 'msi', '7z', ...), or None if it is not an
+    archive we can open.
+    """
     head=bytes(data[:4])
     if not head:return None
     kind=classify(data,PurePosixPath(name).suffix.lower() if name else '')['kind']
@@ -36,6 +39,7 @@ def container_kind(data,name=''):
 
 
 def _is_msi(data):
+    """Tell whether OLE content is a Windows Installer package (.msi, patch or transform)."""
     try:
         import olefile
         from sentinelav.detection.archive_formats import msi_name
@@ -47,6 +51,9 @@ def _is_msi(data):
 
 
 def _unsafe(name):
+    """Tell whether an archive member name could escape a folder if it were ever extracted (absolute
+    paths, '..', drive letters and so on).
+    """
     clean=str(name).replace('\\','/')
     parts=PurePosixPath(clean)
     return parts.is_absolute() or '..' in parts.parts or ':' in clean or '\x00' in clean or len(clean)>1024
@@ -55,13 +62,20 @@ def _unsafe(name):
 def inspect_archive(data,analyze,cancelled=lambda:False,max_depth=MAX_DEPTH,max_entries=MAX_ENTRIES,max_member=MAX_MEMBER,
                     max_expanded=MAX_EXPANDED,max_ratio=MAX_RATIO,seconds=SECONDS):
     """analyze(payload,name) returns (names,matches,errors) or (names,matches,errors,assessment)."""
+    # These counters are shared by the whole walk, so the limits apply to the outer file as a whole,
+    # not to each archive separately.
     findings=[];omissions=[]
     state=dict(entries=0,expanded=0,bomb=False,encrypted_executables=[],opened_encrypted=0,containers=0)
     deadline=time.monotonic()+seconds
 
-    class Stop(Exception):pass
+    class Stop(Exception):
+        """Raised internally to stop the whole walk once a global limit is hit."""
+        pass
 
     def member(item,chain,depth):
+        """Check limits for one archive entry, read it into memory, scan it, then look inside it in
+        case it is an archive too.
+        """
         if cancelled() or time.monotonic()>deadline:
             omissions.append('Archive inspection cancelled or time limit reached');raise Stop
         state['entries']+=1
@@ -79,6 +93,7 @@ def inspect_archive(data,analyze,cancelled=lambda:False,max_depth=MAX_DEPTH,max_
         declared=item.size
         if declared>=0 and (declared>max_member or state['expanded']+declared>max_expanded):
             omissions.append('Archive expansion/ratio limit: '+label);return
+        # A tiny compressed size that claims to expand enormously is the signature of a 'zip bomb'.
         if declared>=0 and item.compressed and declared>max_ratio*max(1,item.compressed):
             state['bomb']=True
             omissions.append('Archive expansion/ratio limit: '+label);return
@@ -107,6 +122,9 @@ def inspect_archive(data,analyze,cancelled=lambda:False,max_depth=MAX_DEPTH,max_
         visit(payload,nested,depth+1)
 
     def visit(content,chain,depth):
+        """If the content is an archive, go through each of its entries (unless we are already too
+        deep).
+        """
         kind=container_kind(content,chain[-1] if chain else '')
         if not kind:return
         if depth>=max_depth:

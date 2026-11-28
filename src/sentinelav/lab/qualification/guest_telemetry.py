@@ -21,11 +21,22 @@ from .guest_support import selftest,start_engine,prepare
 
 
 def telemetry_case(root,case,context):
+    """Run a telemetry, recovery or live-sample case in the guest, with independent collectors
+    watching.
+
+    All three first prove the packaged baseline works, start the background engine and confirm it
+    actually inspects a probe file. Then 'telemetry' deliberately kills the collector to check the
+    loss is noticed; 'recovery' checks continuity after a GUI close, a worker crash, a service
+    restart and a full disk; 'live' runs a sample under observation. Returns (measurements,
+    complete).
+    """
     from .telemetry import TelemetrySession
     from sentinelav.monitoring.background import request
     collector=Path(os.environ['ProgramFiles'])/'SentinelAV-Lab-Collector/SentinelAV.Telemetry.exe'
     if not collector.exists():raise FileNotFoundError('Protected ETW collector not staged')
-    def phase(name):(root/'probe-phase.json').write_text(json.dumps(dict(stage=name)))
+    def phase(name):
+        """Record the current stage, so a failure report says where it stopped."""
+        (root/'probe-phase.json').write_text(json.dumps(dict(stage=name)))
     phase('packaged-baseline');baseline=selftest(root)
     if not baseline['selftest_passed']:raise RuntimeError('Packaged protection/response baseline failed')
     phase('background-engine')
@@ -135,6 +146,9 @@ def telemetry_case(root,case,context):
             return m,False
         from sentinelav.lab.runtime_job import run_job,AUTHORIZATION
         def runtime_health():
+            """Poll the engine for new events and report whether telemetry and protection are still
+            healthy.
+            """
             nonlocal cursor,epoch,product_gap
             batch=request(data,'poll',cursor=cursor,epoch=epoch);cursor=batch['cursor'];epoch=batch['epoch']
             events.extend(batch.get('events',[]));product_gap=product_gap or batch.get('gap',False) or bool(batch.get('dropped'))

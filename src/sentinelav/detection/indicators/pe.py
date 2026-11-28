@@ -49,6 +49,7 @@ CAPABILITIES=(
 
 
 def _names(analysis):
+    """Collect every imported function name (normal and delay-loaded) as a lower-case set."""
     names=set()
     for table in ('imports','delay_imports'):
         for library in (analysis or {}).get(table,{}).get('libraries',[]):
@@ -59,12 +60,18 @@ def _names(analysis):
 
 def _capabilities(names):
     # A runtime or framework importing hundreds of APIs satisfies many combinations by coincidence, so density discounts them.
+    """Report each dangerous capability whose complete set of required functions is imported (see
+    CAPABILITIES).
+    """
     density=1 if len(names)<150 else .5 if len(names)<400 else .25
     return [indicator(code,group,round(weight*density),text,category=category,evidence=', '.join(sorted({n for options in required for n in options if n in names}))[:160])
         for required,code,group,weight,category,text in CAPABILITIES if all(names&set(options) for options in required)]
 
 
 def _packing(metadata,analysis,names):
+    """Look for signs that a program's real code is compressed or encrypted (packed): high entropy,
+    packer section names, writable code and very few imports.
+    """
     found=[];sections=metadata['sections']
     code=[s for s in sections if s['executable']]
     hot=[s for s in code if s['statistics']['entropy_bits']>=7.2 and s['raw_bytes']>=1024]
@@ -82,6 +89,10 @@ def _packing(metadata,analysis,names):
 
 
 def _structure(data,metadata,analysis):
+    """Look for structural oddities that normal compilers do not produce: a strange entry point,
+    overlapping or oddly named sections, a large hidden payload at the end, or extra programs
+    embedded inside.
+    """
     found=[];sections=metadata['sections']
     entry=metadata.get('entrypoint_sections') or []
     if metadata.get('entrypoint_rva') and not entry:found.append(indicator('entrypoint_outside_sections','structure',20,'The entry point lies outside every declared section.',category='Trojan'))
@@ -106,6 +117,9 @@ def _structure(data,metadata,analysis):
 
 
 def _embedded_images(data,start):
+    """Count complete Windows program images (MZ...PE headers) hidden inside the file after `start`, up
+    to 8.
+    """
     view=bytes(data);count=0;position=view.find(b'MZ',start)
     while position>=0 and count<8:
         if position+0x40<=len(view):
@@ -116,6 +130,9 @@ def _embedded_images(data,start):
 
 
 def indicators(data,metadata,analysis,malformed=''):
+    """Collect every PE (Windows program) indicator: dangerous import combinations, packing and
+    structural oddities. A broken header is itself reported as an indicator.
+    """
     if malformed or not metadata or metadata.get('format')!='PE':
         return [indicator('malformed_pe','structure',25,'The Windows program header is damaged or deliberately malformed: '+(malformed or 'not parseable')[:160],category='Trojan')]
     names=_names(analysis)

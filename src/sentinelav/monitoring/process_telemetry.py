@@ -15,8 +15,16 @@ import time
 
 
 class ProcessGraph:
-    def __init__(self): self.identities=OrderedDict(); self.current={}
+    """Remembers recently seen processes so we can work out a process's parent chain safely.
+
+    Windows reuses process ids, so a parent is only accepted if it started before its child;
+    otherwise the id now belongs to a different program.
+    """
+    def __init__(self):
+        """Start with no known processes."""
+        self.identities=OrderedDict(); self.current={}
     def observe(self,info):
+        """Remember one process (keeping at most 4096)."""
         if not info.get('create_time'): return
         key=(info['pid'],info['create_time'])
         self.identities[key]=dict(pid=info['pid'],create_time=info['create_time'],ppid=info.get('ppid'),name=info.get('name') or '',exe=info.get('exe') or '')
@@ -26,6 +34,7 @@ class ProcessGraph:
             old,_=self.identities.popitem(last=False)
             if self.current.get(old[0])==old: self.current.pop(old[0],None)
     def ancestors(self,info):
+        """Return the verified parent chain of a process (up to 8 levels), nearest parent first."""
         result=[]; seen={info['pid']}; parent=info.get('ppid'); child_time=info.get('create_time',0)
         if not isinstance(child_time,(int,float)): return result
         while parent and parent not in seen and len(result)<8:
@@ -38,10 +47,13 @@ class ProcessGraph:
 
 
 class ProcessEvents:
+    """Receives process-start events from Windows (WMI) through a helper PowerShell script."""
     def __init__(self):
+        """Prepare an empty event queue; start() launches the helper."""
         self.events=queue.Queue(maxsize=256)
         self.process=None; self.ready=False; self.error=''; self.dropped=0; self.started=0
     def start(self):
+        """Launch the helper script and the threads that read its output and errors."""
         if os.name!='nt': raise RuntimeError('Windows process events require Windows')
         executable=Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'
         script=(RESOURCE_ROOT/'scripts/process_events.ps1')
@@ -51,6 +63,7 @@ class ProcessEvents:
         process=self.process
         self.started=time.monotonic()
         def read():
+            """Background thread: read and validate JSON events from the helper and queue them."""
             try:
                 while True:
                     raw=process.stdout.readline(4097)
@@ -68,6 +81,8 @@ class ProcessEvents:
                         except queue.Full: self.dropped+=1
             except Exception as error: self.error=str(error)
         def errors():
+            """Background thread: keep the first error message from the helper and drain the rest.
+            """
             raw=process.stderr.read(2048)
             if raw: self.error=raw.decode('utf-8',errors='replace').strip()
             while process.stderr.read(4096): pass
@@ -75,6 +90,9 @@ class ProcessEvents:
         self.errors=threading.Thread(target=errors,daemon=True,name='process-event-errors')
         self.reader.start(); self.errors.start()
     def poll(self):
+        """Return up to 100 queued process-start events, raising RuntimeError if the helper has died or
+        never became ready.
+        """
         if self.process is None: return []
         if self.process.poll() is not None: raise RuntimeError(self.error or 'Process event source exited')
         if not self.ready and time.monotonic()-self.started>10: raise RuntimeError('Process event subscription did not become ready')
@@ -84,6 +102,7 @@ class ProcessEvents:
             except queue.Empty: break
         return result
     def close(self):
+        """Stop the helper process and close its pipes."""
         if self.process:
             if self.process.poll() is None: self.process.kill()
             self.process.wait(timeout=5)

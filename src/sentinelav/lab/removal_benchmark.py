@@ -9,6 +9,14 @@ import statistics
 
 
 def compare(manifest,trials):
+    """Compare clean-up results of SentinelAV and Microsoft Defender on the same frozen set of test
+    cases.
+
+    Only fair, matched pairs count: same starting state and OS configuration, separate reset guests,
+    two post-reboot checks, and a working Defender baseline. Each product's clean-up is judged
+    complete only if no malicious artifact remains and no harmless one was damaged. A bootstrap
+    confidence interval decides whether SentinelAV is genuinely better.
+    """
     if manifest.get('schema')!=1 or not isinstance(manifest.get('cases'),list):raise ValueError('Frozen case manifest required')
     cases={row['id']:row for row in manifest['cases']}
     if len(cases)!=len(manifest['cases']):raise ValueError('Duplicate case identity')
@@ -31,6 +39,9 @@ def compare(manifest,trials):
         elif any(not row.get('observations_complete') for row in pair):reason='Incomplete artifact observations'
         if reason:rows.append(dict(case_id=identity,eligible=False,reason=reason));continue
         def outcome(row):
+            """Judge one product's result for this case: remaining malicious artifacts, damaged
+            harmless ones, and whether clean-up was complete.
+            """
             malicious=set(case['malicious_artifacts']);protected=set(case['benign_artifacts'])
             remaining=set(row.get('remaining_artifacts',[]))&malicious
             for check in row['reboot_checks']:remaining.update(set(check.get('remaining_artifacts',[]))&malicious)

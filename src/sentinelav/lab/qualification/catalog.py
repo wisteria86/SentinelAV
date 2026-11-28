@@ -17,8 +17,16 @@ FUNCTIONAL={
 
 
 def suite(run_id,profile,versions,inventories=None):
+    """Build the full list of evaluation cases for a run profile (regression, critical, soak, ...),
+    with their budgets.
+
+    Each case names its track, where it runs (host, Sandbox or Hyper-V), what it does, and what
+    result is expected.
+    """
     cases=[]
-    def add(id,track,backend,action,**kw):cases.append(asdict(CaseDefinition(id,track,backend,action,**kw)))
+    def add(id,track,backend,action,**kw):
+        """Append one validated case definition."""
+        cases.append(asdict(CaseDefinition(id,track,backend,action,**kw)))
     add('scorer-known-answers','harness','host','selfcheck',expected=dict(assertions_passed=True))
     for track,names in FUNCTIONAL.items():
         add('functional-'+track,track,'sandbox','functional',parameters=dict(modules=names),expected=dict(failures=0,tests_executed=True))

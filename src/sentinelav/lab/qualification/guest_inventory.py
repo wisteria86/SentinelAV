@@ -19,6 +19,13 @@ from .cleanup_fixtures import resources, inspect_resources
 
 
 def execute(context,root):
+    """Run an inventory-driven case inside the guest.
+
+    Depending on the inventory this scans an independent corpus, exercises the automatic-response
+    policy against approved positive and benign controls, runs legitimate application workflows, or
+    seeds remediation fixtures (files, Run values, tasks, services) and checks that clean-up removes
+    the malicious ones without touching the harmless controls. Returns (measurements, complete).
+    """
     from .guest_context import BASE,options
     from sentinelav.paths import RESOURCE_ROOT
     from sentinelav.data.storage import Store
@@ -139,6 +146,7 @@ def execute(context,root):
     responder=ResponseService(store,RESOURCE_ROOT)
     from sentinelav.detection.inspection import IsolatedScanner
     def verify(path):
+        """Scan one path in a fresh isolated scanner and return its detections."""
         scanner=IsolatedScanner(RESOURCE_ROOT/'signatures.json',RESOURCE_ROOT/'rules',options=options(case['mode']))
         try:return scanner.scan([Path(path)],lambda:False,lambda *a:None).get('detections',[])
         finally:scanner.close()

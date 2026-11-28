@@ -18,17 +18,30 @@ IN_PROGRESS_SUFFIXES=('.crdownload','.part','.partial','.download','.opdownload'
 
 
 def still_downloading(path):
+    """Tell whether a path is a browser's half-finished download file (it gets scanned once renamed to
+    its final name).
+    """
     return str(path).casefold().endswith(IN_PROGRESS_SUFFIXES)
 
 
 class PendingFiles:
+    """A small, thread-safe queue of files waiting to be scanned.
+
+    The same file is only queued once, and each file waits `delay` seconds after its last change
+    before it is handed out, so a file that is still being written is not scanned half-way. When
+    full, new files are counted as dropped.
+    """
     def __init__(self, capacity=1024, delay=.7):
+        """Create an empty queue holding at most `capacity` files."""
         self.capacity, self.delay = capacity, delay
         self.items = OrderedDict()
         self.lock = threading.Lock()
         self.dropped = 0
 
     def add(self, path, source='Filesystem', wait=0):
+        """Queue a file (or push back its ready time if it is already queued). `wait` adds extra delay
+        before it is ready.
+        """
         with self.lock:
             key = os.path.normcase(os.path.abspath(path))
             if key not in self.items and len(self.items) >= self.capacity:
@@ -37,6 +50,8 @@ class PendingFiles:
             self.items[key] = (time.monotonic()+wait, source)
 
     def pop(self):
+        """Return the next (path, source) that has waited long enough, or None if nothing is ready yet.
+        """
         with self.lock:
             for path, (stamp, source) in self.items.items():
                 if time.monotonic() - stamp >= self.delay:
@@ -46,26 +61,34 @@ class PendingFiles:
 
 
 class Changes(FileSystemEventHandler):
+    """Watchdog handler that turns file-system events into queued scans and activity reports."""
     def __init__(self, queue, activity=None):
+        """Queue changed files into `queue`; `activity(kind, path)` is told about every change for
+        behaviour tracking.
+        """
         self.queue = queue
         self.activity = activity or (lambda *args:None)
 
     def on_created(self, event):
+        """A new file appeared: queue it for scanning."""
         if not event.is_directory:
             if not still_downloading(event.src_path):self.queue.add(event.src_path)
             self.activity('modified',event.src_path)
 
     def on_modified(self, event):
+        """A file changed: queue it for scanning."""
         if not event.is_directory:
             if not still_downloading(event.src_path):self.queue.add(event.src_path)
             self.activity('modified',event.src_path)
 
     def on_moved(self, event):
+        """A file was renamed or moved: queue its new location for scanning."""
         if not event.is_directory:
             if not still_downloading(event.dest_path):self.queue.add(event.dest_path)
             self.activity('moved',event.dest_path)
 
     def on_deleted(self,event):
+        """A file was deleted: only report it as activity (there is nothing left to scan)."""
         if not event.is_directory:
             self.activity('deleted',event.src_path)
 
@@ -73,9 +96,15 @@ class Changes(FileSystemEventHandler):
 class SysmonReader:
     """Read an existing Sysmon channel; never install or change Windows logging."""
     def __init__(self):
+        """Start without a cursor; the first poll only records where the log currently ends."""
         self.cursor = None
 
     def poll(self):
+        """Return the Sysmon events written since the last poll (at most 100).
+
+        The very first call just records the newest record id and returns nothing, so old history is
+        not replayed as if it were new.
+        """
         if os.name != 'nt':
             raise RuntimeError('Sysmon requires Windows')
         if self.cursor is None:

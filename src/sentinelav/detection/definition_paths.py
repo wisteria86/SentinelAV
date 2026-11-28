@@ -18,11 +18,13 @@ PROGRAMS = ('clamd', 'freshclam', 'clamscan')
 
 
 def _work_root():
+    """Return the work-drive folder if it exists, otherwise None."""
     root = Path(os.environ.get('SENTINELAV_WORK_ROOT', 'F:/SentinelAV-Work'))
     return root if root.is_dir() else None
 
 
 def _candidates():
+    """Yield the folders where a ClamAV installation might be found, in order of preference."""
     if os.environ.get('SENTINELAV_CLAMAV_HOME'):
         yield Path(os.environ['SENTINELAV_CLAMAV_HOME'])
     yield PROJECT_ROOT / 'clamav'
@@ -41,6 +43,9 @@ def binaries(home=None):
 
 
 def _base():
+    """Return the folder that holds downloaded data: the work drive if present, otherwise the user's
+    local app-data folder.
+    """
     if _work_root():
         return _work_root()
     return Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'SentinelAV'
@@ -65,6 +70,7 @@ def signature_data_dir(resource_root):
 
 
 def database_dir():
+    """Return (creating it if possible) the folder that holds ClamAV's signature database."""
     path = Path(os.environ['SENTINELAV_CLAMAV_DB']) if os.environ.get('SENTINELAV_CLAMAV_DB') else _base() / 'clamav-db'
     try:
         path.mkdir(parents=True, exist_ok=True)

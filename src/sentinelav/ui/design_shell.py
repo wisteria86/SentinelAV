@@ -9,7 +9,11 @@ from .design_components import InactiveSwitch
 
 
 class DesignShellMixin:
+    """Shared page scaffolding used by every page builder."""
     def page(self, title, subtitle):
+        """Create a new scrollable page with a title and subtitle, add it to the page stack, and return
+        its layout to fill in.
+        """
         page = QWidget()
         page.setMaximumWidth(930)
         page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -36,5 +40,6 @@ class DesignShellMixin:
         return layout
 
     def toggle(self):
+        """Return a decorative on/off switch."""
         return InactiveSwitch()
 

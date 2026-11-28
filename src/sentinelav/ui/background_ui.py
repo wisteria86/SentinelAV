@@ -10,11 +10,16 @@ from sentinelav.monitoring.background import launch, request
 
 
 class BackgroundWorker(QThread):
+    """Background thread that connects the window to the separate background engine and relays its
+    events and status.
+    """
     event = Signal(dict)
     status = Signal(dict)
     failed = Signal(str)
 
     def __init__(self, data, attach_only=False):
+        """attach_only=True only connects to an engine that is already running instead of starting one.
+        """
         super().__init__()
         self.data = data
         self.attach_only = attach_only
@@ -22,12 +27,20 @@ class BackgroundWorker(QThread):
         self.stop_engine = threading.Event()
 
     def stop(self):
+        """Ask the engine to stop monitoring (the loop then shuts it down)."""
         self.stop_engine.set()
 
     def detach(self):
+        """Stop relaying without stopping the engine (protection keeps running in the background).
+        """
         self.disconnect.set()
 
     def run(self):
+        """Poll the engine for new events and status until detached or the engine stops.
+
+        After an explicit stop, the engine process is also shut down, so the next start loads fresh
+        code and detection data.
+        """
         try:
             if self.attach_only:
                 try:
@@ -81,6 +94,9 @@ class BackgroundWorker(QThread):
             self.failed.emit('Engine disconnected; protection status is unknown. ' + str(error))
 
     def connect_and_start(self):
+        """Make sure the engine is running (launching it if needed, waiting up to 10 seconds) and ask
+        it to start monitoring.
+        """
         try:
             request(self.data, 'status')
         except ConnectionError:

@@ -55,6 +55,9 @@ def signature_items(names,matches):
 
 
 def _model_items(decision):
+    """Turn the learned PE model's score into evidence: a strong indicator above the conviction
+    threshold, weaker ones for elevated or notable scores.
+    """
     items=[];coverage=decision.get('coverage',{})
     model=coverage.get('model',{})
     value=model.get('model_score')
@@ -69,6 +72,7 @@ def _model_items(decision):
 
 
 def _decision_items(decision):
+    """Convert the advanced pipeline's facts into scoring indicators."""
     items=_model_items(decision)
     for fact in decision.get('evidence',[]):
         source=fact.get('source')
@@ -97,6 +101,9 @@ def _installed_hash_support(items):
 
 
 def neural_item(data):
+    """Run the raw-byte neural network on a program. Returns (indicator or None, the model's full
+    output).
+    """
     from sentinelav.detection.neural_bytes import predict
     output=predict(data)
     if output['review']:
@@ -127,16 +134,23 @@ def parse_object(data,file_type):
 
 
 def public_fields(assessment):
+    """Pick out the assessment fields that are safe and useful to show outside the scanner."""
     return {key:assessment.get(key) for key in FIELDS}
 
 
 class FileAnalysisMixin:
+    """The part of the Scanner that turns all the gathered evidence about a file into a score and a
+    verdict.
+    """
     def add_finding(self,result,target,row):
         """Count every finding but bound what crosses the worker pipe."""
         result[target+'_total']=result.get(target+'_total',0)+1
         if len(result[target])<MAX_FINDINGS:result[target].append(row)
 
     def send_suspicious(self,result):
+        """Pass any new suspicious findings to the live callback (if one is set), so the UI can show
+        them during the scan.
+        """
         send=getattr(self,'suspicious_finding',None)
         if send:
             for row in result['suspicious'][getattr(self,'suspicious_sent',0):]:send(row)
@@ -152,6 +166,8 @@ class FileAnalysisMixin:
         if decision:items.extend(_decision_items(decision))
         items.extend(extra)
         listed=None
+        # Code-signing certificates that are known to have signed malware count heavily against a
+        # file.
         if file_type['kind']=='pe':
             from sentinelav.detection.cert_blocklist import blocklisted
             try:listed=blocklisted(data)
@@ -160,11 +176,15 @@ class FileAnalysisMixin:
                 f"Signed with a certificate abuse.ch lists as used to sign malware ({listed['subject']}; {listed['reason']}).",'cert_reputation','SignedMalware'))
         platform=file_type['platform']
         if file_type['kind']=='pe' and metadata.get('machine')=='0x8664':platform='Win64'
+        # Hash lists sometimes include harmless tools that were bundled with malware, so soften
+        # hash-only matches inside Program Files and Windows.
         if path and any(marker in str(path).replace(chr(92),'/').casefold() for marker in INSTALL_MARKERS):items=_installed_hash_support(items)
         current=score(items,platform,partial=partial)
         model_scores={}
         model=(decision or {}).get('coverage',{}).get('model',{}).get('model_score')
         if isinstance(model,(int,float)):model_scores['pe_features']=round(float(model),5)
+        # The 'gray zone' is a score that is neither clearly clean nor clearly bad; that is where an
+        # extra model opinion helps most.
         gray=GRAY_LOW<=current['score']<GRAY_HIGH
         # score_all records the raw-byte model on every program for calibration; only gray-zone results add evidence.
         if (self.options.get('neural_gray') or self.options.get('score_all')) and not self.options.get('neural') and file_type['kind']=='pe' and (gray or self.options.get('score_all')):
@@ -184,6 +204,8 @@ class FileAnalysisMixin:
             if (found:=capability_items(path,data,self.options.get('capa_memory'),omissions)):items.extend(found);current=score(items,platform,partial=partial)
         trusted=False
         # A blocklisted certificate never earns the trusted-signature discount.
+        # A valid signature from a trusted publisher lowers the score; checking it is slow, so only
+        # do it when the score is high enough to matter.
         if path and not listed and file_type['kind'] in SIGNABLE_KINDS and current['score']>=TRUST_CHECK_FROM and current['score']<100:
             from sentinelav.detection.trust import signature_status
             trusted=signature_status(path)=='trusted'

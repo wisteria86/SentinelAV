@@ -10,6 +10,12 @@ import uuid
 
 
 def test(root,context):
+    """Check that quarantine fails safely when the disk is full.
+
+    Inside the Hyper-V guest, the newly attached 64 MiB test disk is positively identified,
+    formatted and filled up. Then a harmless marker file is quarantined: the action must fail and
+    the original must be left untouched.
+    """
     from .guest import guard,ps
     if not guard(context) or context['backend']!='hyperv':raise ValueError('Dedicated guest required for volume trial')
     identifier=str(uuid.UUID(context['owned_disk_identifier'])).replace('-','').lower()

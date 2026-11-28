@@ -13,12 +13,16 @@ BASE=Path("C:/SentinelAV-Test")
 
 
 def ps(code,timeout=20):
+    """Run a PowerShell command in the guest and return its output, raising on failure."""
     p=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',code],capture_output=True,timeout=timeout,creationflags=subprocess.CREATE_NO_WINDOW)
     if p.returncode:raise RuntimeError('Guest Windows operation failed')
     return p.stdout.decode('utf-8-sig',errors='replace').strip()
 
 
 def guard(context):
+    """Tell whether we are really inside the expected offline guest (Sandbox user, or the enrolled
+    Hyper-V VM's UUID with no active network).
+    """
     from sentinelav.lab.corpus_evaluation import verified_offline_guest
     if context['backend']=='sandbox':return verified_offline_guest()
     if context['backend']!='hyperv':return False
@@ -29,4 +33,5 @@ def guard(context):
 
 
 def options(mode):
+    """Return the scan options used for evaluations in 'normal' or 'signature_free' mode."""
     return dict(signature_free=mode=='signature_free',advanced=True,model=True,neural=True,emulation=True,emulation_profile='lab',amsi=False,reputation=False)

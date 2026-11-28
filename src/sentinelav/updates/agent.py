@@ -11,7 +11,17 @@ from sentinelav.updates.artifacts import activate,download,bounded_json
 
 
 class ArtifactUpdater:
+    """Background thread that periodically downloads signed analysis updates (model, reputation feed,
+    fusion policy) from configured HTTPS URLs.
+
+    Every download is signature-checked before it can become active, and a newer revision is
+    required (so an old file cannot be replayed). Results are queued for the monitor to collect with
+    poll().
+    """
     def __init__(self,config,store,trust):
+        """Validate the update settings (enabled flag, channel URLs, interval of 15 minutes to 7 days)
+        and start the update thread.
+        """
         if not isinstance(config,dict) or config.get('enabled') is not True: raise ValueError('Update agent is not enabled')
         urls=config.get('urls',{})
         if not isinstance(urls,dict) or not urls or set(urls)-{'model','reputation','policy'}: raise ValueError('Invalid update channels')
@@ -23,10 +33,14 @@ class ArtifactUpdater:
         self.thread.start()
 
     def report(self,kind,**fields):
+        """Queue an update event for poll() (dropped if the queue is full)."""
         try: self.events.put_nowait(dict(kind=kind,**fields))
         except queue.Full: pass
 
     def run(self):
+        """Update loop: for each channel, download, verify and activate if newer; then wait for the
+        interval.
+        """
         while not self.stop.is_set():
             for kind,url in self.urls.items():
                 if self.stop.is_set(): break
@@ -62,6 +76,7 @@ class ArtifactUpdater:
             if self.stop.wait(self.interval): break
 
     def poll(self):
+        """Return up to 32 queued update events ('current', 'updated' or 'failed')."""
         values=[]
         for _ in range(32):
             try: values.append(self.events.get_nowait())
@@ -69,6 +84,7 @@ class ArtifactUpdater:
         return values
 
     def close(self):
+        """Stop the update thread and wait for it to finish its current download."""
         self.stop.set()
         self.thread.join(timeout=35)
         if self.thread.is_alive(): raise RuntimeError('Update request has not finished; shutdown is incomplete')

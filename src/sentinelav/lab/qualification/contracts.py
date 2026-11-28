@@ -17,22 +17,30 @@ TRACKS = ('harness','classification','generalization','raw_detection','preventio
 
 
 def digest(value):
+    """Return the SHA-256 of a value's canonical JSON form."""
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
 
 
 def identifier(value):
+    """Check that a value is a safe identifier (letters, digits, _ . -, up to 100 characters) and
+    return it.
+    """
     if not isinstance(value,str) or not re.fullmatch('[a-zA-Z0-9_.-]{1,100}',value):
         raise ValueError('Invalid evaluation identifier')
     return value
 
 
 def bounded(value, maximum=4*1024*1024):
+    """Refuse a value whose JSON form is larger than `maximum` bytes; otherwise return it."""
     if len(json.dumps(value,allow_nan=False).encode())>maximum:raise ValueError('Evaluation metadata budget exceeded')
     return value
 
 
 @dataclass(frozen=True)
 class CaseDefinition:
+    """One evaluation case: its id, track, backend, action, mode, time budget, parameters and expected
+    result. Validated on creation.
+    """
     id: str
     track: str
     backend: str
@@ -46,6 +54,7 @@ class CaseDefinition:
     schema: int = 1
 
     def __post_init__(self):
+        """Validate the case fields as soon as the object is created."""
         identifier(self.id)
         if self.schema!=1 or self.track not in TRACKS or self.backend not in ('host','sandbox','hyperv'):
             raise ValueError('Unsupported case contract')
@@ -57,6 +66,9 @@ class CaseDefinition:
 
 @dataclass(frozen=True)
 class SuiteManifest:
+    """The frozen list of cases for one evaluation run, with versions, budgets and inventories.
+    Validated on creation.
+    """
     run_id: str
     profile: str
     versions: dict
@@ -66,6 +78,7 @@ class SuiteManifest:
     schema: int = 1
 
     def __post_init__(self):
+        """Validate the suite and every case in it."""
         identifier(self.run_id)
         if self.schema!=1 or self.profile not in ('regression','critical','soak','zoo-static','zoo-quick','zoo-dev','zoo-holdout','bazaar-dev','bazaar-holdout'):raise ValueError('Invalid suite')
         ids=[c['id'] for c in self.cases]
@@ -77,6 +90,7 @@ class SuiteManifest:
 
 @dataclass
 class Observation:
+    """What a case actually measured, with evidence references, completeness and lost-data count."""
     case_id: str
     versions_digest: str
     measurements: dict
@@ -86,6 +100,7 @@ class Observation:
     schema: int = 1
 
     def __post_init__(self):
+        """Validate the observation fields."""
         identifier(self.case_id)
         if self.schema!=1 or not re.fullmatch('[0-9a-f]{64}',self.versions_digest):raise ValueError('Invalid observation identity')
         if type(self.complete) is not bool or type(self.losses) is not int or self.losses<0:raise ValueError('Invalid observation coverage')
@@ -95,6 +110,8 @@ class Observation:
 
 @dataclass
 class CaseResult:
+    """The final outcome of one case (passed, failed, partial, ...) with its reason and observation.
+    """
     case_id: str
     status: str
     reason: str
@@ -102,6 +119,7 @@ class CaseResult:
     schema: int = 1
 
     def __post_init__(self):
+        """Validate the result fields."""
         identifier(self.case_id)
         if self.schema!=1 or self.status not in STATES or not isinstance(self.reason,str) or len(self.reason)>8192:
             raise ValueError('Invalid case result')
@@ -109,6 +127,7 @@ class CaseResult:
 
 @dataclass
 class QualificationSummary:
+    """The overall verdict of a run: status, gate results, counts and missing required cases."""
     status: str
     gates: dict
     counts: dict
@@ -117,6 +136,9 @@ class QualificationSummary:
 
 
 def validate_samples(rows, expected_versions=None):
+    """Check per-sample measurement rows: unique identity and mode, valid labels and scores, consistent
+    versions, and clean signature-free attestations.
+    """
     seen=set()
     for row in rows:
         sha=row.get('sha256','');mode=row.get('mode')

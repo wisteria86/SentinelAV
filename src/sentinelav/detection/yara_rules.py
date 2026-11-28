@@ -19,10 +19,15 @@ MAX_TOTAL_BYTES=2*1024*1024
 
 
 class RuleValidationError(ValueError):
+    """Raised when the YARA rule folder or its catalog is invalid, tampered with, or does not compile.
+    """
     pass
 
 
 def catalog(folder):
+    """Read and validate catalog.json, which pins the expected hash and rule names of each managed rule
+    file. Returns None if there is no catalog.
+    """
     path=Path(folder)/'catalog.json'
     if not path.exists(): return None
     if path.is_symlink() or path.stat().st_size>128*1024:
@@ -48,6 +53,11 @@ def catalog(folder):
 
 
 def sources(folder):
+    """Load every YARA rule file from the folder (and its 'local' subfolder), enforcing size limits and
+    checking managed files against the catalog.
+
+    Returns (sources by namespace, metadata by namespace, the catalog).
+    """
     folder=Path(folder).absolute()
     for part in [folder,*folder.parents]:
         if part.is_symlink() or part.is_junction():
@@ -87,6 +97,12 @@ def sources(folder):
 
 
 def compile_rules(folder):
+    """Compile all rule files into one YARA ruleset and count what was loaded.
+
+    Each file is also compiled on its own, to check it is self-contained and that its rule names
+    match the catalog. Returns (compiled rules or None, a summary for the UI, per-file metadata). If
+    yara-python is not installed, rule scanning is reported as unavailable instead of failing.
+    """
     try: import yara
     except ImportError: return None,dict(available=False,status='Unavailable',warnings=['YARA unavailable: install yara-python to enable rule scanning'],public_rules=0,private_helpers=0,research_rules=0,demo_rules=0,local_rules=0,files=[]),{}
     loaded,metadata,manifest=sources(folder)
@@ -126,6 +142,9 @@ def compile_rules(folder):
 
 
 def evidence(match,metadata):
+    """Describe one YARA match as an evidence dictionary, including where the rule came from and its
+    licence.
+    """
     item=metadata.get(match.namespace,{})
     weight=match.meta.get('weight',15)
     group=match.meta.get('group','generic_yara')

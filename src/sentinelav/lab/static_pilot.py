@@ -22,6 +22,9 @@ AAD=b'SentinelAV-static-pilot-v1'
 
 
 def validate_archive(raw):
+    """Check that the pilot archive is exactly the pinned one and contains a few encrypted members
+    within the size limits.
+    """
     if len(raw)!=ARCHIVE_BYTES or hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()!=ARCHIVE_BLOB:
         raise ValueError('Pinned archive identity mismatch')
     with zipfile.ZipFile(BytesIO(raw)) as archive:
@@ -34,6 +37,9 @@ def validate_archive(raw):
 
 
 def decode_sample(raw):
+    """Decrypt every member of the pilot archive and return the one whose SHA-256 matches the published
+    sample.
+    """
     validate_archive(raw)
     found=None
     total=0
@@ -52,6 +58,9 @@ def decode_sample(raw):
 
 
 def main(key_text):
+    """Run the single-sample static pilot inside the offline guest: decrypt the sealed archive, extract
+    the pinned sample under a fixed name, scan it (never run it), and write the report.
+    """
     if not verified_offline_guest(): raise ValueError('Offline Windows test guest required')
     root=Path('C:/SentinelAV-Test')
     input_root=Path('C:/SentinelAV-Input')

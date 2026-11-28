@@ -18,6 +18,9 @@ EXPLOIT_CLSID=(b'0002ce02-0000-0000-c000-000000000046',b'00021700-0000-0000-c000
 
 
 def _macro(source,name):
+    """Check one macro's source code for risky behaviour: auto-run triggers, launching programs, self-
+    copying, disabling security prompts and obfuscation.
+    """
     text=source.decode('utf-8',errors='replace') if isinstance(source,(bytes,bytearray)) else source
     found=[]
     auto=AUTO_EXEC.search(text)
@@ -33,6 +36,9 @@ def _macro(source,name):
 
 
 def office_indicators(data,omissions=None):
+    """Find warning signs in an Office document: risky macros, legacy macro-virus commands, embedded
+    programs and OLE objects that exploits like to use.
+    """
     omissions=[] if omissions is None else omissions
     sources,errors=macro_sources(data)
     omissions.extend(errors)
@@ -60,6 +66,7 @@ RISKY_NAMES={b'/javascript',b'/js',b'/openaction',b'/aa',b'/launch',b'/embeddedf
 
 
 def _unescape(name):
+    """Turn PDF hex escapes such as #61 back into the characters they stand for."""
     return re.sub(rb'#([0-9a-fA-F]{2})',lambda m:bytes([int(m[1],16)]),name)
 
 
@@ -80,6 +87,9 @@ def pdf_structure(raw):
 
 
 def pdf_indicators(data):
+    """Find warning signs in a PDF: JavaScript (especially if it runs on open), launch actions,
+    embedded executables and disguised keywords.
+    """
     raw=bytes(data[:32*1024*1024])
     structure=pdf_structure(raw)
     # Name tokens may hide characters with hex escapes such as /J#61vaScript.
@@ -99,6 +109,9 @@ def pdf_indicators(data):
 
 
 def rtf_indicators(data):
+    """Find warning signs in an RTF document: auto-updating objects, Equation Editor exploits, embedded
+    programs and remote templates.
+    """
     raw=bytes(data[:32*1024*1024]);lowered=raw.lower();found=[]
     if b'\\objupdate' in lowered and b'\\object' in lowered:found.append(indicator('rtf_object_auto_update','exploit',24,'The RTF forces an embedded object to load without user action.',category='Exploit'))
     compact=re.sub(rb'\s',b'',lowered)

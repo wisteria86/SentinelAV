@@ -8,6 +8,12 @@ DEFAULTS=dict(archives=True,amsi=False,advanced=True,emulation=False,content=Tru
 
 
 def inspection_options(value=None):
+    """Validate the scan options and fill in defaults for anything not set.
+
+    Unknown keys or wrong value types raise ValueError. Some options switch others on (any learned
+    model or emulation needs the advanced pipeline), and signature-free mode switches off every
+    signature-based layer.
+    """
     value={} if value is None else value
     if not isinstance(value,dict) or set(value)-set(DEFAULTS)-{'analysis_store','analysis_trust','emulation_backend','emulation_profile'}: raise ValueError('Unknown inspection policy fields')
     result=dict(DEFAULTS)

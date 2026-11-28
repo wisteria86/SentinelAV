@@ -9,7 +9,11 @@ from sentinelav.response.response import ResponseService
 
 
 class ResponsePagesMixin:
+    """Builds the Quarantine page and the Trusted Files settings tab."""
     def quarantine_page(self):
+        """Build the Quarantine page with its Detected Files and Isolated Files tabs and their action
+        buttons.
+        """
         layout = self.page('Quarantine','Review flagged files and manage encrypted, isolated files.')
         self.response_status = QLabel('Select a file to act on it. Only high-confidence detections in watched folders are quarantined automatically.',objectName='small')
         self.response_status.setWordWrap(True)
@@ -57,6 +61,7 @@ class ResponsePagesMixin:
         layout.addStretch()
 
     def settings_page(self):
+        """Add the Trusted Files tab listing trusted hashes."""
         super().settings_page()
         tabs = self.stack.widget(5).findChild(QTabWidget)
         page = QWidget()
@@ -71,6 +76,9 @@ class ResponsePagesMixin:
         tabs.addTab(page,'Trusted Files')
 
     def refresh(self):
+        """Rebuild the list of detected files still needing action (not quarantined, not trusted, still
+        present) and the quarantine table.
+        """
         super().refresh()
         if not hasattr(self,'pending_table'):
             return
@@ -91,6 +99,7 @@ class ResponsePagesMixin:
         self.fill(self.quarantine_table,[(Path(r['original']).name,'; '.join(r['reasons']),r['date'],r['state']) for r in records])
 
     def selected_detection(self):
+        """Return the selected detected file, or None with a hint."""
         row = self.pending_table.currentRow()
         if row<0:
             self.response_status.setText('Select a detected file first.')
@@ -98,6 +107,8 @@ class ResponsePagesMixin:
         return self.pending_detections[row]
 
     def selected_quarantine(self):
+        """Return the selected quarantine record if it can still be acted on, or None with a hint.
+        """
         row = self.quarantine_table.currentRow()
         if row<0:
             self.response_status.setText('Select an isolated file first.')
@@ -109,8 +120,10 @@ class ResponsePagesMixin:
         return record
 
     def confirm(self,title,text):
+        """Ask a Yes/No question (No is the default) and return True for Yes."""
         return QMessageBox.question(self,title,text,QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes
 
     def audit_response(self,kind,details):
+        """Record a response action in the activity log."""
         from sentinelav.ui.application import ROOT
         ResponseService(self.store,ROOT).audit(kind,details)

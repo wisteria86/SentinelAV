@@ -1,4 +1,4 @@
-# Purpose: Enforce small first-party files and purpose/collaborator headers.
+# Purpose: Enforce small first-party files (code lines only) and purpose/collaborator headers.
 # Works with: sibling modules in tools.maintenance
 # Used by: the Python module loader or CLI entry point
 
@@ -22,12 +22,34 @@ def code_files():
         and (p.suffix in EXTENSIONS or p.name=='CMakeLists.txt')})
 
 
+def code_line_count(text,suffix):
+    """Count the lines that hold real code, so documentation never counts against the size limit.
+
+    For Python files we skip blank lines, comment-only lines and docstrings. Other languages
+    are counted as-is, because they are not parsed here.
+    """
+    lines=text.splitlines()
+    if suffix!='.py':return len(lines)
+    try:tree=ast.parse(text)
+    except SyntaxError:return len(lines)
+    skipped=set()
+    # A docstring is the first plain string in a module, class or function body.
+    for node in ast.walk(tree):
+        if isinstance(node,(ast.Module,ast.ClassDef,ast.FunctionDef,ast.AsyncFunctionDef)) and node.body:
+            first=node.body[0]
+            if isinstance(first,ast.Expr) and isinstance(first.value,ast.Constant) and isinstance(first.value.value,str):
+                skipped.update(range(first.lineno,first.end_lineno+1))
+    return sum(1 for number,line in enumerate(lines,1)
+        if number not in skipped and line.strip() and not line.strip().startswith('#'))
+
+
 def main():
     errors=[];largest=(0,None);files=code_files()
     for path in files:
         text=path.read_text(encoding='utf-8-sig');lines=text.splitlines()
-        if len(lines)>largest[0]:largest=(len(lines),path.relative_to(ROOT))
-        if len(lines)>250:errors.append(f'{path.relative_to(ROOT)}: {len(lines)} lines; limit is 250')
+        size=code_line_count(text,path.suffix)
+        if size>largest[0]:largest=(size,path.relative_to(ROOT))
+        if size>250:errors.append(f'{path.relative_to(ROOT)}: {size} code lines; limit is 250')
         header='\n'.join(lines[:12])
         for marker in ('Purpose:','Works with:'):
             if marker not in header:errors.append(f'{path.relative_to(ROOT)}: missing {marker} header')
@@ -35,7 +57,7 @@ def main():
             try:ast.parse(text,filename=str(path))
             except SyntaxError as error:errors.append(str(error))
     for error in errors:print(error)
-    print(f'{len(files)} first-party files checked; largest: {largest[0]} lines ({largest[1]})')
+    print(f'{len(files)} first-party files checked; largest: {largest[0]} code lines ({largest[1]})')
     return int(bool(errors))
 
 

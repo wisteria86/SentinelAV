@@ -11,6 +11,12 @@ from sentinelav.response.response import checked_path
 
 
 def plan_tree(pid,creation):
+    """Plan how to stop a process and all its children.
+
+    The process is identified by id and start time. Each process in the tree that belongs to the
+    current user is listed with its program's SHA-256, deepest children first. Nothing is stopped
+    here; the plan expires after two minutes.
+    """
     parent=psutil.Process(pid)
     if parent.create_time()!=creation: raise ValueError('Process identity changed')
     owner=psutil.Process().username()
@@ -36,6 +42,9 @@ def plan_tree(pid,creation):
             continue
     by_pid={item['pid']:item for item in result}
     def depth(item):
+        """Count how many listed ancestors a process has, so children can be ordered before their
+        parents.
+        """
         count=0; seen=set(); parent=item['parent']
         while parent in by_pid and parent not in seen and count<128:
             seen.add(parent); count+=1; parent=by_pid[parent]['parent']
@@ -46,6 +55,13 @@ def plan_tree(pid,creation):
 
 
 def execute_plan(service,plan,approved_hashes):
+    """Carry out a process-tree plan, stopping only processes whose program hash a person explicitly
+    approved.
+
+    The tree is checked again first: if any process has changed or been replaced, nothing happens
+    and a fresh plan is needed. Children are stopped before parents, and each stop goes through the
+    normal safety checks.
+    """
     if not isinstance(approved_hashes,list) or len(approved_hashes)>256: raise ValueError('Explicit approved hash list required')
     if not isinstance(plan.get('processes'),list) or len(plan['processes'])>128: raise ValueError('Invalid response plan')
     if any(not isinstance(sha,str) or not re.fullmatch('[0-9a-f]{64}',sha) for sha in approved_hashes): raise ValueError('Invalid approved hash')
@@ -58,6 +74,7 @@ def execute_plan(service,plan,approved_hashes):
     parents={p.pid:p.ppid() for p in observed}
     identities=set()
     def depth(item):
+        """Count how many ancestors a process has in the live tree."""
         result=0; seen=set(); parent=parents.get(item['pid'])
         while parent in parents and parent not in seen:
             seen.add(parent); result+=1; parent=parents.get(parent)

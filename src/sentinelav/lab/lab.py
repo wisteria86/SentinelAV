@@ -24,6 +24,7 @@ PROFILES={
 
 
 def capabilities():
+    """Check (read-only) whether Hyper-V tools and the VM service are available on this PC."""
     result=dict(platform=os.name,hyperv_tools=False,vm_service='Unknown',vm_configured=False,
                 mode='Local safe simulations',network_policy='No connections made by simulation profiles')
     if os.name!='nt':
@@ -51,17 +52,27 @@ def capabilities():
 
 
 class SimulationRunner:
+    """Runs the harmless lab simulation profiles in a temporary folder that is always cleaned up.
+
+    No malware is used: the profiles scan generated text files and feed synthetic events to the real
+    detection engines, to show that the rules behave as expected. Each run is limited to 15 seconds.
+    """
     def __init__(self,root,workspace,emit=lambda _:None,stop=None):
+        """root is the resources folder, workspace the folder for temporary runs, emit receives
+        activity events, and stop cancels the run.
+        """
         self.root,self.workspace=Path(root),Path(workspace).absolute()
         self.emit,self.stop=emit,stop or threading.Event()
 
     def check(self):
+        """Raise if the run was cancelled or has gone over its 15-second limit."""
         if self.stop.is_set():
             raise InterruptedError('Simulation cancelled')
         if time.monotonic()-self.started>15:
             raise TimeoutError('Simulation exceeded its 15-second limit')
 
     def activity(self,kind,details,**extra):
+        """Record and emit one activity event."""
         self.check()
         event=dict(time=time.strftime('%H:%M:%S'),kind=kind,details=details,simulation=True,**extra)
         self.events.append(event)
@@ -69,6 +80,9 @@ class SimulationRunner:
 
     def run(self,profiles):
         # Validate the complete request before creating or changing anything.
+        """Run the chosen profiles one after another in a fresh temporary folder and return the run
+        record, including whether cleanup succeeded.
+        """
         if not profiles or len(profiles)>len(PROFILES) or len(set(profiles))!=len(profiles) or any(p not in PROFILES for p in profiles):
             raise ValueError('Choose distinct allowlisted simulation profiles')
         for part in [self.workspace,*self.workspace.parents]:
@@ -107,6 +121,8 @@ class SimulationRunner:
         return run
 
     def profile(self,profile,folder):
+        """Run one profile in its folder and return whether it passed, a summary and the evidence.
+        """
         if profile in ('signature','benign'):
             count=1 if profile=='signature' else 20
             for index in range(count):
@@ -121,6 +137,7 @@ class SimulationRunner:
                         evidence=scan,telemetry='Actual scan of generated fixtures')
         evidence=[]
         def record(event):
+            """Collect an event from the behaviour engine and show it as activity."""
             evidence.append(event)
             self.activity(event['kind'],event['details'],telemetry='Synthetic rule input')
         if profile=='behavior':

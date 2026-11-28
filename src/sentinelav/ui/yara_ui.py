@@ -9,14 +9,17 @@ from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QTabWidget,
 
 
 class RuleCheckWorker(QThread):
+    """Background thread that compiles the YARA rules in an isolated worker to check they load."""
     completed=Signal(dict)
     failed=Signal(str)
 
     def __init__(self,folder):
+        """Remember the rules folder to check."""
         super().__init__()
         self.folder=folder
 
     def run(self):
+        """Load the rules and emit their summary, or the error if they fail to compile."""
         scanner=None
         try:
             from sentinelav.detection.inspection import IsolatedScanner
@@ -29,7 +32,9 @@ class RuleCheckWorker(QThread):
 
 
 class YaraMixin:
+    """Adds the YARA Rules settings tab with rule provenance and validation."""
     def settings_page(self):
+        """Add the YARA Rules tab: status line, bundle table and Validate button."""
         super().settings_page()
         tabs=self.stack.widget(5).findChild(QTabWidget)
         page=QWidget()
@@ -60,6 +65,7 @@ class YaraMixin:
         self.yara_files=[]
 
     def validate_yara_rules(self):
+        """Start a background check of the rule files."""
         if self.rules_worker or self.closing: return
         from sentinelav.ui.application import ROOT
         self.yara_health.setText('Validating source checksums and compiling rules…')
@@ -71,6 +77,7 @@ class YaraMixin:
         self.rules_worker.start()
 
     def yara_checked(self,summary):
+        """Fill the table and status line from a successful rule check."""
         self.yara_files=summary['files']
         self.fill(self.yara_table,[(f['file'],f"{f.get('public_rules',0)} / {f.get('private_helpers',0)}",
                     'SentinelAV demo' if f.get('demo') else 'ESET Research' if f.get('managed') else 'Local / unreviewed',
@@ -81,17 +88,20 @@ class YaraMixin:
             ('\n'+'; '.join(summary['warnings']) if summary['warnings'] else ' · No compilation warnings'))
 
     def yara_check_failed(self,error):
+        """Show that the rules failed to compile and why."""
         self.yara_files=[]
         self.yara_table.setRowCount(0)
         self.yara_health.setText('Rule validation failed. New scans cannot load this rule set.\n'+error[:1200])
         self.yara_health.setToolTip(error)
 
     def yara_check_finished(self):
+        """Tidy up after the rule check and re-enable the button."""
         self.rules_worker.deleteLater()
         self.rules_worker=None
         self.yara_validate_button.setEnabled(True)
 
     def yara_details(self,row,column):
+        """Show the provenance details of a double-clicked rule bundle."""
         if not 0<=row<len(self.yara_files): return
         record=self.yara_files[row]
         box=QMessageBox(self)
@@ -101,6 +111,7 @@ class YaraMixin:
         box.exec()
 
     def closeEvent(self,event):
+        """Wait for a running rule check to finish before closing."""
         if self.rules_worker:
             event.ignore()
             QTimer.singleShot(100,self.close)

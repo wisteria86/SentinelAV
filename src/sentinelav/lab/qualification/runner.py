@@ -28,7 +28,13 @@ from .evaluation_environment import source_identity, package_identity, freeze_pa
 
 
 class Runner:
+    """The one-click evaluation runner: freezes the code and package, builds the case list, runs each
+    case in its backend, and writes the reports.
+    """
     def __init__(self,project,profile='critical',cancelled=lambda:False,progress=print,resume=None,preflight_only=False,release_soak=False,host_only=False,queue_progress=lambda done,total:None):
+        """Remember the project, the profile to run, callbacks, and options (resume an earlier run,
+        preflight only, host only, 7-day soak).
+        """
         self.project=unlinked(project);self.work=unlinked(Path(os.environ.get('SENTINELAV_WORK_ROOT','F:/SentinelAV-Work')))
         self.profile=profile;self.cancelled=cancelled;self.progress=progress;self.resume=resume
         self.preflight_only=preflight_only;self.release_soak=release_soak;self.path=None
@@ -36,6 +42,9 @@ class Runner:
         self.queue_progress=queue_progress
 
     def run(self):
+        """Run the evaluation while holding the evaluation lock, recording any interruption in the run
+        folder.
+        """
         logs=unlinked(self.project/'logs');logs.mkdir(exist_ok=True)
         with exclusive(logs/'.evaluation.lock'):
             try:return self._run()
@@ -48,6 +57,13 @@ class Runner:
                 raise
 
     def _run(self):
+        """Do the actual run.
+
+        A new run checks preflight problems, builds and freezes the package, records every version
+        and inventory hash, and creates the case list. A resumed run refuses to continue if anything
+        changed. Then each pending case is executed in a fresh, owned guest (or on the host),
+        scored, and the guest is always disposed of afterwards. Returns (run folder, summary).
+        """
         folder=unlinked(self.resume) if self.resume else new_path(self.project)
         if not folder.is_relative_to(self.project/'logs'):raise ValueError('Resume must be inside project logs')
         folder.mkdir(parents=True,exist_ok=bool(self.resume));self.path=folder

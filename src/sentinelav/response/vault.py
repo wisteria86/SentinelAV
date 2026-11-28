@@ -23,11 +23,16 @@ TAG_OVERHEAD=12+16+5
 
 
 def _associated(identity,index,final):
+    """Build the extra authenticated data for one chunk: the item id, the chunk number and whether it
+    is the last chunk.
+    """
     return identity+struct.pack('<IB',index,int(final))
 
 
 def encrypt_stream(source,output,identity):
     """Encrypt source into output and return the plaintext SHA-256 and byte count."""
+    # A fresh random key per item, which is itself encrypted with DPAPI and stored at the start of
+    # the file.
     key=os.urandom(32);cipher=AESGCM(key);wrapped=dpapi(key)
     output.write(MAGIC+struct.pack('<I',len(wrapped))+wrapped)
     digest=hashlib.sha256();total=0;index=0
@@ -74,10 +79,14 @@ def read_plain(path,identity):
 
 
 def plain_digest(path,identity):
+    """Decrypt a quarantined file in memory and return the SHA-256 of its original content."""
     digest=hashlib.sha256()
     for chunk in read_plain(path,identity):digest.update(chunk)
     return digest.hexdigest()
 
 
 def maximum_blob(size):
+    """Return the largest size an encrypted quarantine file of `size` original bytes can legitimately
+    have.
+    """
     return size+(size//CHUNK+1)*TAG_OVERHEAD+1024*1024

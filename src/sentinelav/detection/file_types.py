@@ -29,6 +29,9 @@ SOURCE_SUFFIXES={'.c','.h','.cpp','.cc','.cs','.asm','.s','.java','.pas','.go','
 
 
 def _macho(data):
+    """Tell whether the bytes start like a macOS program (Mach-O, including 'fat' multi-architecture
+    files).
+    """
     return data[:4] in (b'\xfe\xed\xfa\xce',b'\xfe\xed\xfa\xcf',b'\xce\xfa\xed\xfe',b'\xcf\xfa\xed\xfe') or (
         data[:4]==b'\xca\xfe\xba\xbe' and len(data)>8 and 0<struct.unpack('>I',data[4:8])[0]<=16)
 
@@ -49,6 +52,9 @@ def _zip_kind(data):
 
 
 def _looks_textual(sample):
+    """Tell whether a sample looks like readable text (almost all printable characters and no zero
+    bytes).
+    """
     if not sample:return False
     if sample[:2] in (b'\xff\xfe',b'\xfe\xff'):return True
     return sum(byte in (9,10,13) or 32<=byte<127 or byte>=160 for byte in sample)/len(sample)>.93 and b'\0' not in sample
@@ -60,6 +66,9 @@ def _is_com(data,suffix):
 
 
 def _dos_mz(data):
+    """Tell whether an MZ file is an old DOS program rather than a modern Windows (PE) or 16-bit
+    (NE/LE) one.
+    """
     if len(data)<64:return True
     offset=struct.unpack_from('<I',data,0x3c)[0]
     return not (offset+4<=len(data) and data[offset:offset+2] in (b'PE',b'NE',b'LE',b'LX'))
@@ -109,6 +118,11 @@ def classify(data,suffix=''):
 
 
 def _text_kind(data,suffix):
+    """Work out what kind of text a file is: a script language, HTML, source code, or plain text.
+
+    The extension is trusted first, then a #! line, then HTML markers, and finally typical keywords
+    of each script language.
+    """
     head=bytes(data[:65536])
     if head[:2] in (b'\xff\xfe',b'\xfe\xff'):
         try:head=head.decode('utf-16').encode('utf-8','replace')
